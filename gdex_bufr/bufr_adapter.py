@@ -1,0 +1,692 @@
+"""Декодирование BUFR через pybufrkit и адаптация к профилю radiosonde."""
+from __future__ import annotations
+
+import json
+import logging
+import subprocess
+from collections.abc import Iterable
+from pathlib import Path
+from typing import Any
+
+from gdex_bufr.bufr_tables import BufrTablesRegistry, configure_from_app, get_registry, normalize_fxy
+from gdex_bufr.meteo_parser_bridge import (
+    RadiosondeProfile,
+    VerticalLevel,
+    assess_profile_data,
+    enrich_profile_levels,
+)
+
+logger = logging.getLogger(__name__)
+
+MISSING = 1e11
+
+DESC_LAT = "005002"
+DESC_LON = "006002"
+DESC_WMO_BLOCK = "001001"
+DESC_WMO_STATION = "001002"
+DESC_YEAR = "004001"
+DESC_MONTH = "004002"
+DESC_DAY = "004003"
+DESC_HOUR = "004004"
+DESC_MINUTE = "004005"
+DESC_PRESSURE = "007004"
+# NCEP ADPUPA (GDEX): T/Td в 012101/012103 (K) или 012225/012227; 012023/012024 в файлах не встречаются.
+DESC_TEMP = "012101"
+DESC_TEMP_ALT = "012225"
+DESC_TEMP_ALT2 = "012023"
+DESC_DEWPOINT = "012103"
+DESC_DEWPOINT_ALT = "012227"
+DESC_DEWPOINT_ALT2 = "012024"
+DESC_WDIR = "011001"
+DESC_WSPD = "011002"
+DESC_HEIGHT = "010009"
+DESC_GEOPOT = "007007"
+DESC_RH = "013003"
+DESC_VSIG = "008001"
+
+# NCEP ADPUPA: vertical significance (008001), не 008021 (time significance).
+ADPUPA_VSIG_LABELS: dict[int, str] = {
+    1: "SFC",
+    2: "WXPR",
+    3: "TROP",
+    4: "TXPR",
+    8: "MAXW",
+    16: "TROP",
+    32: "MANL",
+    64: "SFC",
+}
+
+ADPUPA_LEVEL_FIELD_IDS = frozenset({
+    8001,  # 008001
+    12101,  # 012101
+    12103,  # 012103
+    11001,  # 011001
+    11002,  # 011002
+    7007,  # 007007
+})
+
+PROFILE_CODED_DESCRIPTORS = (
+    "002001",
+    "001011",
+    "001012",
+    "008010",
+    "008021",
+    "033007",
+)
+
+FULL_DECODE_EXTRA_DESCRIPTORS = (
+    "001004",
+    "001005",
+    "001015",
+    "002011",
+    "002061",
+    "004024",
+    "004025",
+)
+
+
+def _is_missing(value: Any) -> bool:
+    if value is None:
+        return True
+    try:
+        number = float(value)
+        return abs(number - MISSING) < 1.0 or number >= 1e10
+    except (TypeError, ValueError):
+        return False
+
+
+def _flatten_values(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        out: list[Any] = []
+        for item in value:
+            out.extend(_flatten_values(item))
+        return out
+    return [value]
+
+
+def _query_values(
+    message: Any,
+    path: str,
+    *,
+    subset_index: int | None = None,
+) -> dict[int, list[Any]]:
+    from pybufrkit.dataquery import DataQuerent, NodePathParser
+
+    query_path = f"@[{subset_index}]>{path}" if subset_index is not None else path
+    result = DataQuerent(NodePathParser()).query(message, query_path)
+    raw = result.results or {}
+    parsed: dict[int, list[Any]] = {}
+    if isinstance(raw, dict):
+        for key, value in raw.items():
+            parsed[int(key)] = _flatten_values(value)
+    elif isinstance(raw, list):
+        parsed[0] = _flatten_values(raw)
+    return parsed
+
+
+def _subset_value(values_by_subset: dict[int, list[Any]], subset_index: int) -> Any | None:
+    values = values_by_subset.get(subset_index, [])
+    for value in values:
+        if not _is_missing(value):
+            return value
+    return None
+
+
+def _subset_series(values_by_subset: dict[int, list[Any]], subset_index: int) -> list[Any]:
+    return [v for v in values_by_subset.get(subset_index, []) if not _is_missing(v)]
+
+
+def _subset_series_descriptor(
+    message: Any,
+    subset_index: int,
+    *descriptors: str,
+    query_cache: dict[str, dict[int, list[Any]]] | None = None,
+) -> list[Any]:
+    """Беру первый непустой ряд по списку дескрипторов (fallback для ADPUPA)."""
+    for descriptor in descriptors:
+        if query_cache is not None:
+            series = _subset_series(query_cache.get(descriptor, {}), subset_index)
+        else:
+            series = _subset_series(_query_values(message, descriptor), subset_index)
+        if series:
+            return series
+    return []
+
+
+def _values_for_message(
+    message: Any,
+    path: str,
+    query_cache: dict[str, dict[int, list[Any]]] | None,
+) -> dict[int, list[Any]]:
+    if query_cache is not None:
+        return query_cache.get(path, {})
+    return _query_values(message, path)
+
+
+PROFILE_QUERY_DESCRIPTORS = (
+    DESC_LAT,
+    DESC_LON,
+    DESC_WMO_BLOCK,
+    DESC_WMO_STATION,
+    DESC_YEAR,
+    DESC_MONTH,
+    DESC_DAY,
+    DESC_HOUR,
+    DESC_MINUTE,
+    DESC_PRESSURE,
+    DESC_TEMP,
+    DESC_TEMP_ALT,
+    DESC_TEMP_ALT2,
+    DESC_DEWPOINT,
+    DESC_DEWPOINT_ALT,
+    DESC_DEWPOINT_ALT2,
+    DESC_WDIR,
+    DESC_WSPD,
+    DESC_HEIGHT,
+    DESC_GEOPOT,
+    DESC_RH,
+    DESC_VSIG,
+)
+
+
+def _build_query_cache(
+    message: Any,
+    *,
+    subset_index: int | None = None,
+    extra_descriptors: Iterable[str] = (),
+) -> dict[str, dict[int, list[Any]]]:
+    """Один проход по каждому дескриптору; при subset_index — только этот subset."""
+    paths = set(PROFILE_QUERY_DESCRIPTORS) | set(PROFILE_CODED_DESCRIPTORS) | set(extra_descriptors)
+    return {
+        path: _query_values(message, path, subset_index=subset_index)
+        for path in paths
+    }
+
+
+def _subset_station_id(
+    query_cache: dict[str, dict[int, list[Any]]],
+    subset_index: int,
+) -> str | None:
+    block = _subset_value(query_cache.get(DESC_WMO_BLOCK, {}), subset_index)
+    station_num = _subset_value(query_cache.get(DESC_WMO_STATION, {}), subset_index)
+    if block is not None and station_num is not None:
+        return f"{int(block):02d}{int(station_num):03d}"
+    return None
+
+
+def _normalize_pressure(value: Any, registry: BufrTablesRegistry | None = None) -> float | None:
+    if _is_missing(value):
+        return None
+    pressure = float(value)
+    if registry:
+        info = registry.lookup_descriptor(DESC_PRESSURE)
+        if info.unit.lower() == "pa" and pressure > 2000:
+            return pressure / 100.0
+    if pressure > 2000:
+        return pressure / 100.0
+    return pressure
+
+
+def _adpupa_vsig_label(code: Any) -> str | None:
+    if _is_missing(code):
+        return None
+    try:
+        return ADPUPA_VSIG_LABELS.get(int(code))
+    except (TypeError, ValueError):
+        return None
+
+
+def _decode_adpupa_flat_levels(
+    message: Any,
+    subset_index: int,
+    *,
+    registry: BufrTablesRegistry,
+) -> list[VerticalLevel]:
+    """Все уровни ADPUPA в порядке шаблона (как официальный декодер), не только первая репликация."""
+    template_data = message.template_data.value
+    template_data.wire()
+    descs = template_data.decoded_descriptors_all_subsets[subset_index]
+    vals = template_data.decoded_values_all_subsets[subset_index]
+
+    pending: dict[int, Any] = {}
+    levels: list[VerticalLevel] = []
+    seq = 0
+
+    def _backfill_last_level_temp(did: int, value: Any) -> bool:
+        if not levels or 8001 in pending:
+            return False
+        last = levels[-1]
+        if did == 12101 and last.air_temperature_c is None:
+            last.air_temperature_c = _normalize_temperature(value)
+            return True
+        if did == 12103 and last.dew_point_temperature_c is None:
+            last.dew_point_temperature_c = _normalize_temperature(value)
+            return True
+        return False
+
+    for descriptor, raw in zip(descs, vals):
+        did = descriptor.id
+        if did in ADPUPA_LEVEL_FIELD_IDS:
+            if did in (12101, 12103) and _backfill_last_level_temp(did, raw):
+                pass
+            else:
+                pending[did] = raw
+            continue
+        if did != 7004:
+            continue
+
+        pressure = _normalize_pressure(raw, registry)
+        if pressure is None or pressure < 20 or pressure > 1100:
+            pending = {}
+            continue
+
+        vsig_code = pending.get(8001)
+        vsig_label = _adpupa_vsig_label(vsig_code)
+        geopot = pending.get(7007)
+        geopot_f = None if _is_missing(geopot) else float(geopot)
+        seq += 1
+        levels.append(
+            VerticalLevel(
+                pressure_hpa=pressure,
+                geopotential_height_m=None
+                if geopot_f is None
+                else round(geopot_f / 9.80665, 1),
+                geopotential_m2s2=geopot_f,
+                air_temperature_c=_normalize_temperature(pending.get(12101)),
+                dew_point_temperature_c=_normalize_temperature(pending.get(12103)),
+                wind_direction_deg=None if _is_missing(pending.get(11001)) else float(pending[11001]),
+                wind_speed=None if _is_missing(pending.get(11002)) else float(pending[11002]),
+                replication_index=seq - 1,
+                seq=seq,
+                vertical_significance=vsig_label,
+                vertical_significance_code=None if _is_missing(vsig_code) else int(vsig_code),
+            )
+        )
+        pending = {}
+
+    return levels
+
+
+def _adpupa_sig_level_count(pressures: list[float | None]) -> int:
+    """Первая репликация ADPUPA заканчивается скачком давления вверх (новая секция шаблона)."""
+    for idx in range(1, len(pressures)):
+        prev_p = pressures[idx - 1]
+        curr_p = pressures[idx]
+        if prev_p is None or curr_p is None:
+            continue
+        if curr_p > prev_p + 10:
+            return idx
+    return len(pressures)
+
+
+def _normalize_temperature(value: Any) -> float | None:
+    if _is_missing(value):
+        return None
+    temp = float(value)
+    if temp > 150:
+        return temp - 273.15
+    return temp
+
+# Декодирую зашифрованное поле (код или флаг)
+def _decode_coded_field(
+    message: Any,
+    subset_index: int,
+    fxy: str,
+    registry: BufrTablesRegistry,
+    *,
+    query_cache: dict[str, dict[int, list[Any]]] | None = None,
+) -> dict[str, Any] | None:
+    raw = _subset_value(_values_for_message(message, fxy, query_cache), subset_index)
+    if raw is None:
+        return None
+    info = registry.lookup_descriptor(fxy)
+    entry: dict[str, Any] = {
+        "descriptor": normalize_fxy(fxy),
+        "name": info.name,
+        "name_ru": info.name_ru,
+        "value": raw,
+        "unit": info.unit,
+        "kind": info.kind,
+    }
+    if info.kind == "code":
+        entry["value_text"] = registry.decode_code_value(fxy, raw)
+    elif info.kind == "flag":
+        entry["value_text"] = registry.decode_flag_bits(fxy, raw)
+    return entry
+
+# Получаю метаданные заголовка сообщения BUFR
+def _message_header_metadata(message: Any) -> dict[str, Any]:
+    from pybufrkit.mdquery import MetadataExprParser, MetadataQuerent
+
+    mq = MetadataQuerent(MetadataExprParser())
+    keys = (
+        "%master_table_number",
+        "%master_table_version",
+        "%local_table_version",
+        "%bufr_header_edition",
+        "%data_category",
+        "%data_subcategory",
+        "%originating_centre",
+        "%n_subsets",
+    )
+    meta: dict[str, Any] = {}
+    for key in keys:
+        try:
+            meta[key.lstrip("%")] = mq.query(message, key)
+        except Exception:
+            meta[key.lstrip("%")] = None
+    return meta
+
+# Итерация по сообщениям BUFR (генерация сообщений из байтового потока)
+def _iter_messages(decoder, raw: bytes):
+    from pybufrkit import decoder as dec_mod
+
+    if hasattr(dec_mod, "generate_bufr_messages"):
+        yield from dec_mod.generate_bufr_messages(decoder, raw, continue_on_error=True)
+    else:
+        yield from dec_mod.generate_bufr_message(decoder, raw, continue_on_error=True)
+
+# Проверяю, является ли сообщение наблюдением (данные категории 2 и есть subset)
+def _is_observation_message(message: Any) -> bool:
+    from pybufrkit.mdquery import MetadataExprParser, MetadataQuerent
+
+    mq = MetadataQuerent(MetadataExprParser())
+    category = mq.query(message, "%data_category")
+    n_subsets = int(mq.query(message, "%n_subsets") or 0)
+    return category == 2 and n_subsets > 0
+
+# Создаю декодер BUFR (pybufrkit) для декодирования BUFR-файлов с использованием офицального справочника таблиц WMO
+def _make_decoder(registry: BufrTablesRegistry):
+    from pybufrkit.decoder import Decoder
+
+    tables_root = str(registry.tables_root) if registry.is_ready() else None
+    return Decoder(tables_root_dir=tables_root, fallback_or_ignore_missing_tables=True)
+
+# Декодирую BUFR-файл, получая список профилей RadiosondeProfile (RadiosondeProfile - класс для хранения профиля радиолокационного зондирования)
+def decode_bufr_file(
+    path: Path,
+    *,
+    max_profiles: int | None = None,
+    station_id: str | None = None,
+    registry: BufrTablesRegistry | None = None,
+    decode_mode: str = "adpupa",
+) -> list[RadiosondeProfile]:
+    registry = registry or get_registry()
+    decoder = _make_decoder(registry)
+    raw = path.read_bytes()
+    profiles: list[RadiosondeProfile] = []
+# Итерация по сообщениям BUFR (генерация сообщений из байтового потока)
+    for message in _iter_messages(decoder, raw):
+        if not _is_observation_message(message):
+            continue
+        from pybufrkit.mdquery import MetadataExprParser, MetadataQuerent
+
+        n_subsets = int(MetadataQuerent(MetadataExprParser()).query(message, "%n_subsets") or 0)
+        header_meta = _message_header_metadata(message)
+        extra_descriptors = FULL_DECODE_EXTRA_DESCRIPTORS if decode_mode == "full" else ()
+
+        if station_id is not None:
+            block_map = _query_values(message, DESC_WMO_BLOCK)
+            station_map = _query_values(message, DESC_WMO_STATION)
+            subset_indices = [
+                idx
+                for idx in range(n_subsets)
+                if _subset_station_id({DESC_WMO_BLOCK: block_map, DESC_WMO_STATION: station_map}, idx)
+                == station_id
+            ]
+            if not subset_indices:
+                continue
+        else:
+            subset_indices = list(range(n_subsets))
+
+        for subset_idx in subset_indices:
+            if max_profiles is not None and len(profiles) >= max_profiles:
+                return profiles
+            query_cache = _build_query_cache(
+                message,
+                subset_index=subset_idx,
+                extra_descriptors=extra_descriptors,
+            )
+            profile = _decode_subset(
+                path,
+                message,
+                subset_idx,
+                registry=registry,
+                decode_mode=decode_mode,
+                header_meta=header_meta,
+                query_cache=query_cache,
+            )
+            if station_id is not None and profile.station_id != station_id:
+                continue
+            profiles.append(profile)
+            if max_profiles is not None and len(profiles) >= max_profiles:
+                return profiles
+    return profiles
+
+# Декодирую subset (подмножество данных)
+def _decode_subset(
+    path: Path,
+    message: Any,
+    subset_index: int,
+    *,
+    registry: BufrTablesRegistry,
+    decode_mode: str,
+    header_meta: dict[str, Any],
+    query_cache: dict[str, dict[int, list[Any]]] | None = None,
+) -> RadiosondeProfile:
+    lat_map = _values_for_message(message, DESC_LAT, query_cache)
+    lon_map = _values_for_message(message, DESC_LON, query_cache)
+    block_map = _values_for_message(message, DESC_WMO_BLOCK, query_cache)
+    station_map = _values_for_message(message, DESC_WMO_STATION, query_cache)
+
+    lat = _subset_value(lat_map, subset_index)
+    lon = _subset_value(lon_map, subset_index)
+    block = _subset_value(block_map, subset_index)
+    station_num = _subset_value(station_map, subset_index)
+    station_id = None
+    if block is not None and station_num is not None:
+        station_id = f"{int(block):02d}{int(station_num):03d}"
+
+    year = _subset_value(_values_for_message(message, DESC_YEAR, query_cache), subset_index)
+    month = _subset_value(_values_for_message(message, DESC_MONTH, query_cache), subset_index)
+    day = _subset_value(_values_for_message(message, DESC_DAY, query_cache), subset_index)
+    hour = _subset_value(_values_for_message(message, DESC_HOUR, query_cache), subset_index)
+    minute = _subset_value(_values_for_message(message, DESC_MINUTE, query_cache), subset_index)
+
+    report_dt = None
+    if all(v is not None for v in (year, month, day, hour)):
+        minute_val = 0 if minute is None else int(minute)
+        report_dt = f"{int(year):04d}-{int(month):02d}-{int(day):02d}T{int(hour):02d}:{minute_val:02d}:00"
+
+    pressures = [
+        _normalize_pressure(v, registry)
+        for v in _subset_series(_values_for_message(message, DESC_PRESSURE, query_cache), subset_index)
+    ]
+    temps = [
+        _normalize_temperature(v)
+        for v in _subset_series_descriptor(
+            message, subset_index, DESC_TEMP, DESC_TEMP_ALT, DESC_TEMP_ALT2, query_cache=query_cache
+        )
+    ]
+    dewpoints = [
+        _normalize_temperature(v)
+        for v in _subset_series_descriptor(
+            message,
+            subset_index,
+            DESC_DEWPOINT,
+            DESC_DEWPOINT_ALT,
+            DESC_DEWPOINT_ALT2,
+            query_cache=query_cache,
+        )
+    ]
+    wind_dirs = [float(v) for v in _subset_series(_values_for_message(message, DESC_WDIR, query_cache), subset_index)]
+    wind_speeds = [float(v) for v in _subset_series(_values_for_message(message, DESC_WSPD, query_cache), subset_index)]
+    heights = [float(v) for v in _subset_series(_values_for_message(message, DESC_HEIGHT, query_cache), subset_index)]
+    rh_series = [float(v) for v in _subset_series(_values_for_message(message, DESC_RH, query_cache), subset_index)]
+
+    if decode_mode == "adpupa":
+        levels = _decode_adpupa_flat_levels(message, subset_index, registry=registry)
+    else:
+        lengths = [len(pressures), len(temps), len(dewpoints), len(wind_dirs), len(wind_speeds), len(heights), len(rh_series)]
+        max_len = max(lengths) if lengths else 0
+        levels = []
+        for idx in range(max_len):
+            pressure = pressures[idx] if idx < len(pressures) else None
+            temp = temps[idx] if idx < len(temps) else None
+            dewpoint = dewpoints[idx] if idx < len(dewpoints) else None
+            wind_dir = wind_dirs[idx] if idx < len(wind_dirs) else None
+            wind_speed = wind_speeds[idx] if idx < len(wind_speeds) else None
+            if pressure is None and temp is None and dewpoint is None and wind_speed is None:
+                continue
+            levels.append(
+                VerticalLevel(
+                    pressure_hpa=pressure,
+                    geopotential_height_m=heights[idx] if idx < len(heights) else None,
+                    air_temperature_c=temp,
+                    dew_point_temperature_c=dewpoint,
+                    wind_direction_deg=wind_dir,
+                    wind_speed=wind_speed,
+                    relative_humidity_percent=rh_series[idx] if idx < len(rh_series) else None,
+                    replication_index=idx,
+                )
+            )
+        levels = [lv for lv in levels if lv.pressure_hpa is not None]
+        levels.sort(key=lambda lv: -(lv.pressure_hpa or 0.0))
+
+    enrichment_meta: dict[str, Any] = {}
+    if decode_mode == "adpupa":
+        enriched = enrich_profile_levels(
+            RadiosondeProfile(
+                source_file=str(path),
+                subset_index=subset_index,
+                levels=levels,
+            )
+        )
+        levels = enriched.levels
+        enrichment_meta = dict(enriched.metadata.get("enrichment", {}))
+
+    coded_metadata: dict[str, Any] = {}
+    for fxy in PROFILE_CODED_DESCRIPTORS:
+        decoded = _decode_coded_field(message, subset_index, fxy, registry, query_cache=query_cache)
+        if decoded:
+            coded_metadata[normalize_fxy(fxy)] = decoded
+
+    all_fields: list[dict[str, Any]] = []
+    if decode_mode == "full":
+        for fxy in FULL_DECODE_EXTRA_DESCRIPTORS:
+            decoded = _decode_coded_field(message, subset_index, fxy, registry, query_cache=query_cache)
+            if decoded:
+                coded_metadata[normalize_fxy(fxy)] = decoded
+        for fxy in sorted(set(PROFILE_CODED_DESCRIPTORS + FULL_DECODE_EXTRA_DESCRIPTORS)):
+            raw = _subset_value(_values_for_message(message, fxy, query_cache), subset_index)
+            if raw is None:
+                continue
+            info = registry.lookup_descriptor(fxy)
+            all_fields.append({
+                "descriptor": normalize_fxy(fxy),
+                "name": info.name,
+                "name_ru": info.name_ru,
+                "value": raw,
+                "value_text": coded_metadata.get(normalize_fxy(fxy), {}).get("value_text"),
+                "unit": info.unit,
+                "kind": info.kind,
+            })
+
+    metadata: dict[str, Any] = {
+        "decoder": "pybufrkit",
+        "template": "ncep_adpupa",
+        "decode_mode": decode_mode,
+        "table_edition": header_meta.get("master_table_version"),
+        "bufr_header": header_meta,
+    }
+    if coded_metadata:
+        metadata["coded_metadata"] = coded_metadata
+    if enrichment_meta:
+        metadata["enrichment"] = enrichment_meta
+    if all_fields:
+        metadata["all_fields"] = all_fields
+
+    data_status, data_status_reason = assess_profile_data(
+        RadiosondeProfile(
+            source_file=str(path),
+            subset_index=subset_index,
+            station_id=station_id,
+            levels=levels,
+        )
+    )
+    metadata["data_status"] = data_status
+    metadata["data_status_reason"] = data_status_reason
+    metadata["n_pressure_raw"] = len(pressures)
+    metadata["n_temp_raw"] = len(temps)
+    metadata["n_wind_raw"] = len(wind_speeds)
+    if decode_mode == "adpupa":
+        metadata["n_adpupa_rows"] = len(levels)
+        vsig_counts: dict[str, int] = {}
+        for lv in levels:
+            label = lv.vertical_significance or "?"
+            vsig_counts[label] = vsig_counts.get(label, 0) + 1
+        metadata["adpupa_vsig_counts"] = vsig_counts
+
+    return RadiosondeProfile(
+        source_file=str(path),
+        subset_index=subset_index,
+        station_id=station_id,
+        latitude_deg=None if lat is None else float(lat),
+        longitude_deg=None if lon is None else float(lon),
+        report_datetime_utc=report_dt,
+        levels=levels,
+        metadata=metadata,
+    )
+
+
+def init_decoder_tables(bufr_tables_config: dict[str, Any] | None) -> BufrTablesRegistry:
+    """Инициализирую глобальный справочник из YAML-конфига."""
+    return configure_from_app(bufr_tables_config)
+
+
+def export_decoded_fields_csv(profile: RadiosondeProfile, output_path: Path) -> Path | None:
+    fields = profile.metadata.get("all_fields")
+    if not fields:
+        return None
+    import csv
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=["descriptor", "name", "name_ru", "value", "value_text", "unit", "kind"],
+        )
+        writer.writeheader()
+        for row in fields:
+            writer.writerow(row)
+    return output_path
+
+
+def pybufrkit_decode_json(path: Path) -> list[dict[str, Any]]:
+    import sys
+
+    proc = subprocess.run(
+        [sys.executable, "-m", "pybufrkit", "decode", "-j", str(path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr.strip() or proc.stdout.strip() or "pybufrkit decode failed")
+
+    payloads: list[dict[str, Any]] = []
+    for line in (proc.stdout or "").splitlines():
+        line = line.strip()
+        if not line.startswith("["):
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, list):
+            payloads.append({"sections": payload})
+    if payloads:
+        return payloads
+    raise RuntimeError("No JSON payloads found in pybufrkit stdout")

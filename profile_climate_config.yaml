@@ -1,0 +1,18 @@
+profile_climate:
+  stations:
+    - id: "31004"
+      slug: "aldan"
+      name: "Aldan"
+    - id: "24959"
+      slug: "yakutsk"
+      name: "Yakutsk"
+  start_date: "1999-01-01"
+  end_date: "2026-12-31"
+  pressure_top_hpa: 500
+  variable: temperature
+  min_levels_to_500: 5
+  min_inversion_delta_c: 0.2
+  min_profiles_per_month: 5
+  cycles:
+    - "00"
+    - "12"

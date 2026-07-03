@@ -1,0 +1,199 @@
+dataset_id: d351000
+base_url: https://data.rda.ucar.edu/d351000/bufr
+
+# Типы synoptic BUFR (NCAR ds351.0)
+obs_types:
+  - adpupa
+
+synoptic_hours:
+  - "00"
+  - "06"
+  - "12"
+  - "18"
+
+start_date: "1999-01-01"
+end_date: "2026-12-31"
+
+data_dir: ./gdex_data/raw
+state_db: ./gdex_data/download_state.sqlite
+manifest_path: ./gdex_data/manifest.jsonl
+
+# Параллельная загрузка (OSDF обычно выдерживает несколько потоков)
+max_concurrency: 4
+requests_per_minute: 0
+min_delay_seconds: 0
+delay_jitter_seconds: 0
+daily_byte_budget_gb: 0
+max_retries: 5
+failed_retry_cooldown_seconds: 3600
+backoff_base_seconds: 5.0
+backoff_max_seconds: 120.0
+cooldown_on_429_seconds: 30.0
+download_timeout_seconds: 180
+progress_every_n: 100
+daemon_idle_seconds: 15
+daemon_error_sleep_seconds: 30
+budget_reset_sleep_seconds: 3600
+user_agent: "gdex-bufr-downloader/1.0 (research; contact=local)"
+
+# Проверка TLS при загрузке с data.rda.ucar.edu (сертификат UCAR может быть просрочен)
+ssl_verify: false
+# ssl_cert_bundle: null  # путь к CA-bundle; по умолчанию certifi
+
+# Путь к существующему meteo_parser (для общих соглашений по полям)
+meteo_parser_path: "."
+
+outputs_dir: ./gdex_outputs
+
+decode_mode: adpupa
+
+bufr_tables:
+  directory: ./gdex_data/bufr_tables
+  wmo_version: latest
+  master_table_version: 43
+  export_dir: ./gdex_data/bufr_tables_export
+  export_on_update: true
+
+# --- Декодирование и метеодиаграммы ---
+plots:
+  plot_types:
+    - skewt
+    - profile
+    - wind
+    - hodograph
+    - rh
+    - thermo
+    - height
+    - theta_e
+    - ttd
+    - wind_shear
+    - composite
+    - map
+
+  theme:
+    figure_facecolor: "#ffffff"
+    axes_facecolor: "#f4f7fb"
+    grid_color: "#b8c5d6"
+    text_color: "#1a2332"
+    colors:
+      # Яркие, светлые, насыщенные тона
+      temperature: "#FF4757"
+      dewpoint: "#00CEC9"
+      wind_speed: "#00B894"
+      wind_direction: "#A29BFE"
+      hodograph: "#6C5CE7"
+      rh: "#00D2FF"
+      map_stations: "#FF7675"
+      barbs: "#2D3436"
+      thermo_box: "#FFF3BF"
+      height: "#E056FD"
+      theta_e: "#FFA502"
+      ttd: "#1E90FF"
+      wind_shear: "#26DE81"
+      axis_reference: "#636E72"
+
+  dpi: 270
+  export_format: png
+  max_profiles_per_file: null
+  min_levels: 5
+  output_subdir_by_date: true
+  output_subdir_by_cycle: false
+  skip_existing: true
+  workers: 4
+  export_xlsx: true
+  title_datetime_format: "%Y-%m-%d %HZ"
+  pressure_tick_step_hpa: 50
+
+  skewt:
+    figsize: [10, 10]
+    rotation: 45
+    pressure_min_hpa: 100
+    pressure_max_hpa: 1000
+    temp_min_c: -50
+    temp_max_c: 30
+    show_barbs: true
+    barb_skip: 2
+    show_dry_adiabats: true
+    show_moist_adiabats: true
+    show_mixing_lines: true
+    linewidth: 2.5
+    marker: o
+    markersize: 6
+    title_template: "Skew-T {station_id} {datetime}"
+
+  profile:
+    figsize: [7, 9]
+    marker: o
+    markersize: 5
+    linewidth: 2.2
+    show_grid: true
+    grid_alpha: 0.45
+    pressure_tick_step_hpa: 50
+
+  wind:
+    figsize: [10, 8]
+    marker: o
+    markersize: 5
+    linewidth: 2.2
+    show_grid: true
+    grid_alpha: 0.45
+
+  hodograph:
+    figsize: [7, 7]
+    markersize: 4.5
+    linewidth: 2.2
+    grid_alpha: 0.45
+
+  rh:
+    figsize: [6, 9]
+    marker: o
+    markersize: 5
+    linewidth: 2.2
+    rh_min: 0
+    rh_max: 100
+    grid_alpha: 0.45
+
+  height:
+    marker: o
+    markersize: 5
+    linewidth: 2.2
+    grid_alpha: 0.45
+
+  theta_e:
+    marker: o
+    markersize: 5
+    linewidth: 2.2
+    grid_alpha: 0.45
+
+  ttd:
+    marker: o
+    markersize: 5
+    linewidth: 2.2
+    grid_alpha: 0.45
+
+  wind_shear:
+    marker: o
+    markersize: 5
+    linewidth: 2.2
+    layer_hpa: 50
+    grid_alpha: 0.45
+
+  thermo:
+    figsize: [8, 6]
+    show_cape_cin: true
+    show_lcl: true
+    show_lfc_el: true
+    font_size: 12
+
+  composite:
+    figsize: [16, 12]
+    include_skewt: true
+    include_profile: true
+    include_wind: true
+    include_hodograph: true
+    include_rh: true
+
+  map:
+    figsize: [12, 6]
+    marker_size: 36
+    marker_alpha: 0.85

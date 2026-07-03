@@ -1,0 +1,33 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE / OS
+.cursor/
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Локальные секреты
+.env
+*.pem
+
+# Данные и артефакты пайплайна
+gdex_data/
+gdex_outputs/
+*.bufr
+*.sqlite
+*.log
+discover_out.json
+discover_err.txt
