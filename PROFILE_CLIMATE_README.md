@@ -154,3 +154,9 @@ gdex_outputs/monthly_temperature_profiles/aldan/1999/aldan_1999_01_temperature_p
 ```bash
 pytest -c gdex_pytest.ini tests/test_profile_climate_*.py
 ```
+
+Быстрый smoke-тест без реальных BUFR (синтетические профили Алдана, январь 1999):
+
+```bash
+python scripts/run_smoke_test.py
+```

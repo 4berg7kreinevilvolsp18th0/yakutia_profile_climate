@@ -57,8 +57,32 @@ def _load_csv_rows(path: Path) -> list[dict]:
 
     if not path.exists():
         return []
+    rows: list[dict] = []
+    float_fields = {
+        "pressure_hpa", "temperature_c", "height_m",
+        "n_levels_total", "n_levels_to_500", "p_surface_hpa", "t_surface_c",
+        "p_top_hpa", "t_top_c", "delta_t_top_surface_c",
+        "inversion_top_pressure_hpa", "inversion_top_height_m",
+        "inversion_top_temp_c", "inversion_delta_t_c",
+    }
+    int_fields = {"year", "month", "level_index"}
+    bool_fields = {"inversion_detected"}
+
     with path.open(encoding="utf-8", newline="") as handle:
-        return list(csv.DictReader(handle))
+        for row in csv.DictReader(handle):
+            parsed = dict(row)
+            for key in float_fields:
+                if parsed.get(key) not in (None, ""):
+                    parsed[key] = float(parsed[key])
+            for key in int_fields:
+                if parsed.get(key) not in (None, ""):
+                    parsed[key] = int(parsed[key])
+            for key in bool_fields:
+                value = parsed.get(key)
+                if isinstance(value, str):
+                    parsed[key] = value.lower() in {"true", "1", "yes"}
+            rows.append(parsed)
+    return rows
 
 
 def _filter_by_cycles(rows: list[dict], cycles: list[str]) -> list[dict]:
