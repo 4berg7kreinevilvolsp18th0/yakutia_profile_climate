@@ -29,6 +29,9 @@ class ProfileClimateConfig:
     min_levels_to_500: int = 5
     min_inversion_delta_c: float = 0.2
     min_profiles_per_month: int = 5
+    max_surface_pressure_hpa: float = 1000.0
+    plot_only_good: bool = False
+    plot_min_levels: int = 3
     cycles: list[str] = field(default_factory=lambda: ["00", "12"])
 
     def station_by_id(self, station_id: str) -> StationConfig | None:
@@ -72,5 +75,8 @@ def load_profile_climate_config(path: str | Path = "profile_climate_config.yaml"
         min_levels_to_500=int(section.get("min_levels_to_500", 5)),
         min_inversion_delta_c=float(section.get("min_inversion_delta_c", 0.2)),
         min_profiles_per_month=int(section.get("min_profiles_per_month", 5)),
+        max_surface_pressure_hpa=float(section.get("max_surface_pressure_hpa", 1000)),
+        plot_only_good=bool(section.get("plot_only_good", False)),
+        plot_min_levels=int(section.get("plot_min_levels", 3)),
         cycles=[str(c).zfill(2)[-2:] for c in section.get("cycles", ["00", "12"])],
     )

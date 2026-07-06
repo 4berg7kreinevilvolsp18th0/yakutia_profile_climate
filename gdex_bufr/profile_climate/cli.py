@@ -189,6 +189,9 @@ def cmd_monthly_profile_plots(
         start_month=start.month,
         end_month=end.month,
         pressure_top_hpa=pressure_top,
+        max_surface_pressure_hpa=pc_cfg.max_surface_pressure_hpa,
+        plot_only_good=pc_cfg.plot_only_good,
+        plot_min_levels=pc_cfg.plot_min_levels,
         min_profiles_per_month=pc_cfg.min_profiles_per_month,
     )
     print(json.dumps({

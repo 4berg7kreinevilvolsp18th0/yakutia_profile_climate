@@ -120,13 +120,24 @@ python -m gdex_bufr station-profiles \
 ```bash
 python -m gdex_bufr monthly-profile-plots \
   --station aldan \
-  --start-date 1999-01-01 \
-  --end-date 2026-12-31 \
-  --pressure-top 500 \
-  --input gdex_outputs/profile_climate/profiles_long.csv \
-  --metrics gdex_outputs/profile_climate/profile_metrics.csv \
+  --start-date 1999-10-01 \
+  --end-date 1999-10-31 \
+  --input gdex_outputs/profile_climate/aldan/profiles_long.csv \
+  --metrics gdex_outputs/profile_climate/aldan/profile_metrics.csv \
   --output gdex_outputs/monthly_temperature_profiles
 ```
+
+На графике:
+- ось Y — **высота, м** (не давление);
+- каждый профиль — **свой цвет** и подпись в легенде (дата + срок);
+- уровни с **P > 1000 гПа** отбрасываются;
+- бракованные профили не рисуются (`duplicate_levels`, `no_temp`, `bad_pressure`, …);
+- скачки температуры на малой высоте фильтруются.
+
+Настройки в [`profile_climate_config.yaml`](profile_climate_config.yaml):
+- `max_surface_pressure_hpa: 1000` — верхняя граница давления у поверхности;
+- `plot_only_good: false` — если `true`, только статус `good`;
+- `plot_min_levels: 3` — минимум уровней на профиль.
 
 Пример пути PNG:
 

@@ -13,6 +13,9 @@ profile_climate:
   min_levels_to_500: 5
   min_inversion_delta_c: 0.2
   min_profiles_per_month: 5
+  max_surface_pressure_hpa: 1000
+  plot_only_good: false
+  plot_min_levels: 3
   cycles:
     - "00"
     - "12"

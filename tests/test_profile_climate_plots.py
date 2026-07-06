@@ -2,6 +2,12 @@
 from pathlib import Path
 
 from gdex_bufr.profile_climate.plots import render_monthly_temperature_profiles
+from gdex_bufr.profile_climate.plot_filter import filter_plot_levels, is_profile_plot_eligible
+
+
+def _height_for_pressure(pressure_hpa: float) -> float:
+    # грубая шкала для тестов
+    return (1000.0 - pressure_hpa) * 8.0
 
 
 def _sample_rows():
@@ -29,7 +35,7 @@ def _sample_rows():
                 "level_index": index,
                 "pressure_hpa": pressure,
                 "temperature_c": temp,
-                "height_m": None,
+                "height_m": _height_for_pressure(pressure),
                 "source_file": "test.bufr",
                 "qc_flag": "",
             })
@@ -45,6 +51,17 @@ def _sample_rows():
             "inversion_detected": day % 2 == 0,
         })
     return long_rows, metrics_rows
+
+
+def test_filter_rejects_pressure_above_1000():
+    rows = [
+        {"pressure_hpa": 1010.0, "temperature_c": -5.0, "height_m": -80.0},
+        {"pressure_hpa": 950.0, "temperature_c": -6.0, "height_m": 400.0},
+        {"pressure_hpa": 850.0, "temperature_c": -8.0, "height_m": 1200.0},
+    ]
+    filtered = filter_plot_levels(rows, pressure_top_hpa=500.0, max_surface_pressure_hpa=1000.0)
+    assert len(filtered) == 2
+    assert all(float(r["pressure_hpa"]) <= 1000.0 for r in filtered)
 
 
 def test_render_monthly_png(tmp_path: Path):
@@ -63,6 +80,39 @@ def test_render_monthly_png(tmp_path: Path):
     assert result is not None
     assert output_path.exists()
     assert output_path.stat().st_size > 0
+
+
+def test_bad_profile_excluded(tmp_path: Path):
+    long_rows, metrics_rows = _sample_rows()
+    bad_id = "31004_19990199_12"
+    long_rows.append({
+        "station_id": "31004",
+        "station_name": "Aldan",
+        "datetime_utc": "1999-01-99T12:00:00Z",
+        "year": 1999,
+        "month": 1,
+        "cycle": "12",
+        "profile_id": bad_id,
+        "level_index": 0,
+        "pressure_hpa": 1015.0,
+        "temperature_c": -50.0,
+        "height_m": -100.0,
+        "source_file": "test.bufr",
+        "qc_flag": "",
+    })
+    metrics_rows.append({
+        "profile_id": bad_id,
+        "profile_status": "bad_pressure",
+        "datetime_utc": "1999-01-99T12:00:00Z",
+        "year": 1999,
+        "month": 1,
+        "cycle": "12",
+        "inversion_detected": False,
+    })
+    assert not is_profile_plot_eligible(
+        metrics_rows[-1],
+        filter_plot_levels([long_rows[-1]]),
+    )
 
 
 def test_empty_month_does_not_crash(tmp_path: Path):

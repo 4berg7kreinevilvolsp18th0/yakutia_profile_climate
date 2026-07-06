@@ -59,7 +59,10 @@ def extract_temperature_levels(
             by_pressure[key] = level
     thermo = sorted(by_pressure.values(), key=lambda lv: lv.pressure_hpa, reverse=True)
 
-    trimmed = [lv for lv in thermo if lv.pressure_hpa >= pressure_top_hpa]
+    trimmed = [
+        lv for lv in thermo
+        if pressure_top_hpa <= lv.pressure_hpa <= 1000.0
+    ]
     if not trimmed:
         return []
 
