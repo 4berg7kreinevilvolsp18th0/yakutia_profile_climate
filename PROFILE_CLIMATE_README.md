@@ -35,10 +35,39 @@ python -m gdex_bufr tables-update
 
 ## 2. Загрузка данных
 
-Создать manifest и скачать BUFR:
+Датасет d351000 начинается с **1999-10-01** (раньше файлов на сервере нет).
+
+### Только Алдан (удобный скрипт)
+
+BUFR-файлы GDEX глобальные (все станции в одном файле), поэтому «скачать только
+Алдан» с сервера нельзя. По умолчанию скрипт работает **потоково**: скачивает
+файл → извлекает Алдан (31004) → **удаляет BUFR**. Диск не забивается — остаются
+только CSV/XLSX Алдана.
 
 ```bash
-python -m gdex_bufr manifest --start-date 1999-01-01 --end-date 2026-12-31
+python scripts/download_aldan.py --start-date 1999-10-01 --end-date 2026-12-31
+```
+
+Выход: `gdex_outputs/profile_climate/aldan/`.
+
+Классический режим (скачать и **хранить** все глобальные BUFR на диске):
+
+```bash
+python scripts/download_aldan.py --keep-bufr --start-date 1999-10-01 --end-date 2026-12-31 --daemon
+```
+
+Отдельные шаги (только для `--keep-bufr`):
+
+```bash
+python scripts/download_aldan.py --manifest-only --start-date 1999-10-01 --end-date 2026-12-31
+python scripts/download_aldan.py --download-only --daemon
+python scripts/download_aldan.py --extract-only --start-date 1999-10-01 --end-date 2026-12-31
+```
+
+### Вручную (все станции в BUFR)
+
+```bash
+python -m gdex_bufr manifest --start-date 1999-10-01 --end-date 2026-12-31
 python -m gdex_bufr download --daemon
 ```
 

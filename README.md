@@ -14,7 +14,11 @@ python -m venv .venv
 pip install -r requirements.txt
 
 python -m gdex_bufr tables-update
-python -m gdex_bufr manifest --start-date 1999-01-01 --end-date 1999-01-31
+
+# Скачать и извлечь только Алдан (31004): поток BUFR → извлечь → удалить файл
+python scripts/download_aldan.py --start-date 1999-10-01 --end-date 1999-10-31
+
+python -m gdex_bufr manifest --start-date 1999-10-01 --end-date 1999-10-31
 python -m gdex_bufr download --limit-files 10
 
 python -m gdex_bufr discover-stations --start-date 1999-01-01 --end-date 1999-01-31 --include-all-files

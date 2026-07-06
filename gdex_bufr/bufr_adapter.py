@@ -59,11 +59,16 @@ ADPUPA_VSIG_LABELS: dict[int, str] = {
 ADPUPA_LEVEL_FIELD_IDS = frozenset({
     8001,  # 008001
     12101,  # 012101
+    12225,  # 012225 — часто в ранних ADPUPA вместо 012101
     12103,  # 012103
+    12227,  # 012227 — Td alternate
     11001,  # 011001
     11002,  # 011002
     7007,  # 007007
 })
+
+ADPUPA_TEMP_DIDS = (12101, 12225, 12023)
+ADPUPA_DEWPOINT_DIDS = (12103, 12227, 12024)
 
 PROFILE_CODED_DESCRIPTORS = (
     "002001",
@@ -258,18 +263,30 @@ def _decode_adpupa_flat_levels(
         if not levels or 8001 in pending:
             return False
         last = levels[-1]
-        if did == 12101 and last.air_temperature_c is None:
+        if did in ADPUPA_TEMP_DIDS and last.air_temperature_c is None:
             last.air_temperature_c = _normalize_temperature(value)
             return True
-        if did == 12103 and last.dew_point_temperature_c is None:
+        if did in ADPUPA_DEWPOINT_DIDS and last.dew_point_temperature_c is None:
             last.dew_point_temperature_c = _normalize_temperature(value)
             return True
         return False
 
+    def _first_pending_temp() -> float | None:
+        for did in ADPUPA_TEMP_DIDS:
+            if did in pending:
+                return _normalize_temperature(pending[did])
+        return None
+
+    def _first_pending_dewpoint() -> float | None:
+        for did in ADPUPA_DEWPOINT_DIDS:
+            if did in pending:
+                return _normalize_temperature(pending[did])
+        return None
+
     for descriptor, raw in zip(descs, vals):
         did = descriptor.id
         if did in ADPUPA_LEVEL_FIELD_IDS:
-            if did in (12101, 12103) and _backfill_last_level_temp(did, raw):
+            if did in (*ADPUPA_TEMP_DIDS, *ADPUPA_DEWPOINT_DIDS) and _backfill_last_level_temp(did, raw):
                 pass
             else:
                 pending[did] = raw
@@ -294,8 +311,8 @@ def _decode_adpupa_flat_levels(
                 if geopot_f is None
                 else round(geopot_f / 9.80665, 1),
                 geopotential_m2s2=geopot_f,
-                air_temperature_c=_normalize_temperature(pending.get(12101)),
-                dew_point_temperature_c=_normalize_temperature(pending.get(12103)),
+                air_temperature_c=_first_pending_temp(),
+                dew_point_temperature_c=_first_pending_dewpoint(),
                 wind_direction_deg=None if _is_missing(pending.get(11001)) else float(pending[11001]),
                 wind_speed=None if _is_missing(pending.get(11002)) else float(pending[11002]),
                 replication_index=seq - 1,

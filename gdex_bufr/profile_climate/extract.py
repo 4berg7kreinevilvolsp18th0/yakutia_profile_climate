@@ -49,6 +49,16 @@ def extract_temperature_levels(
         return []
 
     thermo.sort(key=lambda lv: lv.pressure_hpa, reverse=True)
+
+    # ADPUPA: в одном subset несколько секций (SFC/WXPR) с повторяющимся давлением
+    by_pressure: dict[float, VerticalLevel] = {}
+    for level in thermo:
+        key = round(level.pressure_hpa, 1)
+        prev = by_pressure.get(key)
+        if prev is None or (level.air_temperature_c is not None and prev.air_temperature_c is None):
+            by_pressure[key] = level
+    thermo = sorted(by_pressure.values(), key=lambda lv: lv.pressure_hpa, reverse=True)
+
     trimmed = [lv for lv in thermo if lv.pressure_hpa >= pressure_top_hpa]
     if not trimmed:
         return []
