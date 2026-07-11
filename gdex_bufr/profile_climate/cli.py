@@ -5,20 +5,25 @@ import argparse
 import json
 import logging
 import sys
+import threading
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime
 from pathlib import Path
+from typing import Any
 
 from gdex_bufr.batch_render import FILENAME_RE, list_bufr_files
 from gdex_bufr.bufr_adapter import decode_bufr_file
-from gdex_bufr.bufr_tables import get_registry
+from gdex_bufr.bufr_tables import BufrTablesRegistry, get_registry
 from gdex_bufr.config import AppConfig
 from gdex_bufr.profile_climate.config import ProfileClimateConfig, load_profile_climate_config
-from gdex_bufr.profile_climate.export import export_all
+from gdex_bufr.profile_climate.export import export_all, export_checkpoint
 from gdex_bufr.profile_climate.extract import normalize_station_id, process_profile
 from gdex_bufr.profile_climate.plots import render_all_monthly_plots
 
 logger = logging.getLogger(__name__)
+
+_thread_local = threading.local()
 
 
 def _parse_date(value: str | None) -> date | None:
@@ -90,62 +95,136 @@ def _filter_by_cycles(rows: list[dict], cycles: list[str]) -> list[dict]:
     return [row for row in rows if str(row.get("cycle", "")).zfill(2)[-2:] in cycle_set]
 
 
+def _quiet_decode_logging() -> None:
+    for name in ("pybufrkit", "pybufrkit.decoder", "pybufrkit.dataquery", "pybufrkit.mdquery"):
+        logging.getLogger(name).setLevel(logging.WARNING)
+
+
+def _thread_decoder(registry: BufrTablesRegistry) -> Any:
+    decoder = getattr(_thread_local, "decoder", None)
+    if decoder is None:
+        from gdex_bufr.bufr_adapter import _make_decoder
+
+        decoder = _make_decoder(registry)
+        _thread_local.decoder = decoder
+    return decoder
+
+
+def _decode_station_file(
+    bufr_path: Path,
+    *,
+    station_id: str,
+    station_name: str,
+    registry: BufrTablesRegistry,
+    decode_mode: str,
+    pressure_top: float,
+    min_levels_to_500: int,
+    min_inversion_delta_c: float,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    profiles = decode_bufr_file(
+        bufr_path,
+        station_id=station_id,
+        registry=registry,
+        decode_mode=decode_mode,
+        decoder=_thread_decoder(registry),
+    )
+    long_rows: list[dict[str, Any]] = []
+    metrics_rows: list[dict[str, Any]] = []
+    for profile in profiles:
+        rows, metric = process_profile(
+            profile,
+            station_name=station_name,
+            pressure_top_hpa=pressure_top,
+            min_levels_to_500=min_levels_to_500,
+            min_inversion_delta_c=min_inversion_delta_c,
+        )
+        long_rows.extend(rows)
+        metrics_rows.append(metric)
+    return long_rows, metrics_rows
+
+
 def cmd_station_profiles(
     app_cfg: AppConfig,
     pc_cfg: ProfileClimateConfig,
     args: argparse.Namespace,
 ) -> int:
+    _quiet_decode_logging()
     station_id, station_slug, station_name = _resolve_station(pc_cfg, args.station)
     start = _parse_date(args.start_date) or pc_cfg.start_date
     end = _parse_date(args.end_date) or pc_cfg.end_date
     pressure_top = float(args.pressure_top or pc_cfg.pressure_top_hpa)
     cycles = _parse_cycles(args.cycles, pc_cfg.cycles)
     output_dir = Path(args.output or "gdex_outputs/profile_climate")
+    workers = max(1, int(getattr(args, "workers", None) or 4))
 
     files = list_bufr_files(
         app_cfg,
         start_date=start,
         end_date=end,
+        cycles=cycles,
         limit=args.limit_files,
         only_completed_downloads=not args.include_all_files,
     )
-    files = [path for path in files if _file_cycle(path) in cycles]
 
+    registry = get_registry()
+    config_info = {
+        "station_id": station_id,
+        "station_slug": station_slug,
+        "station_name": station_name,
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+        "pressure_top_hpa": pressure_top,
+        "cycles": cycles,
+    }
+    checkpoint_every = 500
+    total_files = len(files)
     long_rows: list[dict] = []
     metrics_rows: list[dict] = []
-    registry = get_registry()
+    processed_files = 0
 
-    for bufr_path in files:
-        profiles = decode_bufr_file(
-            bufr_path,
-            station_id=station_id,
-            registry=registry,
-            decode_mode=app_cfg.decode_mode,
-        )
-        for profile in profiles:
-            rows, metric = process_profile(
-                profile,
+    logger.info(
+        "Расшифровка %s: %s файлов, workers=%s, cycles=%s",
+        station_name,
+        total_files,
+        workers,
+        ",".join(cycles),
+    )
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {
+            pool.submit(
+                _decode_station_file,
+                bufr_path,
+                station_id=station_id,
                 station_name=station_name,
-                pressure_top_hpa=pressure_top,
+                registry=registry,
+                decode_mode=app_cfg.decode_mode,
+                pressure_top=pressure_top,
                 min_levels_to_500=pc_cfg.min_levels_to_500,
                 min_inversion_delta_c=pc_cfg.min_inversion_delta_c,
-            )
-            long_rows.extend(rows)
-            metrics_rows.append(metric)
+            ): bufr_path
+            for bufr_path in files
+        }
+        for future in as_completed(futures):
+            file_long, file_metrics = future.result()
+            long_rows.extend(file_long)
+            metrics_rows.extend(file_metrics)
+            processed_files += 1
+            if processed_files % checkpoint_every == 0 or processed_files == total_files:
+                export_checkpoint(long_rows, metrics_rows, output_dir, config_info=config_info)
+                logger.info(
+                    "[%s/%s] profiles=%s levels=%s (checkpoint)",
+                    processed_files,
+                    total_files,
+                    len(metrics_rows),
+                    len(long_rows),
+                )
 
     paths = export_all(
         long_rows,
         metrics_rows,
         output_dir,
-        config_info={
-            "station_id": station_id,
-            "station_slug": station_slug,
-            "station_name": station_name,
-            "start_date": start.isoformat(),
-            "end_date": end.isoformat(),
-            "pressure_top_hpa": pressure_top,
-            "cycles": cycles,
-        },
+        config_info=config_info,
     )
     print(json.dumps({
         "station_id": station_id,

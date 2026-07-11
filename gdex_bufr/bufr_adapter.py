@@ -429,9 +429,10 @@ def decode_bufr_file(
     station_id: str | None = None,
     registry: BufrTablesRegistry | None = None,
     decode_mode: str = "adpupa",
+    decoder: Any | None = None,
 ) -> list[RadiosondeProfile]:
     registry = registry or get_registry()
-    decoder = _make_decoder(registry)
+    decoder = decoder or _make_decoder(registry)
     raw = path.read_bytes()
     profiles: list[RadiosondeProfile] = []
 # Итерация по сообщениям BUFR (генерация сообщений из байтового потока)

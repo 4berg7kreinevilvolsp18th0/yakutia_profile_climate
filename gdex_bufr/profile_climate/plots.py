@@ -28,16 +28,57 @@ def _metrics_by_id(metrics_rows: list[dict[str, Any]]) -> dict[str, dict[str, An
     return {str(r["profile_id"]): r for r in metrics_rows}
 
 
-def _profile_label(metric: dict[str, Any] | None, profile_id: str) -> str:
-    if not metric:
-        return profile_id[-8:]
-    dt = metric.get("datetime_utc") or ""
-    cycle = str(metric.get("cycle") or "").zfill(2)
+def _day_key(metric: dict[str, Any] | None, profile_id: str) -> str | None:
+    if metric and metric.get("datetime_utc"):
+        try:
+            parsed = datetime.fromisoformat(str(metric["datetime_utc"]).replace("Z", "+00:00"))
+            return parsed.date().isoformat()
+        except ValueError:
+            pass
+    parts = profile_id.split("_")
+    if len(parts) >= 2 and len(parts[1]) >= 8:
+        token = parts[1]
+        return f"{token[:4]}-{token[4:6]}-{token[6:8]}"
+    return None
+
+
+def _daily_label(day_key: str) -> str:
     try:
-        parsed = datetime.fromisoformat(str(dt).replace("Z", "+00:00"))
-        return f"{parsed:%d.%m} {cycle}Z"
+        parsed = datetime.strptime(day_key, "%Y-%m-%d")
+        return f"{parsed:%d.%m}"
     except ValueError:
-        return f"{dt} {cycle}Z" if dt else profile_id[-12:]
+        return day_key
+
+
+def _group_profiles_by_day(
+    profiles: dict[str, list[dict[str, Any]]],
+    profile_metrics: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, list[dict[str, Any]]]]:
+    by_day: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    for profile_id, levels in profiles.items():
+        day_key = _day_key(profile_metrics.get(profile_id), profile_id)
+        if not day_key:
+            continue
+        by_day.setdefault(day_key, {})[profile_id] = levels
+    return by_day
+
+
+def _daily_mean_profiles(
+    by_day: dict[str, dict[str, list[dict[str, Any]]]],
+    *,
+    grid_points: int = 40,
+) -> dict[str, tuple[np.ndarray, np.ndarray, int]]:
+    """Суточный усреднённый профиль: интерполяция по высоте, затем mean по срокам дня."""
+    daily: dict[str, tuple[np.ndarray, np.ndarray, int]] = {}
+    for day_key, day_profiles in by_day.items():
+        if not day_profiles:
+            continue
+        min_h = min(min(float(lv["height_m"]) for lv in levels) for levels in day_profiles.values())
+        max_h = max(max(float(lv["height_m"]) for lv in levels) for levels in day_profiles.values())
+        grid = np.linspace(min_h, max_h, grid_points)
+        mean_t = _mean_on_height_grid(day_profiles, grid)
+        daily[day_key] = (grid, mean_t, len(day_profiles))
+    return daily
 
 
 def _mean_on_height_grid(
@@ -148,30 +189,38 @@ def render_monthly_temperature_profiles(
         )
 
     fig, ax = plt.subplots(figsize=(10, 10))
-    profile_ids = sorted(profiles.keys())
+    by_day = _group_profiles_by_day(profiles, profile_metrics)
+    daily_profiles = _daily_mean_profiles(by_day)
+    day_keys = sorted(daily_profiles.keys())
 
-    for index, profile_id in enumerate(profile_ids):
-        levels = profiles[profile_id]
-        heights = [float(lv["height_m"]) for lv in levels]
-        temps = [float(lv["temperature_c"]) for lv in levels]
+    for index, day_key in enumerate(day_keys):
+        grid, mean_t, _ = daily_profiles[day_key]
         color = PROFILE_COLORS[index % len(PROFILE_COLORS)]
-        label = _profile_label(profile_metrics.get(profile_id), profile_id)
         ax.plot(
-            temps,
-            heights,
+            mean_t,
+            grid,
             color=color,
             alpha=0.85,
             linewidth=1.6,
-            label=label,
+            label=_daily_label(day_key),
         )
 
     all_heights = [float(lv["height_m"]) for lv in month_long if lv.get("height_m") is not None]
-    if show_mean and profiles:
-        min_h = min(min(float(lv["height_m"]) for lv in levels) for levels in profiles.values())
-        max_h = max(max(float(lv["height_m"]) for lv in levels) for levels in profiles.values())
-        grid = np.linspace(min_h, max_h, 40)
-        mean_t = _mean_on_height_grid(profiles, grid)
-        ax.plot(mean_t, grid, color="#d62728", linewidth=2.8, alpha=1.0, label="Средний профиль", zorder=10)
+    if show_mean and daily_profiles:
+        min_h = min(grid[0] for grid, _, _ in daily_profiles.values())
+        max_h = max(grid[-1] for grid, _, _ in daily_profiles.values())
+        month_grid = np.linspace(min_h, max_h, 40)
+        daily_for_mean = {
+            day_key: [
+                {"height_m": float(h), "temperature_c": float(t)}
+                for h, t in zip(grid, mean_t, strict=True)
+                if not np.isnan(t)
+            ]
+            for day_key, (grid, mean_t, _) in daily_profiles.items()
+            if not np.all(np.isnan(mean_t))
+        }
+        mean_t = _mean_on_height_grid(daily_for_mean, month_grid)
+        ax.plot(mean_t, month_grid, color="#d62728", linewidth=2.8, alpha=1.0, label="Средний за месяц", zorder=10)
 
     ax.set_xlabel("Температура, °C")
     ax.set_ylabel("Высота, м")
@@ -179,11 +228,13 @@ def render_monthly_temperature_profiles(
         plot_heights = [float(lv["height_m"]) for levels in profiles.values() for lv in levels]
         ax.set_ylim(min(plot_heights), max(plot_heights))
     ax.grid(True, alpha=0.3)
+    profiles_in_month = sum(n for _, _, n in daily_profiles.values())
     ax.set_title(
         f"{station_name or station_slug} — {year}-{month:02d}\n"
-        f"На графике: {len(profiles)} | good: {len(good_ids)} | отброшено: {rejected} | инверсий: {inversion_count}"
+        f"Суточных линий: {len(daily_profiles)} | профилей: {profiles_in_month} | "
+        f"good: {len(good_ids)} | отброшено: {rejected} | инверсий: {inversion_count}"
     )
-    ax.legend(loc="best", fontsize=8, ncol=2 if len(profile_ids) > 8 else 1)
+    ax.legend(loc="best", fontsize=8, ncol=2 if len(day_keys) > 8 else 1)
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)

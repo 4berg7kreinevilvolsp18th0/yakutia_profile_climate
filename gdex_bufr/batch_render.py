@@ -104,6 +104,7 @@ def list_bufr_files(
     *,
     start_date: date | None = None,
     end_date: date | None = None,
+    cycles: list[str] | None = None,
     limit: int | None = None,
     only_completed_downloads: bool = True,
 ) -> list[Path]:
@@ -131,9 +132,14 @@ def list_bufr_files(
         conn.close()
         return files
 
+    cycle_set = {str(c).zfill(2)[-2:] for c in cycles} if cycles else None
     pattern = "**/*.bufr"
     for path in sorted(cfg.data_dir.glob(pattern)):
         meta = _parse_bufr_meta(path)
+        if cycle_set is not None:
+            file_cycle = str(meta.get("cycle", "")).zfill(2)[-2:]
+            if file_cycle not in cycle_set:
+                continue
         obs_date_str = meta.get("obs_date", "")
         if len(obs_date_str) == 8:
             obs_d = date(int(obs_date_str[:4]), int(obs_date_str[4:6]), int(obs_date_str[6:8]))

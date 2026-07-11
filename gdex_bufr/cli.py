@@ -117,6 +117,7 @@ def build_parser() -> argparse.ArgumentParser:
     station_profiles_cmd.add_argument("--cycles", help="Синоптические сроки через запятую, напр. 00,12")
     station_profiles_cmd.add_argument("--output", help="Каталог вывода profile_climate")
     station_profiles_cmd.add_argument("--limit-files", type=int, help="Ограничить число BUFR-файлов")
+    station_profiles_cmd.add_argument("--workers", type=int, default=4, help="Параллельных потоков расшифровки")
     station_profiles_cmd.add_argument(
         "--include-all-files",
         action="store_true",

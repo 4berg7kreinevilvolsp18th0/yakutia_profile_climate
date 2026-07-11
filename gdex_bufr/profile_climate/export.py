@@ -171,6 +171,24 @@ def write_xlsx_exports(long_rows: list[dict[str, Any]], metrics_rows: list[dict[
     return path
 
 
+def export_checkpoint(
+    long_rows: list[dict[str, Any]],
+    metrics_rows: list[dict[str, Any]],
+    output_dir: Path,
+    *,
+    config_info: dict[str, Any] | None = None,
+) -> dict[str, str]:
+    """Быстрое промежуточное сохранение без XLSX."""
+    output_dir = Path(output_dir)
+    return {
+        "profiles_long": str(write_profiles_long_csv(long_rows, output_dir)),
+        "profile_metrics": str(write_profile_metrics_csv(metrics_rows, output_dir)),
+        "monthly_summary": str(write_monthly_summary(metrics_rows, output_dir)),
+        "station_summary": str(write_station_summary(metrics_rows, output_dir)),
+        "summary_json": str(write_summary_json(metrics_rows, long_rows, output_dir, config_info=config_info)),
+    }
+
+
 def export_all(
     long_rows: list[dict[str, Any]],
     metrics_rows: list[dict[str, Any]],
