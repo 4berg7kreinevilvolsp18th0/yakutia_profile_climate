@@ -133,24 +133,43 @@ def list_bufr_files(
         return files
 
     cycle_set = {str(c).zfill(2)[-2:] for c in cycles} if cycles else None
-    pattern = "**/*.bufr"
-    for path in sorted(cfg.data_dir.glob(pattern)):
+    year_from = start_date.year if start_date else None
+    year_to = end_date.year if end_date else None
+
+    def _append_if_in_range(path: Path) -> None:
         meta = _parse_bufr_meta(path)
-        if cycle_set is not None:
-            file_cycle = str(meta.get("cycle", "")).zfill(2)[-2:]
-            if file_cycle not in cycle_set:
-                continue
         obs_date_str = meta.get("obs_date", "")
         if len(obs_date_str) == 8:
             obs_d = date(int(obs_date_str[:4]), int(obs_date_str[4:6]), int(obs_date_str[6:8]))
             if start_date and obs_d < start_date:
-                continue
+                return
             if end_date and obs_d > end_date:
-                continue
+                return
         files.append(path)
-        if limit and len(files) >= limit:
-            break
-    return files
+
+    if cycle_set is not None and year_from is not None and year_to is not None:
+        for year in range(year_from, year_to + 1):
+            year_dir = cfg.data_dir / str(year)
+            if not year_dir.is_dir():
+                continue
+            for cycle in sorted(cycle_set):
+                for path in year_dir.glob(f"gdas.adpupa.t{cycle}z.*.bufr"):
+                    _append_if_in_range(path)
+                    if limit and len(files) >= limit:
+                        return sorted(files)
+        return sorted(files)
+
+    patterns = (
+        [f"**/gdas.adpupa.t{cycle}z.*.bufr" for cycle in sorted(cycle_set)]
+        if cycle_set is not None
+        else ["**/*.bufr"]
+    )
+    for pattern in patterns:
+        for path in cfg.data_dir.glob(pattern):
+            _append_if_in_range(path)
+            if limit and len(files) >= limit:
+                return sorted(files)
+    return sorted(files)
 
 
 class BatchRenderer:

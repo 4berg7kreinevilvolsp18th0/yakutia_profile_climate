@@ -96,8 +96,20 @@ def _filter_by_cycles(rows: list[dict], cycles: list[str]) -> list[dict]:
 
 
 def _quiet_decode_logging() -> None:
-    for name in ("pybufrkit", "pybufrkit.decoder", "pybufrkit.dataquery", "pybufrkit.mdquery"):
-        logging.getLogger(name).setLevel(logging.WARNING)
+    class _DecodeNoiseFilter(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            if record.name.startswith("gdex_bufr"):
+                return True
+            name = record.name.lower()
+            path = getattr(record, "pathname", "").lower()
+            if "pybufrkit" in name or "pybufrkit" in path or record.name == "PyBufrKit":
+                return record.levelno >= logging.ERROR
+            return True
+
+    noise_filter = _DecodeNoiseFilter()
+    root = logging.getLogger()
+    for handler in root.handlers:
+        handler.addFilter(noise_filter)
 
 
 def _thread_decoder(registry: BufrTablesRegistry) -> Any:
@@ -124,6 +136,7 @@ def _decode_station_file(
     profiles = decode_bufr_file(
         bufr_path,
         station_id=station_id,
+        max_profiles=1,
         registry=registry,
         decode_mode=decode_mode,
         decoder=_thread_decoder(registry),

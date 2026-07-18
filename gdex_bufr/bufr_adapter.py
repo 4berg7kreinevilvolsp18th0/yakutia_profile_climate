@@ -431,11 +431,35 @@ def decode_bufr_file(
     decode_mode: str = "adpupa",
     decoder: Any | None = None,
 ) -> list[RadiosondeProfile]:
+    import contextlib
+    import io
+
+    # pybufrkit печатает в stdout при битых дескрипторах — это сильно тормозит массовую расшифровку
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        return _decode_bufr_file_impl(
+            path,
+            max_profiles=max_profiles,
+            station_id=station_id,
+            registry=registry,
+            decode_mode=decode_mode,
+            decoder=decoder,
+        )
+
+
+def _decode_bufr_file_impl(
+    path: Path,
+    *,
+    max_profiles: int | None = None,
+    station_id: str | None = None,
+    registry: BufrTablesRegistry | None = None,
+    decode_mode: str = "adpupa",
+    decoder: Any | None = None,
+) -> list[RadiosondeProfile]:
     registry = registry or get_registry()
     decoder = decoder or _make_decoder(registry)
     raw = path.read_bytes()
     profiles: list[RadiosondeProfile] = []
-# Итерация по сообщениям BUFR (генерация сообщений из байтового потока)
+    # Итерация по сообщениям BUFR (генерация сообщений из байтового потока)
     for message in _iter_messages(decoder, raw):
         if not _is_observation_message(message):
             continue
@@ -479,6 +503,9 @@ def decode_bufr_file(
             if station_id is not None and profile.station_id != station_id:
                 continue
             profiles.append(profile)
+            if station_id is not None:
+                # Для одной станции в ADPUPA обычно один профиль на файл — выходим сразу
+                return profiles
             if max_profiles is not None and len(profiles) >= max_profiles:
                 return profiles
     return profiles
