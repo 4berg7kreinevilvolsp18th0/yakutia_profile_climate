@@ -222,6 +222,8 @@ def main(argv: list[str] | None = None) -> int:
     processed = 0
     errors = 0
     found = 0
+    # Не отдаём десятки тысяч futures сразу — на Windows ProcessPool тогда «молчит».
+    batch_size = max(args.workers * 4, 40)
 
     tables_dir = Path(app_cfg.bufr_tables.directory)
     if not tables_dir.is_absolute():
@@ -244,37 +246,39 @@ def main(argv: list[str] | None = None) -> int:
             str(export_dir),
         ),
     ) as pool:
-        futures = {pool.submit(_decode_one, str(path)): path for path in pending}
-        for future in as_completed(futures):
-            path = futures[future]
-            try:
-                _, file_long, file_metrics, err = future.result()
-            except Exception as exc:  # noqa: BLE001
-                errors += 1
-                logger.warning("Сбой %s: %s", path.name, exc)
+        for batch_start in range(0, len(pending), batch_size):
+            batch = pending[batch_start: batch_start + batch_size]
+            futures = {pool.submit(_decode_one, str(path)): path for path in batch}
+            for future in as_completed(futures):
+                path = futures[future]
+                try:
+                    _, file_long, file_metrics, err = future.result()
+                except Exception as exc:  # noqa: BLE001
+                    errors += 1
+                    logger.warning("Сбой %s: %s", path.name, exc)
+                    processed += 1
+                    continue
+
+                if err:
+                    errors += 1
+                    logger.debug("Ошибка %s: %s", path.name, err)
+                if file_metrics:
+                    found += len(file_metrics)
+                    long_rows.extend(file_long)
+                    metrics_rows.extend(file_metrics)
                 processed += 1
-                continue
 
-            if err:
-                errors += 1
-                logger.debug("Ошибка %s: %s", path.name, err)
-            if file_metrics:
-                found += len(file_metrics)
-                long_rows.extend(file_long)
-                metrics_rows.extend(file_metrics)
-            processed += 1
-
-            if processed % args.checkpoint_every == 0 or processed == len(pending):
-                export_checkpoint(long_rows, metrics_rows, output_dir, config_info=config_info)
-                logger.info(
-                    "[%s/%s] profiles=%s levels=%s found_this_run=%s errors=%s",
-                    processed,
-                    len(pending),
-                    len(metrics_rows),
-                    len(long_rows),
-                    found,
-                    errors,
-                )
+                if processed % args.checkpoint_every == 0 or processed == len(pending):
+                    export_checkpoint(long_rows, metrics_rows, output_dir, config_info=config_info)
+                    logger.info(
+                        "[%s/%s] profiles=%s levels=%s found_this_run=%s errors=%s",
+                        processed,
+                        len(pending),
+                        len(metrics_rows),
+                        len(long_rows),
+                        found,
+                        errors,
+                    )
 
     paths = export_all(long_rows, metrics_rows, output_dir, config_info=config_info)
     print(json.dumps({
