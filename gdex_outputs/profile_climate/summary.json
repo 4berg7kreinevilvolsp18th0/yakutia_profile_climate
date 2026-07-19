@@ -1,0 +1,13 @@
+{
+  "config": {
+    "mode": "smoke_synthetic",
+    "station": "31004"
+  },
+  "profiles_total": 62,
+  "levels_total": 372,
+  "profiles_good": 62,
+  "profiles_with_inversion": 62,
+  "stations": {
+    "31004:Aldan": 62
+  }
+}

@@ -25,7 +25,6 @@ Desktop.ini
 
 # Данные и артефакты пайплайна
 gdex_data/
-gdex_outputs/
 *.bufr
 *.sqlite
 *.log
