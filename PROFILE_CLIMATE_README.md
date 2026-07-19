@@ -127,6 +127,15 @@ python -m gdex_bufr monthly-profile-plots \
   --output gdex_outputs/monthly_temperature_profiles
 ```
 
+### Интерактивный дашборд (дополнение к PNG)
+
+Выбор месяца, отключение дней-выбросов, пересчёт среднего:
+
+```bash
+python scripts/build_daily_profiles.py
+python -m streamlit run scripts/profile_dashboard.py
+```
+
 На графике:
 - ось Y — **высота, м** (не давление);
 - каждый профиль — **свой цвет** и подпись в легенде (дата + срок);
