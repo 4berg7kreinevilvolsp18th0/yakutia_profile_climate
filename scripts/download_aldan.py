@@ -117,9 +117,14 @@ def _resolve_dates(args: argparse.Namespace, pc_cfg) -> tuple[date, date]:
     return _clamp_start(start), end
 
 
-def _run_manifest(app_cfg, start: date, end: date) -> dict:
+def _run_manifest(app_cfg, start: date, end: date, cycles: str) -> dict:
     app_cfg.start_date = start
     app_cfg.end_date = end
+    app_cfg.synoptic_hours = [
+        cycle.strip().zfill(2)[-2:]
+        for cycle in cycles.split(",")
+        if cycle.strip()
+    ]
     entries = build_manifest_for_config(app_cfg)
     stats = manifest_stats(entries)
     save_manifest(entries, app_cfg.manifest_path)
@@ -304,7 +309,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if result["stream"]["profiles"] else 1
 
     if not args.download_only and not args.extract_only:
-        result["manifest"] = _run_manifest(app_cfg, start, end)
+        result["manifest"] = _run_manifest(app_cfg, start, end, args.cycles)
         if args.manifest_only:
             print(json.dumps(result, ensure_ascii=False, indent=2))
             return 0
