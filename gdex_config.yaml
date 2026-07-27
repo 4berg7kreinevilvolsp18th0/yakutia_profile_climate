@@ -1,5 +1,5 @@
 dataset_id: d351000
-base_url: https://data.rda.ucar.edu/d351000/bufr
+base_url: https://data.gdex.ucar.edu/d351000/bufr
 
 # Типы synoptic BUFR (NCAR ds351.0)
 obs_types:

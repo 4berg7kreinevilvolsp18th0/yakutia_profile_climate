@@ -26,7 +26,7 @@ def bufr_name_for(cycle: str, obs_date: date) -> str:
     return f"gdas.adpupa.t{cycle}z.{obs_date.strftime('%Y%m%d')}.bufr"
 
 
-def bufr_url_for(cycle: str, obs_date: date, base_url: str = "https://data.rda.ucar.edu/d351000/bufr") -> str:
+def bufr_url_for(cycle: str, obs_date: date, base_url: str = "https://data.gdex.ucar.edu/d351000/bufr") -> str:
     year = obs_date.year
     return f"{base_url}/{year}/{bufr_name_for(cycle, obs_date)}"
 
@@ -64,7 +64,7 @@ def download_bufr_files(
     bufr_dir: Path,
     *,
     cycles: tuple[str, ...] = SYNOPTIC_CYCLES,
-    base_url: str = "https://data.rda.ucar.edu/d351000/bufr",
+    base_url: str = "https://data.gdex.ucar.edu/d351000/bufr",
     ssl_verify: bool = False,
     timeout_seconds: int = 300,
     max_retries: int = 3,

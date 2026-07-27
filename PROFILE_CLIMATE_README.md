@@ -9,7 +9,7 @@
 
 Период: **1999–2026**.
 
-Источник: **GDAS ADPUPA BUFR** из GDEX/RDA [d351000](https://data.rda.ucar.edu/d351000/bufr).
+Источник: **GDAS ADPUPA BUFR** из [GDEX d351000](https://gdex.ucar.edu/datasets/d351000/).
 
 ## Что делает v1
 

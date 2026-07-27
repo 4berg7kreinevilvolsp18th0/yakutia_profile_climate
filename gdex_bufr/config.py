@@ -16,7 +16,7 @@ from gdex_bufr.tables_manager import resolve_wmo_version
 @dataclass
 class AppConfig:
     dataset_id: str = "d351000"
-    base_url: str = "https://data.rda.ucar.edu/d351000/bufr"
+    base_url: str = "https://data.gdex.ucar.edu/d351000/bufr"
     obs_types: list[str] = field(default_factory=lambda: ["adpupa"])
     synoptic_hours: list[str] = field(default_factory=lambda: ["00", "06", "12", "18"])
     start_date: date = date(1999, 10, 1)
@@ -72,7 +72,7 @@ def load_config(path: str | Path) -> AppConfig:
     meteo_path = raw.get("meteo_parser_path")
     return AppConfig(
         dataset_id=str(raw.get("dataset_id", "d351000")),
-        base_url=str(raw.get("base_url", "https://data.rda.ucar.edu/d351000/bufr")).rstrip("/"),
+        base_url=str(raw.get("base_url", "https://data.gdex.ucar.edu/d351000/bufr")).rstrip("/"),
         obs_types=list(raw.get("obs_types") or ["adpupa"]),
         synoptic_hours=[str(h).zfill(2) for h in (raw.get("synoptic_hours") or ["00", "06", "12", "18"])],
         start_date=_parse_date(raw.get("start_date")) or date(1999, 10, 1),

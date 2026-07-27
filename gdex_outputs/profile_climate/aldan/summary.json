@@ -3,8 +3,8 @@
     "station_id": "31004",
     "station_slug": "aldan",
     "station_name": "Aldan",
-    "start_date": "1999-10-01",
-    "end_date": "2026-07-08",
+    "start_date": "2026-05-31",
+    "end_date": "2026-07-20",
     "pressure_top_hpa": 500.0,
     "cycles": [
       "00",
@@ -12,11 +12,11 @@
     ],
     "mode": "fast_process_pool"
   },
-  "profiles_total": 18103,
-  "levels_total": 195445,
-  "profiles_good": 17895,
-  "profiles_with_inversion": 9896,
+  "profiles_total": 18203,
+  "levels_total": 196658,
+  "profiles_good": 17993,
+  "profiles_with_inversion": 9957,
   "stations": {
-    "31004:Aldan": 18103
+    "31004:Aldan": 18203
   }
 }
