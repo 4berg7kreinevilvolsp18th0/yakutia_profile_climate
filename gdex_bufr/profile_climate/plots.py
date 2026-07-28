@@ -94,7 +94,7 @@ def _mean_on_height_grid(
         order = np.argsort(heights)
         heights = heights[order]
         temperatures = temperatures[order]
-        interp = np.interp(height_grid, heights, temperatures)
+        interp = np.interp(height_grid, heights, temperatures, left=np.nan, right=np.nan)
         temps.append(interp)
     if not temps:
         return np.full_like(height_grid, np.nan, dtype=float)

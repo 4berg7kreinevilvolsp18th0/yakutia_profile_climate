@@ -63,7 +63,7 @@ def dedupe_levels_by_height(levels: list[dict[str, Any]], *, height_step_m: floa
 def remove_temperature_spikes(
     levels: list[dict[str, Any]],
     *,
-    max_delta_c: float = 5.0,
+    max_delta_c: float = 10.0,
     max_height_step_m: float = 200.0,
 ) -> list[dict[str, Any]]:
     """Убирает уровни с нереалистичным скачком T на малой дистанции по высоте."""
@@ -112,16 +112,23 @@ def filter_plot_levels(
 def profile_passes_quality(
     levels: list[dict[str, Any]],
     *,
-    max_temp_spread_c: float = 8.0,
+    max_temp_spread_c: float = 10.0,
     height_bin_m: float = 200.0,
+    max_neighbor_delta_c: float = 10.0,
 ) -> bool:
-    """Отбрасывает профили с несколькими T на одной высоте (горизонтальные «зигзаги»)."""
+    """Отбрасывает профили с горизонтальными зигзагами или большим соседним |ΔT|."""
+    if len(levels) < 2:
+        return True
+    sorted_levels = sorted(levels, key=lambda r: float(r["height_m"]))
+    temps = [float(lv["temperature_c"]) for lv in sorted_levels]
+    if max(abs(temps[i + 1] - temps[i]) for i in range(len(temps) - 1)) >= max_neighbor_delta_c:
+        return False
     bins: dict[int, list[float]] = {}
-    for row in levels:
+    for row in sorted_levels:
         key = int(float(row["height_m"]) // height_bin_m)
         bins.setdefault(key, []).append(float(row["temperature_c"]))
-    for temps in bins.values():
-        if len(temps) > 1 and max(temps) - min(temps) > max_temp_spread_c:
+    for bin_temps in bins.values():
+        if len(bin_temps) > 1 and max(bin_temps) - min(bin_temps) > max_temp_spread_c:
             return False
     return True
 

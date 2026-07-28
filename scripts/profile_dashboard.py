@@ -17,12 +17,16 @@ import streamlit as st
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATA = ROOT / "gdex_outputs" / "profile_climate" / "aldan" / "daily_profiles.json"
-OUTLIER_RMS_THRESHOLD = 8.0  # °C — эвристика «выбивается из картины»
+OUTLIER_MAX_ABS_DT_C = 10.0  # °C — max |ΔT| между соседними уровнями по высоте
 
 
 @st.cache_data(show_spinner="Загрузка суточных профилей…")
 def load_daily(path: str) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def _temps_as_float(day: dict) -> np.ndarray:
+    return np.asarray([np.nan if v is None else v for v in day["temperature_c"]], dtype=float)
 
 
 def month_mean(days: list[dict], enabled: set[str]) -> tuple[np.ndarray, np.ndarray] | None:
@@ -35,46 +39,53 @@ def month_mean(days: list[dict], enabled: set[str]) -> tuple[np.ndarray, np.ndar
     stack = []
     for day in active:
         h = np.asarray(day["heights_m"], dtype=float)
-        t = np.asarray([np.nan if v is None else v for v in day["temperature_c"]], dtype=float)
-        if len(h) < 2:
+        t = _temps_as_float(day)
+        valid = ~np.isnan(t)
+        if valid.sum() < 2:
             continue
-        stack.append(np.interp(grid, h, t))
+        stack.append(np.interp(grid, h[valid], t[valid], left=np.nan, right=np.nan))
     if not stack:
         return None
     return grid, np.nanmean(np.vstack(stack), axis=0)
 
 
-def day_rms_to_mean(day: dict, mean_h: np.ndarray, mean_t: np.ndarray) -> float:
+def day_max_abs_dt(day: dict) -> float:
+    """Максимальный |ΔT| между соседними валидными уровнями по высоте."""
     h = np.asarray(day["heights_m"], dtype=float)
-    t = np.asarray([np.nan if v is None else v for v in day["temperature_c"]], dtype=float)
-    if len(h) < 2:
+    t = _temps_as_float(day)
+    order = np.argsort(h)
+    h = h[order]
+    t = t[order]
+    valid = ~np.isnan(t)
+    if valid.sum() < 2:
         return float("inf")
-    interp = np.interp(mean_h, h, t)
-    mask = ~np.isnan(interp) & ~np.isnan(mean_t)
-    if mask.sum() < 3:
-        return float("inf")
-    return float(np.sqrt(np.nanmean((interp[mask] - mean_t[mask]) ** 2)))
+    h = h[valid]
+    t = t[valid]
+    return float(np.max(np.abs(np.diff(t))))
 
 
 def suggest_outliers(days: list[dict], enabled: set[str]) -> list[str]:
-    mean = month_mean(days, enabled)
-    if mean is None:
-        return []
-    mean_h, mean_t = mean
     scored = []
     for day in days:
         if day["date"] not in enabled:
             continue
-        rms = day_rms_to_mean(day, mean_h, mean_t)
-        scored.append((rms, day["date"]))
+        max_dt = day_max_abs_dt(day)
+        scored.append((max_dt, day["date"]))
     scored.sort(reverse=True)
-    return [date for rms, date in scored if rms >= OUTLIER_RMS_THRESHOLD]
+    return [date for max_dt, date in scored if max_dt >= OUTLIER_MAX_ABS_DT_C]
+
+
+def _first_valid_temp(temps: np.ndarray) -> float | None:
+    for value in temps:
+        if not np.isnan(value):
+            return float(value)
+    return None
 
 
 def main() -> None:
     st.set_page_config(page_title="Aldan profile dashboard", layout="wide")
     st.title("Алдан — суточные профили")
-    st.caption("Дополнение к PNG: выбор месяца и отключение дней, которые выбиваются из общей картины.")
+    st.caption("Дополнение к PNG: выбор месяца и отключение дней с большими скачками температуры.")
 
     data_path = st.sidebar.text_input("daily_profiles.json", str(DEFAULT_DATA))
     if not Path(data_path).exists():
@@ -113,13 +124,17 @@ def main() -> None:
     if c2.button("Сброс", use_container_width=True):
         for day in days:
             st.session_state[f"day::{month_key}::{day['date']}"] = False
-    if c3.button("Выбросы", use_container_width=True, help=f"Выключить дни с RMS ≥ {OUTLIER_RMS_THRESHOLD} °C к среднему"):
+    if c3.button(
+        "Выбросы",
+        use_container_width=True,
+        help=f"Выключить дни с max |ΔT| соседних уровней ≥ {OUTLIER_MAX_ABS_DT_C} °C",
+    ):
         outliers = set(suggest_outliers(days, set(all_dates)))
         for day in days:
             st.session_state[f"day::{month_key}::{day['date']}"] = day["date"] not in outliers
 
     enabled: set[str] = set()
-    with st.sidebar.expander(f"Список дней", expanded=True):
+    with st.sidebar.expander("Список дней", expanded=True):
         for day in days:
             key = f"day::{month_key}::{day['date']}"
             if key not in st.session_state:
@@ -130,17 +145,16 @@ def main() -> None:
             if st.checkbox(label, key=key):
                 enabled.add(day["date"])
 
-    # обновим заголовок expander через caption
     st.sidebar.caption(f"Включено: {len(enabled)} / {len(all_dates)}")
     mean = month_mean(days, enabled)
 
-    # Метрики
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Дней включено", f"{len(enabled)} / {len(all_dates)}")
     m2.metric("Профилей (сроков)", sum(d["n_profiles"] for d in days if d["date"] in enabled))
     m3.metric("С инверсией", sum(1 for d in days if d["date"] in enabled and d.get("inversion_detected")))
     if mean is not None:
-        m4.metric("Ts среднего, °C", f"{mean[1][0]:.1f}" if not np.isnan(mean[1][0]) else "—")
+        ts = _first_valid_temp(mean[1])
+        m4.metric("Ts среднего, °C", f"{ts:.1f}" if ts is not None else "—")
     else:
         m4.metric("Ts среднего, °C", "—")
 
@@ -159,6 +173,7 @@ def main() -> None:
             name=day["date"][8:],
             line=dict(width=1.5, color=palette[idx % len(palette)]),
             opacity=0.85,
+            connectgaps=False,
             hovertemplate=(
                 f"{day['date']}<br>"
                 "T=%{x:.1f} °C<br>"
@@ -173,6 +188,7 @@ def main() -> None:
             mode="lines",
             name="Среднее (включённые)",
             line=dict(width=3.5, color="#C44E52"),
+            connectgaps=False,
             hovertemplate="Среднее<br>T=%{x:.1f} °C<br>h=%{y:.0f} м<extra></extra>",
         ))
 
@@ -187,26 +203,28 @@ def main() -> None:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Таблица выбросов относительно текущего среднего
-    if mean is not None and enabled:
+    if enabled:
         rows = []
         for day in days:
             if day["date"] not in enabled:
                 continue
-            rms = day_rms_to_mean(day, mean[0], mean[1])
+            max_dt = day_max_abs_dt(day)
             rows.append({
                 "Дата": day["date"],
-                "RMS к среднему, °C": round(rms, 2),
+                "max |ΔT| соседних, °C": None if max_dt == float("inf") else round(max_dt, 2),
                 "Ts, °C": day.get("t_surface_c"),
                 "Профилей": day["n_profiles"],
                 "Инверсия": "да" if day.get("inversion_detected") else "нет",
-                "Выброс?": "да" if rms >= OUTLIER_RMS_THRESHOLD else "",
+                "Выброс?": "да" if max_dt >= OUTLIER_MAX_ABS_DT_C else "",
             })
-        rows.sort(key=lambda r: r["RMS к среднему, °C"], reverse=True)
-        st.subheader("Отклонение дней от среднего")
+        rows.sort(
+            key=lambda r: r["max |ΔT| соседних, °C"] if r["max |ΔT| соседних, °C"] is not None else -1,
+            reverse=True,
+        )
+        st.subheader("Скачки температуры по соседним уровням")
         st.dataframe(rows, use_container_width=True, hide_index=True)
         st.caption(
-            f"Источник: {Path(data_path).name} · порог выброса RMS ≥ {OUTLIER_RMS_THRESHOLD} °C · "
+            f"Источник: {Path(data_path).name} · порог выброса max |ΔT| ≥ {OUTLIER_MAX_ABS_DT_C} °C · "
             "PNG остаются в gdex_outputs/monthly_temperature_profiles/"
         )
 

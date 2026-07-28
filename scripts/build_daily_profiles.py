@@ -26,7 +26,13 @@ def _mean_on_grid(heights: np.ndarray, temps: np.ndarray, grid: np.ndarray) -> n
     if len(heights) < 2:
         return np.full_like(grid, np.nan, dtype=float)
     order = np.argsort(heights)
-    return np.interp(grid, heights[order], temps[order])
+    return np.interp(
+        grid,
+        heights[order],
+        temps[order],
+        left=np.nan,
+        right=np.nan,
+    )
 
 
 def build_daily_profiles(
