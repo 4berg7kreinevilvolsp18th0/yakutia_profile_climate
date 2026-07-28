@@ -43,23 +43,50 @@ def _pressures_as_float(day: dict) -> np.ndarray | None:
     return np.asarray([np.nan if v is None else v for v in pressures], dtype=float)
 
 
-def month_mean(days: list[dict], enabled: set[str]) -> tuple[np.ndarray, np.ndarray] | None:
+def _vertical_as_float(day: dict, axis: str) -> np.ndarray | None:
+    if axis == "pressure":
+        return _pressures_as_float(day)
+    return np.asarray(day["heights_m"], dtype=float)
+
+
+def month_mean(
+    days: list[dict],
+    enabled: set[str],
+    *,
+    y_axis: str = "height",
+) -> tuple[np.ndarray, np.ndarray] | None:
+    """Средний профиль на сетке по высоте или по давлению."""
     active = [d for d in days if d["date"] in enabled]
     if not active:
         return None
-    min_h = min(d["heights_m"][0] for d in active)
-    max_h = max(d["heights_m"][-1] for d in active)
-    grid = np.linspace(min_h, max_h, 40)
-    stack = []
+
+    series: list[tuple[np.ndarray, np.ndarray]] = []
     for day in active:
-        h = np.asarray(day["heights_m"], dtype=float)
+        y = _vertical_as_float(day, y_axis)
+        if y is None:
+            continue
         t = _temps_as_float(day)
-        valid = ~np.isnan(t)
+        valid = ~np.isnan(t) & ~np.isnan(y)
         if valid.sum() < 2:
             continue
-        stack.append(np.interp(grid, h[valid], t[valid], left=np.nan, right=np.nan))
-    if not stack:
+        series.append((y[valid], t[valid]))
+    if not series:
         return None
+
+    if y_axis == "pressure":
+        # сетка от высокого давления (земля) к низкому (верх)
+        y_lo = min(float(y.min()) for y, _ in series)
+        y_hi = max(float(y.max()) for y, _ in series)
+        grid = np.linspace(y_hi, y_lo, 40)
+    else:
+        y_lo = min(float(y.min()) for y, _ in series)
+        y_hi = max(float(y.max()) for y, _ in series)
+        grid = np.linspace(y_lo, y_hi, 40)
+
+    stack = []
+    for y, t in series:
+        order = np.argsort(y)
+        stack.append(np.interp(grid, y[order], t[order], left=np.nan, right=np.nan))
     return grid, np.nanmean(np.vstack(stack), axis=0)
 
 
@@ -196,6 +223,17 @@ def main() -> None:
         index=0,
     )
 
+    axis_options = ["Высота, м"]
+    if has_pressure:
+        axis_options.append("Давление, гПа")
+    y_axis_label = st.sidebar.radio(
+        "Вертикальная ось",
+        options=axis_options,
+        index=1 if has_pressure else 0,
+        help="Давление надёжнее, если геопотенциальная высота в данных сомнительна.",
+    )
+    y_axis = "pressure" if y_axis_label.startswith("Давление") else "height"
+
     days = data["months"][month_key]["days"]
     all_dates = [d["date"] for d in days]
 
@@ -246,7 +284,7 @@ def main() -> None:
                 enabled.add(day["date"])
 
     st.sidebar.caption(f"Включено: {len(enabled)} / {len(all_dates)}")
-    mean = month_mean(days, enabled)
+    mean = month_mean(days, enabled, y_axis=y_axis)
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Дней включено", f"{len(enabled)} / {len(all_dates)}")
@@ -263,12 +301,16 @@ def main() -> None:
         "#4C78A8", "#F58518", "#E45756", "#72B7B2", "#54A24B",
         "#EECA3B", "#B279A2", "#FF9DA6", "#9D755D", "#BAB0AC",
     ]
+    y_hover = "P=%{y:.1f} гПа" if y_axis == "pressure" else "h=%{y:.0f} м"
     for idx, day in enumerate(days):
         if day["date"] not in enabled:
             continue
+        y_vals = day.get("pressure_hpa") if y_axis == "pressure" else day["heights_m"]
+        if y_vals is None:
+            continue
         fig.add_trace(go.Scatter(
             x=day["temperature_c"],
-            y=day["heights_m"],
+            y=y_vals,
             mode="lines",
             name=day["date"][8:],
             line=dict(width=1.5, color=palette[idx % len(palette)]),
@@ -276,8 +318,8 @@ def main() -> None:
             connectgaps=False,
             hovertemplate=(
                 f"{day['date']}<br>"
-                "T=%{x:.1f} °C<br>"
-                "h=%{y:.0f} м<extra></extra>"
+                f"T=%{{x:.1f}} °C<br>"
+                f"{y_hover}<extra></extra>"
             ),
         ))
 
@@ -289,13 +331,23 @@ def main() -> None:
             name="Среднее (включённые)",
             line=dict(width=3.5, color="#C44E52"),
             connectgaps=False,
-            hovertemplate="Среднее<br>T=%{x:.1f} °C<br>h=%{y:.0f} м<extra></extra>",
+            hovertemplate=(
+                "Среднее<br>"
+                f"T=%{{x:.1f}} °C<br>"
+                f"{y_hover}<extra></extra>"
+            ),
         ))
+
+    yaxis_cfg: dict = {
+        "title": y_axis_label,
+    }
+    if y_axis == "pressure":
+        yaxis_cfg["autorange"] = "reversed"  # высокое давление внизу
 
     fig.update_layout(
         title=f"{data.get('station_name', 'Aldan')} — {month_key} (суточные средние)",
         xaxis_title="Температура, °C",
-        yaxis_title="Высота, м",
+        yaxis=yaxis_cfg,
         height=720,
         legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
         margin=dict(l=40, r=20, t=60, b=40),
