@@ -17,7 +17,13 @@ import streamlit as st
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATA = ROOT / "gdex_outputs" / "profile_climate" / "aldan" / "daily_profiles.json"
-OUTLIER_MAX_ABS_DT_C = 10.0  # °C — max |ΔT| между соседними уровнями по высоте
+
+# Критерий A: max |ΔT| между соседними уровнями по высоте
+OUTLIER_MAX_ABS_DT_C = 10.0  # °C
+
+# Критерий B: max (ΔT/ΔP)² между соседними уровнями по давлению
+OUTLIER_MAX_DT_DP_SQ = 0.25  # (°C/гПа)² ≈ |ΔT/ΔP| ≥ 0.5 °C/гПа
+MIN_ABS_DP_HPA = 0.5  # защита от деления на почти нулевой ΔP
 
 
 @st.cache_data(show_spinner="Загрузка суточных профилей…")
@@ -27,6 +33,13 @@ def load_daily(path: str) -> dict:
 
 def _temps_as_float(day: dict) -> np.ndarray:
     return np.asarray([np.nan if v is None else v for v in day["temperature_c"]], dtype=float)
+
+
+def _pressures_as_float(day: dict) -> np.ndarray | None:
+    pressures = day.get("pressure_hpa")
+    if not pressures:
+        return None
+    return np.asarray([np.nan if v is None else v for v in pressures], dtype=float)
 
 
 def month_mean(days: list[dict], enabled: set[str]) -> tuple[np.ndarray, np.ndarray] | None:
@@ -59,12 +72,42 @@ def day_max_abs_dt(day: dict) -> float:
     valid = ~np.isnan(t)
     if valid.sum() < 2:
         return float("inf")
-    h = h[valid]
     t = t[valid]
     return float(np.max(np.abs(np.diff(t))))
 
 
-def suggest_outliers(days: list[dict], enabled: set[str]) -> list[str]:
+def day_max_dt_dp_sq(day: dict) -> float:
+    """Максимум (ΔT/ΔP)² между соседними уровнями по давлению.
+
+    Уровни сортируются по убыванию давления (земля → верх).
+    Пары с |ΔP| < MIN_ABS_DP_HPA пропускаются.
+    """
+    t = _temps_as_float(day)
+    p = _pressures_as_float(day)
+    if p is None:
+        return float("inf")
+    valid = ~np.isnan(t) & ~np.isnan(p)
+    if valid.sum() < 2:
+        return float("inf")
+    t = t[valid]
+    p = p[valid]
+    order = np.argsort(-p)  # высокое давление сначала
+    t = t[order]
+    p = p[order]
+
+    scores: list[float] = []
+    for i in range(len(t) - 1):
+        dp = abs(float(p[i + 1] - p[i]))
+        if dp < MIN_ABS_DP_HPA:
+            continue
+        dt = float(t[i + 1] - t[i])
+        scores.append((dt / dp) ** 2)
+    if not scores:
+        return float("inf")
+    return float(max(scores))
+
+
+def suggest_outliers_abs_dt(days: list[dict], enabled: set[str]) -> list[str]:
     scored = []
     for day in days:
         if day["date"] not in enabled:
@@ -75,6 +118,17 @@ def suggest_outliers(days: list[dict], enabled: set[str]) -> list[str]:
     return [date for max_dt, date in scored if max_dt >= OUTLIER_MAX_ABS_DT_C]
 
 
+def suggest_outliers_dt_dp_sq(days: list[dict], enabled: set[str]) -> list[str]:
+    scored = []
+    for day in days:
+        if day["date"] not in enabled:
+            continue
+        score = day_max_dt_dp_sq(day)
+        scored.append((score, day["date"]))
+    scored.sort(reverse=True)
+    return [date for score, date in scored if score >= OUTLIER_MAX_DT_DP_SQ]
+
+
 def _first_valid_temp(temps: np.ndarray) -> float | None:
     for value in temps:
         if not np.isnan(value):
@@ -82,10 +136,19 @@ def _first_valid_temp(temps: np.ndarray) -> float | None:
     return None
 
 
+def _finite_or_none(value: float) -> float | None:
+    if value == float("inf") or value != value:  # noqa: PLR0124 — NaN check
+        return None
+    return round(value, 4)
+
+
 def main() -> None:
     st.set_page_config(page_title="Aldan profile dashboard", layout="wide")
     st.title("Алдан — суточные профили")
-    st.caption("Дополнение к PNG: выбор месяца и отключение дней с большими скачками температуры.")
+    st.caption(
+        "Два критерия выбросов для сравнения: max |ΔT| и max (ΔT/ΔP)². "
+        "Кнопки только предлагают отключение дней — можно править вручную."
+    )
 
     data_path = st.sidebar.text_input("daily_profiles.json", str(DEFAULT_DATA))
     if not Path(data_path).exists():
@@ -100,6 +163,18 @@ def main() -> None:
     if not months:
         st.error("В JSON нет месяцев.")
         return
+
+    has_pressure = any(
+        bool(day.get("pressure_hpa"))
+        for month in data["months"].values()
+        for day in month.get("days", [])
+    )
+    if not has_pressure:
+        st.warning(
+            "В JSON нет pressure_hpa. Пересоберите данные:\n\n"
+            "`python scripts/build_daily_profiles.py`\n\n"
+            "Пока кнопка (ΔT/ΔP)² будет недоступна."
+        )
 
     years = sorted({m[:4] for m in months})
     col_y, col_m = st.sidebar.columns(2)
@@ -117,21 +192,38 @@ def main() -> None:
     all_dates = [d["date"] for d in days]
 
     st.sidebar.markdown("### Дни")
-    c1, c2, c3 = st.sidebar.columns(3)
+    c1, c2 = st.sidebar.columns(2)
     if c1.button("Все", use_container_width=True):
         for day in days:
             st.session_state[f"day::{month_key}::{day['date']}"] = True
     if c2.button("Сброс", use_container_width=True):
         for day in days:
             st.session_state[f"day::{month_key}::{day['date']}"] = False
-    if c3.button(
-        "Выбросы",
+
+    st.sidebar.markdown("### Выбросы (сравнить)")
+    o1, o2 = st.sidebar.columns(2)
+    if o1.button(
+        "по |ΔT|",
         use_container_width=True,
-        help=f"Выключить дни с max |ΔT| соседних уровней ≥ {OUTLIER_MAX_ABS_DT_C} °C",
+        help=f"Выключить дни с max |ΔT| ≥ {OUTLIER_MAX_ABS_DT_C} °C",
     ):
-        outliers = set(suggest_outliers(days, set(all_dates)))
+        outliers = set(suggest_outliers_abs_dt(days, set(all_dates)))
         for day in days:
             st.session_state[f"day::{month_key}::{day['date']}"] = day["date"] not in outliers
+    if o2.button(
+        "по (ΔT/ΔP)²",
+        use_container_width=True,
+        disabled=not has_pressure,
+        help=f"Выключить дни с max (ΔT/ΔP)² ≥ {OUTLIER_MAX_DT_DP_SQ} (°C/гПа)²",
+    ):
+        outliers = set(suggest_outliers_dt_dp_sq(days, set(all_dates)))
+        for day in days:
+            st.session_state[f"day::{month_key}::{day['date']}"] = day["date"] not in outliers
+
+    st.sidebar.caption(
+        f"|ΔT| ≥ {OUTLIER_MAX_ABS_DT_C} °C · "
+        f"(ΔT/ΔP)² ≥ {OUTLIER_MAX_DT_DP_SQ} · min |ΔP|={MIN_ABS_DP_HPA} гПа"
+    )
 
     enabled: set[str] = set()
     with st.sidebar.expander("Список дней", expanded=True):
@@ -205,27 +297,50 @@ def main() -> None:
 
     if enabled:
         rows = []
+        n_flag_dt = 0
+        n_flag_grad = 0
+        n_both = 0
         for day in days:
             if day["date"] not in enabled:
                 continue
             max_dt = day_max_abs_dt(day)
+            grad_sq = day_max_dt_dp_sq(day) if has_pressure else float("inf")
+            flag_dt = max_dt >= OUTLIER_MAX_ABS_DT_C
+            flag_grad = has_pressure and grad_sq >= OUTLIER_MAX_DT_DP_SQ
+            if flag_dt:
+                n_flag_dt += 1
+            if flag_grad:
+                n_flag_grad += 1
+            if flag_dt and flag_grad:
+                n_both += 1
             rows.append({
                 "Дата": day["date"],
-                "max |ΔT| соседних, °C": None if max_dt == float("inf") else round(max_dt, 2),
+                "max |ΔT|, °C": _finite_or_none(max_dt),
+                "max (ΔT/ΔP)²": None if not has_pressure else _finite_or_none(grad_sq),
+                "Выброс |ΔT|?": "да" if flag_dt else "",
+                "Выброс (ΔT/ΔP)²?": "да" if flag_grad else "",
                 "Ts, °C": day.get("t_surface_c"),
                 "Профилей": day["n_profiles"],
                 "Инверсия": "да" if day.get("inversion_detected") else "нет",
-                "Выброс?": "да" if max_dt >= OUTLIER_MAX_ABS_DT_C else "",
             })
         rows.sort(
-            key=lambda r: r["max |ΔT| соседних, °C"] if r["max |ΔT| соседних, °C"] is not None else -1,
+            key=lambda r: (
+                r["max (ΔT/ΔP)²"] if r["max (ΔT/ΔP)²"] is not None else -1,
+                r["max |ΔT|, °C"] if r["max |ΔT|, °C"] is not None else -1,
+            ),
             reverse=True,
         )
-        st.subheader("Скачки температуры по соседним уровням")
+        st.subheader("Сравнение двух критериев выбросов")
+        c_a, c_b, c_c = st.columns(3)
+        c_a.metric("Флаг |ΔT|", n_flag_dt)
+        c_b.metric("Флаг (ΔT/ΔP)²", n_flag_grad if has_pressure else "—")
+        c_c.metric("Оба сразу", n_both if has_pressure else "—")
         st.dataframe(rows, use_container_width=True, hide_index=True)
         st.caption(
-            f"Источник: {Path(data_path).name} · порог выброса max |ΔT| ≥ {OUTLIER_MAX_ABS_DT_C} °C · "
-            "PNG остаются в gdex_outputs/monthly_temperature_profiles/"
+            f"Источник: {Path(data_path).name} · "
+            f"|ΔT| ≥ {OUTLIER_MAX_ABS_DT_C} °C · "
+            f"(ΔT/ΔP)² ≥ {OUTLIER_MAX_DT_DP_SQ} (°C/гПа)² · "
+            f"min |ΔP| = {MIN_ABS_DP_HPA} гПа"
         )
 
 

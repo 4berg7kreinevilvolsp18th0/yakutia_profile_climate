@@ -22,14 +22,18 @@ def _day_key(dt: str) -> str:
     return parsed.date().isoformat()
 
 
-def _mean_on_grid(heights: np.ndarray, temps: np.ndarray, grid: np.ndarray) -> np.ndarray:
+def _interp_on_height_grid(
+    heights: np.ndarray,
+    values: np.ndarray,
+    grid: np.ndarray,
+) -> np.ndarray:
     if len(heights) < 2:
         return np.full_like(grid, np.nan, dtype=float)
     order = np.argsort(heights)
     return np.interp(
         grid,
         heights[order],
-        temps[order],
+        values[order],
         left=np.nan,
         right=np.nan,
     )
@@ -59,8 +63,8 @@ def build_daily_profiles(
         for row in metrics_df.itertuples(index=False)
     }
 
-    # Группируем профили → дни
-    by_day_profiles: dict[str, list[tuple[np.ndarray, np.ndarray]]] = defaultdict(list)
+    # (heights, temps, pressures) по профилям дня
+    by_day_profiles: dict[str, list[tuple[np.ndarray, np.ndarray, np.ndarray]]] = defaultdict(list)
     day_meta: dict[str, dict[str, Any]] = {}
 
     for profile_id, group in long_df.groupby("profile_id"):
@@ -79,7 +83,8 @@ def build_daily_profiles(
 
         heights = group["height_m"].to_numpy(dtype=float)
         temps = group["temperature_c"].to_numpy(dtype=float)
-        by_day_profiles[day].append((heights, temps))
+        pressures = group["pressure_hpa"].to_numpy(dtype=float)
+        by_day_profiles[day].append((heights, temps, pressures))
 
         if day not in day_meta:
             day_meta[day] = {
@@ -100,11 +105,13 @@ def build_daily_profiles(
     months: dict[str, dict[str, Any]] = {}
     for day, profiles in sorted(by_day_profiles.items()):
         month_key = day[:7]
-        min_h = min(float(h.min()) for h, _ in profiles)
-        max_h = max(float(h.max()) for h, _ in profiles)
+        min_h = min(float(h.min()) for h, _, _ in profiles)
+        max_h = max(float(h.max()) for h, _, _ in profiles)
         grid = np.linspace(min_h, max_h, grid_points)
-        stacked = np.vstack([_mean_on_grid(h, t, grid) for h, t in profiles])
-        mean_t = np.nanmean(stacked, axis=0)
+        stacked_t = np.vstack([_interp_on_height_grid(h, t, grid) for h, t, _ in profiles])
+        stacked_p = np.vstack([_interp_on_height_grid(h, p, grid) for h, _, p in profiles])
+        mean_t = np.nanmean(stacked_t, axis=0)
+        mean_p = np.nanmean(stacked_p, axis=0)
 
         meta = day_meta[day]
         t_surface = (
@@ -118,6 +125,7 @@ def build_daily_profiles(
         months[month_key]["days"].append({
             "date": day,
             "heights_m": [round(float(x), 1) for x in grid],
+            "pressure_hpa": [None if np.isnan(x) else round(float(x), 2) for x in mean_p],
             "temperature_c": [None if np.isnan(x) else round(float(x), 3) for x in mean_t],
             "n_profiles": meta["n_profiles"],
             "n_good": good_count,
