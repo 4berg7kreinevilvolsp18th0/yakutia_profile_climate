@@ -27,7 +27,8 @@ MIN_ABS_DP_HPA = 0.5  # защита от деления на почти нул�
 
 
 @st.cache_data(show_spinner="Загрузка суточных профилей…")
-def load_daily(path: str) -> dict:
+def load_daily(path: str, mtime_ns: int) -> dict:
+    """mtime_ns — ключ кэша: после пересборки JSON подхватывается новый файл."""
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
@@ -151,14 +152,15 @@ def main() -> None:
     )
 
     data_path = st.sidebar.text_input("daily_profiles.json", str(DEFAULT_DATA))
-    if not Path(data_path).exists():
+    data_file = Path(data_path)
+    if not data_file.exists():
         st.error(
             "Нет файла данных. Сначала выполните:\n\n"
             "`py -3 scripts/build_daily_profiles.py`"
         )
         return
 
-    data = load_daily(data_path)
+    data = load_daily(str(data_file), data_file.stat().st_mtime_ns)
     months = sorted(data["months"].keys())
     if not months:
         st.error("В JSON нет месяцев.")
@@ -173,8 +175,14 @@ def main() -> None:
         st.warning(
             "В JSON нет pressure_hpa. Пересоберите данные:\n\n"
             "`python scripts/build_daily_profiles.py`\n\n"
-            "Пока кнопка (ΔT/ΔP)² будет недоступна."
+            "Если уже пересобрали — нажмите **C** в браузере или кнопку «Сбросить кэш» ниже "
+            "(Streamlit мог держать старый файл в памяти)."
         )
+        if st.button("Сбросить кэш данных"):
+            load_daily.clear()
+            st.rerun()
+    else:
+        st.sidebar.success("pressure_hpa в JSON есть")
 
     years = sorted({m[:4] for m in months})
     col_y, col_m = st.sidebar.columns(2)
