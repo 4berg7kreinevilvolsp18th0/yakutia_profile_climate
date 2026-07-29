@@ -24,11 +24,17 @@ OUTLIER_MAX_ABS_DT_C = 10.0
 OUTLIER_MAX_DT_DP_SQ = 0.25
 MIN_ABS_DP_HPA = 0.5
 
-# MAD к медиане месяца
-MAD_K = 5.0
-MAD_OUTLIER_FRACTION = 0.25
-MAD_GRID_POINTS = 40
-MAD_MIN_LEVELS = 2
+# Hampel / residual spike
+HAMPEL_WINDOW = 5  # нечётное: 2*h+1
+HAMPEL_K = 3.0
+SPIKE_ABS_C = 8.0
+MAD_SCALE = 1.4826  # нормализация MAD ≈ σ
+
+# Скор формы T − Ts
+FORM_GRID_POINTS = 40
+FORM_RMSE_MIN_C = 3.0
+FORM_PERCENTILE = 95.0
+FORM_MIN_LEVELS = 3
 
 # Мало уровней
 MIN_LEVELS_FLAG = 5
@@ -42,7 +48,7 @@ def clean_observation_levels(
     temp_min_c: float = TEMP_MIN_C,
     temp_max_c: float = TEMP_MAX_C,
 ) -> list[dict[str, Any]]:
-    """Физика + dedupe + spike по высоте и давлению; P убывает (земля → верх)."""
+    """Физика + dedupe + spike по высоте/давлению + Hampel; P убывает (земля → верх)."""
     cleaned = dedupe_levels_by_pressure(levels)
     cleaned = dedupe_levels_by_height(cleaned)
     result: list[dict[str, Any]] = []
@@ -71,7 +77,9 @@ def clean_observation_levels(
     result = _enforce_decreasing_pressure(result)
     result = remove_temperature_spikes(result)
     result = remove_temperature_spikes_by_pressure(result)
+    result = remove_hampel_spike_levels(result)
     result.sort(key=lambda r: float(r["pressure_hpa"]), reverse=True)
+    result = _enforce_increasing_height_with_falling_pressure(result)
     return result
 
 
@@ -87,6 +95,117 @@ def _enforce_decreasing_pressure(levels: list[dict[str, Any]]) -> list[dict[str,
             kept.append(row)
             last_p = p
     return kept
+
+
+def _enforce_increasing_height_with_falling_pressure(
+    levels: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """При убывающем P высота должна расти; иначе уровень — источник спиралей на оси H."""
+    if not levels:
+        return levels
+    sorted_levels = sorted(levels, key=lambda r: float(r["pressure_hpa"]), reverse=True)
+    kept: list[dict[str, Any]] = [sorted_levels[0]]
+    last_h = float(sorted_levels[0]["height_m"])
+    for row in sorted_levels[1:]:
+        h = float(row["height_m"])
+        if h > last_h:
+            kept.append(row)
+            last_h = h
+    return kept
+
+
+def prepare_plot_arrays(
+    obs: dict[str, Any],
+    y_axis: str,
+) -> tuple[np.ndarray, np.ndarray] | None:
+    """T и Y для графика: без спиралей (строго монотонный Y).
+
+    Давление: сортировка по убыванию P, строгое убывание.
+    Высота: сортировка по убыванию P, затем только растущая H (гидростатика).
+    Возвращает (temperature_c, y_values) или None.
+    """
+    temps = obs.get("temperature_c")
+    if not temps:
+        return None
+    t = np.asarray([np.nan if v is None else float(v) for v in temps], dtype=float)
+
+    pressures = obs.get("pressure_hpa")
+    heights = obs.get("heights_m")
+    p = None
+    if pressures:
+        p = np.asarray([np.nan if v is None else float(v) for v in pressures], dtype=float)
+    h = None
+    if heights:
+        h = np.asarray([np.nan if v is None else float(v) for v in heights], dtype=float)
+
+    if y_axis == "pressure":
+        if p is None:
+            return None
+        n = min(len(t), len(p))
+        t = t[:n]
+        p = p[:n]
+        valid = ~np.isnan(t) & ~np.isnan(p)
+        if valid.sum() < 2:
+            return None
+        t = t[valid]
+        p = p[valid]
+        order = np.argsort(-p)
+        t = t[order]
+        p = p[order]
+        keep_t = [float(t[0])]
+        keep_y = [float(p[0])]
+        for i in range(1, len(p)):
+            pi = float(p[i])
+            if pi < keep_y[-1]:
+                keep_y.append(pi)
+                keep_t.append(float(t[i]))
+    else:
+        if h is None:
+            return None
+        n = min(len(t), len(h))
+        t = t[:n]
+        h = h[:n]
+        if p is not None:
+            p = p[: min(len(p), n)]
+            if len(p) == n:
+                valid = ~np.isnan(t) & ~np.isnan(h) & ~np.isnan(p)
+                if valid.sum() < 2:
+                    return None
+                t = t[valid]
+                h = h[valid]
+                p = p[valid]
+                order = np.argsort(-p)
+                t = t[order]
+                h = h[order]
+            else:
+                valid = ~np.isnan(t) & ~np.isnan(h)
+                if valid.sum() < 2:
+                    return None
+                t = t[valid]
+                h = h[valid]
+                order = np.argsort(h)
+                t = t[order]
+                h = h[order]
+        else:
+            valid = ~np.isnan(t) & ~np.isnan(h)
+            if valid.sum() < 2:
+                return None
+            t = t[valid]
+            h = h[valid]
+            order = np.argsort(h)
+            t = t[order]
+            h = h[order]
+        keep_t = [float(t[0])]
+        keep_y = [float(h[0])]
+        for i in range(1, len(h)):
+            hi = float(h[i])
+            if hi > keep_y[-1]:
+                keep_y.append(hi)
+                keep_t.append(float(t[i]))
+
+    if len(keep_t) < 2:
+        return None
+    return np.asarray(keep_t, dtype=float), np.asarray(keep_y, dtype=float)
 
 
 def remove_temperature_spikes_by_pressure(
@@ -108,6 +227,75 @@ def remove_temperature_spikes_by_pressure(
             continue
         kept.append(row)
     return kept
+
+
+def hampel_residuals(
+    temps: np.ndarray,
+    *,
+    window: int = HAMPEL_WINDOW,
+) -> tuple[np.ndarray, np.ndarray, float]:
+    """Классический Hampel: медиана соседей без самой точки → |r| и общий порог.
+
+    Возвращает (local_median, |r|, threshold).
+    """
+    n = len(temps)
+    if n < 3:
+        zeros = np.zeros(n, dtype=float)
+        return temps.astype(float), zeros, float("inf")
+    w = window if window % 2 == 1 else window + 1
+    w = max(3, w)
+    half = w // 2
+    x = temps.astype(float)
+    local_med = np.empty(n, dtype=float)
+    for i in range(n):
+        lo = max(0, i - half)
+        hi = min(n, i + half + 1)
+        neighbors = np.concatenate([x[lo:i], x[i + 1:hi]])
+        if len(neighbors) == 0:
+            local_med[i] = x[i]
+        else:
+            local_med[i] = float(np.median(neighbors))
+    abs_r = np.abs(x - local_med)
+    mad = float(np.median(abs_r))
+    threshold = max(HAMPEL_K * MAD_SCALE * mad, SPIKE_ABS_C)
+    return local_med, abs_r, threshold
+
+
+def remove_hampel_spike_levels(
+    levels: list[dict[str, Any]],
+    *,
+    window: int = HAMPEL_WINDOW,
+) -> list[dict[str, Any]]:
+    """Убирает уровни, помеченные Hampel как spike."""
+    if len(levels) < 5:
+        return levels
+    sorted_levels = sorted(levels, key=lambda r: float(r["pressure_hpa"]), reverse=True)
+    temps = np.asarray([float(r["temperature_c"]) for r in sorted_levels], dtype=float)
+    _, abs_r, threshold = hampel_residuals(temps, window=window)
+    return [lv for lv, r in zip(sorted_levels, abs_r) if r <= threshold]
+
+
+def spike_scores(obs: dict[str, Any]) -> tuple[float, int]:
+    """(max |r|, n_spike) по Hampel/residual внутри зонда."""
+    t = _as_float_array(obs.get("temperature_c"))
+    p = _as_float_array(obs.get("pressure_hpa"))
+    if t is None or p is None:
+        return float("inf"), 10**9
+    valid = ~np.isnan(t) & ~np.isnan(p)
+    if valid.sum() < 3:
+        return float("inf"), 10**9
+    t = t[valid]
+    p = p[valid]
+    order = np.argsort(-p)
+    t = t[order]
+    _, abs_r, threshold = hampel_residuals(t)
+    n_spike = int(np.sum(abs_r > threshold))
+    return float(np.max(abs_r)), n_spike
+
+
+def is_spike_outlier(obs: dict[str, Any]) -> bool:
+    _, n_spike = spike_scores(obs)
+    return n_spike >= 1
 
 
 def _as_float_array(values: Sequence[Any] | None) -> np.ndarray | None:
@@ -187,7 +375,7 @@ def interp_on_pressure_grid(
 def pressure_grid_for_obs(
     observations: Sequence[dict[str, Any]],
     *,
-    grid_points: int = MAD_GRID_POINTS,
+    grid_points: int = FORM_GRID_POINTS,
 ) -> np.ndarray | None:
     p_lo = None
     p_hi = None
@@ -207,82 +395,121 @@ def pressure_grid_for_obs(
     return np.linspace(p_hi, p_lo, grid_points)
 
 
-def mad_outlier_fraction(
-    obs: dict[str, Any],
-    median: np.ndarray,
-    mad: np.ndarray,
-    grid: np.ndarray,
-    *,
-    k: float = MAD_K,
-) -> float:
-    """Доля уровней на сетке P, где |T−med| > k·MAD (MAD=0 → только точное равенство)."""
+def _surface_temp(obs: dict[str, Any]) -> float | None:
+    ts = obs.get("t_surface_c")
+    if ts is not None and not (isinstance(ts, float) and np.isnan(ts)):
+        return float(ts)
+    t = _as_float_array(obs.get("temperature_c"))
+    p = _as_float_array(obs.get("pressure_hpa"))
+    if t is None or p is None:
+        return None
+    valid = ~np.isnan(t) & ~np.isnan(p)
+    if valid.sum() < 1:
+        return None
+    # земля = максимальное давление
+    idx = int(np.nanargmax(np.where(valid, p, -np.inf)))
+    return float(t[idx])
+
+
+def shape_anomaly_on_grid(obs: dict[str, Any], grid: np.ndarray) -> np.ndarray | None:
+    """T(p) − Ts на сетке давления."""
     p = _as_float_array(obs.get("pressure_hpa"))
     t = _as_float_array(obs.get("temperature_c"))
-    if p is None or t is None:
-        return 1.0
+    ts = _surface_temp(obs)
+    if p is None or t is None or ts is None:
+        return None
     valid = ~np.isnan(t) & ~np.isnan(p)
-    if valid.sum() < MAD_MIN_LEVELS:
-        return 1.0
+    if valid.sum() < FORM_MIN_LEVELS:
+        return None
     t_grid = interp_on_pressure_grid(p[valid], t[valid], grid)
-    comparable = ~np.isnan(t_grid) & ~np.isnan(median) & ~np.isnan(mad)
-    if comparable.sum() < MAD_MIN_LEVELS:
-        return 1.0
-    residual = np.abs(t_grid[comparable] - median[comparable])
-    threshold = k * mad[comparable]
-    # где MAD≈0: флаг только при заметном отклонении
-    flags = np.where(
-        threshold < 1e-9,
-        residual > 1e-6,
-        residual > threshold,
-    )
-    return float(np.mean(flags))
+    return t_grid - ts
 
 
-def month_median_mad(
+def form_rmse(obs: dict[str, Any], median_anom: np.ndarray, grid: np.ndarray) -> float:
+    """RMSE формы после вычитания среднего смещения профиля относительно медианы."""
+    anom = shape_anomaly_on_grid(obs, grid)
+    if anom is None:
+        return float("inf")
+    comparable = ~np.isnan(anom) & ~np.isnan(median_anom)
+    if comparable.sum() < FORM_MIN_LEVELS:
+        return float("inf")
+    diff = anom[comparable] - median_anom[comparable]
+    diff = diff - np.nanmean(diff)  # не бить за равномерный сдвиг
+    return float(np.sqrt(np.nanmean(diff ** 2)))
+
+
+def month_median_shape(
     observations: Sequence[dict[str, Any]],
     *,
-    grid_points: int = MAD_GRID_POINTS,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
-    """Медиана и MAD температуры на общей сетке давления."""
+    grid_points: int = FORM_GRID_POINTS,
+) -> tuple[np.ndarray, np.ndarray] | None:
+    """Медиана формы T−Ts на общей сетке давления."""
     grid = pressure_grid_for_obs(observations, grid_points=grid_points)
     if grid is None:
         return None
     stack: list[np.ndarray] = []
     for obs in observations:
-        p = _as_float_array(obs.get("pressure_hpa"))
-        t = _as_float_array(obs.get("temperature_c"))
-        if p is None or t is None:
+        anom = shape_anomaly_on_grid(obs, grid)
+        if anom is None:
             continue
-        valid = ~np.isnan(t) & ~np.isnan(p)
-        if valid.sum() < MAD_MIN_LEVELS:
-            continue
-        stack.append(interp_on_pressure_grid(p[valid], t[valid], grid))
+        stack.append(anom)
     if len(stack) < 2:
         return None
-    arr = np.vstack(stack)
-    median = np.nanmedian(arr, axis=0)
-    mad = np.nanmedian(np.abs(arr - median), axis=0)
-    return grid, median, mad
+    return grid, np.nanmedian(np.vstack(stack), axis=0)
 
 
-def suggest_outliers_mad(
+def form_rmse_threshold(
+    observations: Sequence[dict[str, Any]],
+    *,
+    percentile: float = FORM_PERCENTILE,
+    min_c: float = FORM_RMSE_MIN_C,
+) -> float | None:
+    """Порог = max(P95 скоров, FORM_RMSE_MIN_C)."""
+    stats = month_median_shape(observations)
+    if stats is None:
+        return None
+    grid, median_anom = stats
+    scores = [form_rmse(obs, median_anom, grid) for obs in observations]
+    finite = [s for s in scores if s != float("inf") and s == s]
+    if len(finite) < 2:
+        return None
+    return max(float(np.percentile(finite, percentile)), min_c)
+
+
+def suggest_outliers_spike(
+    observations: Sequence[dict[str, Any]],
+    enabled_ids: set[str],
+) -> list[str]:
+    scored: list[tuple[int, float, str]] = []
+    for obs in observations:
+        pid = obs["profile_id"]
+        if pid not in enabled_ids:
+            continue
+        max_r, n_spike = spike_scores(obs)
+        if n_spike >= 1:
+            scored.append((n_spike, max_r, pid))
+    scored.sort(reverse=True)
+    return [pid for _, _, pid in scored]
+
+
+def suggest_outliers_form(
     observations: Sequence[dict[str, Any]],
     enabled_ids: set[str],
     *,
-    k: float = MAD_K,
-    fraction: float = MAD_OUTLIER_FRACTION,
+    percentile: float = FORM_PERCENTILE,
+    min_c: float = FORM_RMSE_MIN_C,
 ) -> list[str]:
-    """Кандидаты по MAD относительно медианы включённых наблюдений месяца."""
     pool = [o for o in observations if o["profile_id"] in enabled_ids]
-    stats = month_median_mad(pool)
+    stats = month_median_shape(pool)
     if stats is None:
         return []
-    grid, median, mad = stats
-    out: list[tuple[float, str]] = []
-    for obs in pool:
-        frac = mad_outlier_fraction(obs, median, mad, grid, k=k)
-        if frac >= fraction:
-            out.append((frac, obs["profile_id"]))
+    grid, median_anom = stats
+    scores = {obs["profile_id"]: form_rmse(obs, median_anom, grid) for obs in pool}
+    finite = [s for s in scores.values() if s != float("inf") and s == s]
+    if len(finite) < 2:
+        return []
+    threshold = max(float(np.percentile(finite, percentile)), min_c)
+    out = [(s, pid) for pid, s in scores.items() if s >= threshold]
     out.sort(reverse=True)
     return [pid for _, pid in out]
 

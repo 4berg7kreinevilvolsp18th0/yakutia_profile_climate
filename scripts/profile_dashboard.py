@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import date, datetime
 from pathlib import Path
 
 import numpy as np
@@ -20,27 +21,33 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from gdex_bufr.profile_climate.obs_qc import (  # noqa: E402
-    MAD_K,
-    MAD_OUTLIER_FRACTION,
+    FORM_PERCENTILE,
+    FORM_RMSE_MIN_C,
+    HAMPEL_K,
     MIN_ABS_DP_HPA,
     MIN_LEVELS_FLAG,
     OUTLIER_MAX_ABS_DT_C,
     OUTLIER_MAX_DT_DP_SQ,
+    SPIKE_ABS_C,
+    form_rmse,
+    form_rmse_threshold,
     is_few_levels,
-    mad_outlier_fraction,
+    is_spike_outlier,
     max_abs_dt,
     max_dt_dp_sq,
-    month_median_mad,
+    month_median_shape,
+    prepare_plot_arrays,
+    spike_scores,
     suggest_outliers_abs_dt,
     suggest_outliers_dt_dp_sq,
     suggest_outliers_few_levels,
-    suggest_outliers_mad,
+    suggest_outliers_form,
+    suggest_outliers_spike,
 )
 
 DEFAULT_DATA = ROOT / "gdex_outputs" / "profile_climate" / "aldan" / "daily_profiles.json"
 REQUIRED_SCHEMA = "observations_v1"
 
-# Качественная палитра ~24 цвета (без доминирующего фиолетового)
 OBS_PALETTE = [
     "#1B9E77", "#D95F02", "#7570B3", "#E7298A", "#66A61E",
     "#E6AB02", "#A6761D", "#666666", "#1F78B4", "#B2DF8A",
@@ -66,20 +73,33 @@ def _iter_observations(days: list[dict]) -> list[dict]:
     return out
 
 
-def _temps_as_float(obs: dict) -> np.ndarray:
-    return np.asarray(
-        [np.nan if v is None else v for v in obs["temperature_c"]],
-        dtype=float,
-    )
+def _parse_day(value: str) -> date:
+    return datetime.strptime(value, "%Y-%m-%d").date()
 
 
-def _vertical_as_float(obs: dict, axis: str) -> np.ndarray | None:
-    if axis == "pressure":
-        pressures = obs.get("pressure_hpa")
-        if not pressures:
-            return None
-        return np.asarray([np.nan if v is None else v for v in pressures], dtype=float)
-    return np.asarray(obs["heights_m"], dtype=float)
+def filter_observations(
+    observations: list[dict],
+    *,
+    cycle_mode: str,
+    day_from: date,
+    day_to: date,
+    inversion_only: bool,
+) -> list[dict]:
+    """Месяц уже выбран снаружи; здесь даты / cycle / инверсия."""
+    out: list[dict] = []
+    for obs in observations:
+        d = _parse_day(obs["date"])
+        if d < day_from or d > day_to:
+            continue
+        cy = str(obs.get("cycle", "")).zfill(2)[-2:]
+        if cycle_mode == "00" and cy != "00":
+            continue
+        if cycle_mode == "12" and cy != "12":
+            continue
+        if inversion_only and not obs.get("inversion_detected"):
+            continue
+        out.append(obs)
+    return out
 
 
 def month_mean(
@@ -88,19 +108,16 @@ def month_mean(
     *,
     y_axis: str = "height",
 ) -> tuple[np.ndarray, np.ndarray] | None:
-    """Средний профиль включённых наблюдений на сетке по высоте или давлению."""
+    """Средний профиль включённых наблюдений (после anti-spiral prepare)."""
     series: list[tuple[np.ndarray, np.ndarray]] = []
     for obs in observations:
         if obs["profile_id"] not in enabled:
             continue
-        y = _vertical_as_float(obs, y_axis)
-        if y is None:
+        prepared = prepare_plot_arrays(obs, y_axis)
+        if prepared is None:
             continue
-        t = _temps_as_float(obs)
-        valid = ~np.isnan(t) & ~np.isnan(y)
-        if valid.sum() < 2:
-            continue
-        series.append((y[valid], t[valid]))
+        t, y = prepared
+        series.append((y, t))
     if not series:
         return None
 
@@ -144,12 +161,17 @@ def _obs_state_key(month_key: str, profile_id: str) -> str:
     return f"obs::{month_key}::{profile_id}"
 
 
+def _set_enabled(month_key: str, observations: list[dict], predicate) -> None:
+    for obs in observations:
+        st.session_state[_obs_state_key(month_key, obs["profile_id"])] = bool(predicate(obs))
+
+
 def main() -> None:
     st.set_page_config(page_title="Aldan profile dashboard", layout="wide")
     st.title("Алдан — профили наблюдений")
     st.caption(
-        "Одна кривая = один зонд (срок). QC-кнопки предлагают кандидатов на отключение; "
-        "среднее пересчитывается по включённым наблюдениям."
+        "Одна кривая = один зонд (срок). Фильтры: 00/12, диапазон дней, инверсия. "
+        "QC: spike / форма / |ΔT| / (ΔT/ΔP)². Линии без спиралей (монотонный Y)."
     )
 
     data_path = st.sidebar.text_input("daily_profiles.json", str(DEFAULT_DATA))
@@ -192,6 +214,36 @@ def main() -> None:
         index=0,
     )
 
+    days = data["months"][month_key]["days"]
+    observations = _iter_observations(days)
+    if not observations:
+        st.warning("В выбранном месяце нет наблюдений.")
+        return
+
+    day_dates = sorted({_parse_day(o["date"]) for o in observations})
+    d_min, d_max = day_dates[0], day_dates[-1]
+
+    st.sidebar.markdown("### Фильтр")
+    cycle_mode = st.sidebar.radio(
+        "Срок (UTC)",
+        options=["00+12", "00", "12"],
+        index=0,
+        horizontal=True,
+        help="Ограничивает видимый пул наблюдений.",
+    )
+    if d_min == d_max:
+        day_from = day_to = d_min
+        st.sidebar.caption(f"День: {d_min.isoformat()}")
+    else:
+        day_from, day_to = st.sidebar.slider(
+            "Диапазон дней",
+            min_value=d_min,
+            max_value=d_max,
+            value=(d_min, d_max),
+            format="DD.MM",
+        )
+    inversion_only = st.sidebar.checkbox("Только с инверсией", value=False)
+
     show_day_means = st.sidebar.checkbox(
         "Показать суточные средние",
         value=False,
@@ -202,59 +254,88 @@ def main() -> None:
         "Вертикальная ось",
         options=["Давление, гПа", "Высота, м"],
         index=0,
-        help="Давление надёжнее, если геопотенциальная высота сомнительна.",
+        help="После анти-спираль фильтра высота тоже без петель; давление надёжнее физически.",
     )
     y_axis = "pressure" if y_axis_label.startswith("Давление") else "height"
 
-    days = data["months"][month_key]["days"]
-    observations = _iter_observations(days)
-    all_ids = [o["profile_id"] for o in observations]
+    visible = filter_observations(
+        observations,
+        cycle_mode=cycle_mode,
+        day_from=day_from,
+        day_to=day_to,
+        inversion_only=inversion_only,
+    )
+    visible_ids = {o["profile_id"] for o in visible}
+    visible_by_day: dict[str, list[dict]] = {}
+    for obs in visible:
+        visible_by_day.setdefault(obs["date"], []).append(obs)
 
     st.sidebar.markdown("### Наблюдения")
-    c1, c2 = st.sidebar.columns(2)
-    if c1.button("Все", use_container_width=True):
-        for obs in observations:
-            st.session_state[_obs_state_key(month_key, obs["profile_id"])] = True
-    if c2.button("Сброс", use_container_width=True):
-        for obs in observations:
+    p1, p2 = st.sidebar.columns(2)
+    if p1.button("Все видимые", use_container_width=True):
+        _set_enabled(month_key, observations, lambda o: o["profile_id"] in visible_ids)
+    if p2.button("Сброс видимых", use_container_width=True):
+        for obs in visible:
             st.session_state[_obs_state_key(month_key, obs["profile_id"])] = False
+    p3, p4 = st.sidebar.columns(2)
+    if p3.button("Только 00", use_container_width=True):
+        _set_enabled(
+            month_key,
+            observations,
+            lambda o: o["profile_id"] in visible_ids and str(o.get("cycle", "")).zfill(2)[-2:] == "00",
+        )
+    if p4.button("Только 12", use_container_width=True):
+        _set_enabled(
+            month_key,
+            observations,
+            lambda o: o["profile_id"] in visible_ids and str(o.get("cycle", "")).zfill(2)[-2:] == "12",
+        )
 
     st.sidebar.markdown("### Выбросы (кандидаты)")
     q1, q2 = st.sidebar.columns(2)
     q3, q4 = st.sidebar.columns(2)
+    q5, _ = st.sidebar.columns(2)
 
     def _apply_outliers(outlier_ids: set[str]) -> None:
-        for obs in observations:
+        for obs in visible:
             pid = obs["profile_id"]
             st.session_state[_obs_state_key(month_key, pid)] = pid not in outlier_ids
 
+    visible_id_list = [o["profile_id"] for o in visible]
     if q1.button(
-        "по MAD",
+        "по spike",
         use_container_width=True,
-        help=f"Доля уровней |T−med| > {MAD_K}·MAD ≥ {MAD_OUTLIER_FRACTION}",
+        help=f"Hampel: |r| > max({HAMPEL_K}·1.4826·MAD(r), {SPIKE_ABS_C}°C)",
     ):
-        _apply_outliers(set(suggest_outliers_mad(observations, set(all_ids))))
+        _apply_outliers(set(suggest_outliers_spike(visible, set(visible_id_list))))
     if q2.button(
+        "по форме",
+        use_container_width=True,
+        help=f"RMSE(T−Ts) ≥ max(P{FORM_PERCENTILE:.0f}, {FORM_RMSE_MIN_C}°C)",
+    ):
+        _apply_outliers(set(suggest_outliers_form(visible, set(visible_id_list))))
+    if q3.button(
         "по |ΔT|",
         use_container_width=True,
         help=f"max |ΔT| ≥ {OUTLIER_MAX_ABS_DT_C} °C (по давлению)",
     ):
-        _apply_outliers(set(suggest_outliers_abs_dt(observations, set(all_ids))))
-    if q3.button(
+        _apply_outliers(set(suggest_outliers_abs_dt(visible, set(visible_id_list))))
+    if q4.button(
         "по (ΔT/ΔP)²",
         use_container_width=True,
         help=f"max (ΔT/ΔP)² ≥ {OUTLIER_MAX_DT_DP_SQ}",
     ):
-        _apply_outliers(set(suggest_outliers_dt_dp_sq(observations, set(all_ids))))
-    if q4.button(
+        _apply_outliers(set(suggest_outliers_dt_dp_sq(visible, set(visible_id_list))))
+    if q5.button(
         "мало уровней",
         use_container_width=True,
         help=f"n_levels < {MIN_LEVELS_FLAG}",
     ):
-        _apply_outliers(set(suggest_outliers_few_levels(observations, set(all_ids))))
+        _apply_outliers(set(suggest_outliers_few_levels(visible, set(visible_id_list))))
 
     st.sidebar.caption(
-        f"MAD k={MAD_K} frac≥{MAD_OUTLIER_FRACTION} · "
+        f"spike k={HAMPEL_K} abs≥{SPIKE_ABS_C}°C · "
+        f"form P{FORM_PERCENTILE:.0f}/min{FORM_RMSE_MIN_C}°C · "
         f"|ΔT|≥{OUTLIER_MAX_ABS_DT_C}°C · "
         f"(ΔT/ΔP)²≥{OUTLIER_MAX_DT_DP_SQ} · "
         f"n<{MIN_LEVELS_FLAG} · min|ΔP|={MIN_ABS_DP_HPA} гПа"
@@ -262,9 +343,12 @@ def main() -> None:
 
     enabled: set[str] = set()
     with st.sidebar.expander("Список наблюдений", expanded=True):
-        for day in days:
-            st.markdown(f"**{day['date'][8:]}** · n={day.get('n_profiles', 0)}")
-            for obs in day.get("observations") or []:
+        if not visible_by_day:
+            st.caption("Нет наблюдений по текущему фильтру.")
+        for day_key in sorted(visible_by_day):
+            day_obs = visible_by_day[day_key]
+            st.markdown(f"**{day_key[8:]}** · n={len(day_obs)}")
+            for obs in day_obs:
                 key = _obs_state_key(month_key, obs["profile_id"])
                 if key not in st.session_state:
                     st.session_state[key] = True
@@ -278,18 +362,25 @@ def main() -> None:
                 if st.checkbox(label, key=key):
                     enabled.add(obs["profile_id"])
 
-    st.sidebar.caption(f"Включено: {len(enabled)} / {len(all_ids)}")
-    mean = month_mean(observations, enabled, y_axis=y_axis)
+    st.sidebar.caption(f"Включено: {len(enabled)} / видимых {len(visible)}")
+    mean = month_mean(visible, enabled, y_axis=y_axis)
+
+    st.info(
+        f"Фильтр: срок **{cycle_mode}** · дни "
+        f"**{day_from.isoformat()}…{day_to.isoformat()}**"
+        + (" · только инверсии" if inversion_only else "")
+        + f" · видимо **{len(visible)}**, включено **{len(enabled)}**"
+    )
 
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Наблюдений", f"{len(enabled)} / {len(all_ids)}")
+    m1.metric("Наблюдений", f"{len(enabled)} / {len(visible)}")
     m2.metric(
         "Дней с данными",
-        len({o["date"] for o in observations if o["profile_id"] in enabled}),
+        len({o["date"] for o in visible if o["profile_id"] in enabled}),
     )
     m3.metric(
         "С инверсией",
-        sum(1 for o in observations if o["profile_id"] in enabled and o.get("inversion_detected")),
+        sum(1 for o in visible if o["profile_id"] in enabled and o.get("inversion_detected")),
     )
     if mean is not None:
         ts = _first_valid_temp(mean[1])
@@ -300,21 +391,23 @@ def main() -> None:
     fig = go.Figure()
     y_hover = "P=%{y:.1f} гПа" if y_axis == "pressure" else "h=%{y:.0f} м"
     color_idx = 0
+    day_lookup = {d["date"]: d for d in days}
 
-    for day in days:
+    for day_key in sorted(visible_by_day):
         day_has_enabled = False
-        for obs in day.get("observations") or []:
+        for obs in visible_by_day[day_key]:
             if obs["profile_id"] not in enabled:
                 continue
-            day_has_enabled = True
-            y_vals = obs.get("pressure_hpa") if y_axis == "pressure" else obs["heights_m"]
-            if y_vals is None:
+            prepared = prepare_plot_arrays(obs, y_axis)
+            if prepared is None:
                 continue
+            t_vals, y_vals = prepared
+            day_has_enabled = True
             color = OBS_PALETTE[color_idx % len(OBS_PALETTE)]
             color_idx += 1
-            name = f"{day['date'][8:]}·{obs.get('cycle', '??')}"
+            name = f"{day_key[8:]}·{obs.get('cycle', '??')}"
             fig.add_trace(go.Scatter(
-                x=obs["temperature_c"],
+                x=t_vals,
                 y=y_vals,
                 mode="lines",
                 name=name,
@@ -326,27 +419,28 @@ def main() -> None:
                 opacity=0.88,
                 connectgaps=False,
                 hovertemplate=(
-                    f"{obs.get('datetime_utc', day['date'])}<br>"
+                    f"{obs.get('datetime_utc', day_key)}<br>"
                     f"CY{obs.get('cycle', '??')}<br>"
                     f"T=%{{x:.1f}} °C<br>"
                     f"{y_hover}<extra></extra>"
                 ),
             ))
 
-        if show_day_means and day_has_enabled and day.get("day_mean"):
-            dm = day["day_mean"]
-            y_vals = dm.get("pressure_hpa") if y_axis == "pressure" else dm.get("heights_m")
-            if y_vals:
+        day = day_lookup.get(day_key)
+        if show_day_means and day_has_enabled and day and day.get("day_mean"):
+            prepared = prepare_plot_arrays(day["day_mean"], y_axis)
+            if prepared is not None:
+                t_vals, y_vals = prepared
                 fig.add_trace(go.Scatter(
-                    x=dm["temperature_c"],
+                    x=t_vals,
                     y=y_vals,
                     mode="lines",
-                    name=f"{day['date'][8:]} mean",
+                    name=f"{day_key[8:]} mean",
                     line=dict(width=2.0, color=DAY_MEAN_COLOR, dash="dot"),
                     opacity=0.55,
                     connectgaps=False,
                     hovertemplate=(
-                        f"Суточное среднее {day['date']}<br>"
+                        f"Суточное среднее {day_key}<br>"
                         f"T=%{{x:.1f}} °C<br>"
                         f"{y_hover}<extra></extra>"
                     ),
@@ -384,63 +478,81 @@ def main() -> None:
     st.plotly_chart(fig, use_container_width=True)
 
     if enabled:
-        mad_stats = month_median_mad([o for o in observations if o["profile_id"] in enabled])
+        enabled_obs = [o for o in visible if o["profile_id"] in enabled]
+        shape_stats = month_median_shape(enabled_obs)
+        form_thr = form_rmse_threshold(enabled_obs)
         rows = []
-        n_flag_dt = n_flag_grad = n_flag_mad = n_flag_few = 0
-        for obs in observations:
-            if obs["profile_id"] not in enabled:
-                continue
+        n_flag_dt = n_flag_grad = n_flag_spike = n_flag_form = n_flag_few = 0
+        for obs in enabled_obs:
             max_dt = max_abs_dt(obs)
             grad_sq = max_dt_dp_sq(obs)
+            max_r, n_spike = spike_scores(obs)
             few = is_few_levels(obs)
-            mad_frac = None
-            if mad_stats is not None:
-                grid, median, mad = mad_stats
-                mad_frac = mad_outlier_fraction(obs, median, mad, grid)
+            frmse = None
+            if shape_stats is not None:
+                grid, median_anom = shape_stats
+                frmse = form_rmse(obs, median_anom, grid)
+                if frmse == float("inf"):
+                    frmse = None
             flag_dt = max_dt >= OUTLIER_MAX_ABS_DT_C
             flag_grad = grad_sq >= OUTLIER_MAX_DT_DP_SQ
-            flag_mad = mad_frac is not None and mad_frac >= MAD_OUTLIER_FRACTION
+            flag_spike = is_spike_outlier(obs)
+            flag_form = (
+                frmse is not None
+                and form_thr is not None
+                and frmse >= form_thr
+            )
             if flag_dt:
                 n_flag_dt += 1
             if flag_grad:
                 n_flag_grad += 1
-            if flag_mad:
-                n_flag_mad += 1
+            if flag_spike:
+                n_flag_spike += 1
+            if flag_form:
+                n_flag_form += 1
             if few:
                 n_flag_few += 1
             rows.append({
                 "Дата": obs["date"],
                 "Cycle": obs.get("cycle"),
                 "profile_id": obs["profile_id"],
+                "max |r| spike, °C": _finite_or_none(max_r),
+                "n_spike": n_spike if n_spike < 10**8 else None,
+                "form RMSE, °C": None if frmse is None else round(frmse, 3),
                 "max |ΔT|, °C": _finite_or_none(max_dt),
                 "max (ΔT/ΔP)²": _finite_or_none(grad_sq),
-                "MAD доля": None if mad_frac is None else round(mad_frac, 3),
                 "Уровней": obs.get("n_levels"),
+                "Выброс spike?": "да" if flag_spike else "",
+                "Выброс форма?": "да" if flag_form else "",
                 "Выброс |ΔT|?": "да" if flag_dt else "",
                 "Выброс (ΔT/ΔP)²?": "да" if flag_grad else "",
-                "Выброс MAD?": "да" if flag_mad else "",
                 "Мало уровней?": "да" if few else "",
                 "Ts, °C": obs.get("t_surface_c"),
                 "Инверсия": "да" if obs.get("inversion_detected") else "нет",
             })
         rows.sort(
             key=lambda r: (
-                r["MAD доля"] if r["MAD доля"] is not None else -1,
+                r["form RMSE, °C"] if r["form RMSE, °C"] is not None else -1,
+                r["n_spike"] if r["n_spike"] is not None else -1,
                 r["max (ΔT/ΔP)²"] if r["max (ΔT/ΔP)²"] is not None else -1,
                 r["max |ΔT|, °C"] if r["max |ΔT|, °C"] is not None else -1,
             ),
             reverse=True,
         )
         st.subheader("Сравнение критериев выбросов (наблюдения)")
-        c_a, c_b, c_c, c_d = st.columns(4)
-        c_a.metric("Флаг MAD", n_flag_mad)
-        c_b.metric("Флаг |ΔT|", n_flag_dt)
-        c_c.metric("Флаг (ΔT/ΔP)²", n_flag_grad)
-        c_d.metric("Мало уровней", n_flag_few)
+        c_a, c_b, c_c, c_d, c_e = st.columns(5)
+        c_a.metric("Флаг spike", n_flag_spike)
+        c_b.metric("Флаг форма", n_flag_form)
+        c_c.metric("Флаг |ΔT|", n_flag_dt)
+        c_d.metric("Флаг (ΔT/ΔP)²", n_flag_grad)
+        c_e.metric("Мало уровней", n_flag_few)
+        if form_thr is not None:
+            st.caption(f"Порог формы (P{FORM_PERCENTILE:.0f}, min {FORM_RMSE_MIN_C}°C): {form_thr:.2f} °C")
         st.dataframe(rows, use_container_width=True, hide_index=True)
         st.caption(
             f"Источник: {Path(data_path).name} · schema={REQUIRED_SCHEMA} · "
-            f"MAD k={MAD_K} frac≥{MAD_OUTLIER_FRACTION} · "
+            f"spike k={HAMPEL_K} abs≥{SPIKE_ABS_C}°C · "
+            f"form P{FORM_PERCENTILE:.0f}/min{FORM_RMSE_MIN_C}°C · "
             f"|ΔT|≥{OUTLIER_MAX_ABS_DT_C}°C · "
             f"(ΔT/ΔP)²≥{OUTLIER_MAX_DT_DP_SQ} · "
             f"n<{MIN_LEVELS_FLAG}"
