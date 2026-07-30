@@ -55,6 +55,23 @@ def test_pressure_descriptor_hpa_is_not_scaled_again() -> None:
     assert _normalize_pressure(925.0, _Registry("hPa")) == pytest.approx(925.0)
 
 
+def test_geopotential_is_converted_to_height_meters() -> None:
+    # 0-10-008 geopotential is in m^2/s^2 and must be converted to meters.
+    descriptor_ids = [8001, 7004, 10008]
+    values = [32, 92500.0, 304682.0]
+
+    levels = _decode_adpupa_flat_levels(
+        _message(descriptor_ids, values),
+        0,
+        registry=_Registry("Pa"),
+    )
+
+    assert len(levels) == 1
+    assert levels[0].pressure_hpa == pytest.approx(925.0)
+    assert levels[0].geopotential_m2s2 == pytest.approx(304682.0)
+    assert levels[0].geopotential_height_m == pytest.approx(31068.9, abs=0.2)
+
+
 def test_adpupa_record_keeps_post_pressure_fields_on_same_level() -> None:
     # Mirrors the relevant order in NCEP ADPUPA: VSIG, pressure, geopotential,
     # temperature/dewpoint and wind. The final raw pressure is 1000 Pa (10 hPa),

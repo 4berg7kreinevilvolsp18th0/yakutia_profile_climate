@@ -3,14 +3,9 @@
     "station_id": "31004",
     "station_slug": "aldan",
     "station_name": "Aldan",
-    "start_date": "2026-05-31",
-    "end_date": "2026-07-20",
-    "pressure_top_hpa": 500.0,
-    "cycles": [
-      "00",
-      "12"
-    ],
-    "mode": "fast_process_pool"
+    "start_date": "1999-10-01",
+    "end_date": "2026-07-08",
+    "mode": "finalize_after_oserror"
   },
   "profiles_total": 18203,
   "levels_total": 196658,

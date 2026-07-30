@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
+import time
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -11,6 +13,8 @@ try:
     import pandas as pd
 except ImportError:  # pragma: no cover
     pd = None
+
+logger = logging.getLogger(__name__)
 
 PROFILES_LONG_COLUMNS = [
     "station_id",
@@ -54,13 +58,37 @@ PROFILE_METRICS_COLUMNS = [
 
 
 def _write_csv(path: Path, rows: list[dict[str, Any]], columns: list[str]) -> Path:
+    """Атомарная запись CSV с retry — защита от Windows Errno 22 / блокировок."""
+    path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=columns, extrasaction="ignore")
-        writer.writeheader()
-        for row in rows:
-            writer.writerow({col: row.get(col, "") for col in columns})
-    return path
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    last_error: Exception | None = None
+
+    for attempt in range(1, 6):
+        try:
+            with tmp_path.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=columns, extrasaction="ignore")
+                writer.writeheader()
+                for row in rows:
+                    writer.writerow({col: row.get(col, "") for col in columns})
+            tmp_path.replace(path)
+            return path
+        except OSError as exc:
+            last_error = exc
+            logger.warning(
+                "Не удалось записать %s (попытка %s/5): %s",
+                path.name,
+                attempt,
+                exc,
+            )
+            time.sleep(0.5 * attempt)
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    assert last_error is not None
+    raise last_error
 
 
 def write_profiles_long_csv(rows: list[dict[str, Any]], output_dir: Path) -> Path:
