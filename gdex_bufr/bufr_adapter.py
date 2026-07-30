@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import subprocess
 from collections.abc import Iterable
 from pathlib import Path
@@ -40,7 +41,8 @@ DESC_DEWPOINT_ALT2 = "012024"
 DESC_WDIR = "011001"
 DESC_WSPD = "011002"
 DESC_HEIGHT = "010009"
-DESC_GEOPOT = "007007"
+DESC_GEOPOT = "010008"
+DESC_HEIGHT_COORD = "007007"
 DESC_RH = "013003"
 DESC_VSIG = "008001"
 
@@ -58,13 +60,18 @@ ADPUPA_VSIG_LABELS: dict[int, str] = {
 
 ADPUPA_LEVEL_FIELD_IDS = frozenset({
     8001,  # 008001
+    7004,  # 007004
     12101,  # 012101
     12225,  # 012225 — часто в ранних ADPUPA вместо 012101
+    12023,  # 012023 — fallback WMO
     12103,  # 012103
     12227,  # 012227 — Td alternate
+    12024,  # 012024 — fallback WMO
     11001,  # 011001
     11002,  # 011002
-    7007,  # 007007
+    7007,  # 007007 — height coordinate
+    10008,  # 010008 — geopotential
+    10009,  # 010009 — geopotential height
 })
 
 ADPUPA_TEMP_DIDS = (12101, 12225, 12023)
@@ -191,6 +198,7 @@ PROFILE_QUERY_DESCRIPTORS = (
     DESC_WSPD,
     DESC_HEIGHT,
     DESC_GEOPOT,
+    DESC_HEIGHT_COORD,
     DESC_RH,
     DESC_VSIG,
 )
@@ -222,14 +230,29 @@ def _subset_station_id(
 
 
 def _normalize_pressure(value: Any, registry: BufrTablesRegistry | None = None) -> float | None:
+    """Convert decoded 0-07-004 pressure to hPa using its declared unit.
+
+    pybufrkit returns physical descriptor values. For 0-07-004 that unit is
+    Pa, including small upper-air values such as 1000 Pa (= 10 hPa). A
+    magnitude-only heuristic therefore aliases upper-air levels onto the
+    troposphere (1000 Pa was previously interpreted as 1000 hPa).
+    """
     if _is_missing(value):
         return None
     pressure = float(value)
+    if not math.isfinite(pressure) or pressure <= 0:
+        return None
+
     if registry:
         info = registry.lookup_descriptor(DESC_PRESSURE)
-        if info.unit.lower() == "pa" and pressure > 2000:
+        unit = info.unit.strip().lower().replace(" ", "")
+        if unit in {"pa", "pascal", "pascals"}:
             return pressure / 100.0
-    if pressure > 2000:
+        if unit in {"hpa", "mb", "mbar", "millibar", "millibars"}:
+            return pressure
+
+    # Compatibility fallback for callers without a usable descriptor table.
+    if pressure > 1100:
         return pressure / 100.0
     return pressure
 
@@ -249,80 +272,97 @@ def _decode_adpupa_flat_levels(
     *,
     registry: BufrTablesRegistry,
 ) -> list[VerticalLevel]:
-    """Все уровни ADPUPA в порядке шаблона (как официальный декодер), не только первая репликация."""
+    """Decode ADPUPA level records in template order.
+
+    Each record starts with 0-08-001, then pressure, and only afterwards may
+    contain temperature, dewpoint, geopotential and wind. Records are flushed
+    at the next 0-08-001 instead of attaching post-pressure fields to a
+    neighbouring level.
+    """
     template_data = message.template_data.value
     template_data.wire()
     descs = template_data.decoded_descriptors_all_subsets[subset_index]
     vals = template_data.decoded_values_all_subsets[subset_index]
 
-    pending: dict[int, Any] = {}
+    current: dict[int, Any] = {}
     levels: list[VerticalLevel] = []
     seq = 0
 
-    def _backfill_last_level_temp(did: int, value: Any) -> bool:
-        if not levels or 8001 in pending:
-            return False
-        last = levels[-1]
-        if did in ADPUPA_TEMP_DIDS and last.air_temperature_c is None:
-            last.air_temperature_c = _normalize_temperature(value)
-            return True
-        if did in ADPUPA_DEWPOINT_DIDS and last.dew_point_temperature_c is None:
-            last.dew_point_temperature_c = _normalize_temperature(value)
-            return True
-        return False
-
-    def _first_pending_temp() -> float | None:
-        for did in ADPUPA_TEMP_DIDS:
-            if did in pending:
-                return _normalize_temperature(pending[did])
+    def _first_record_temperature(descriptor_ids: tuple[int, ...]) -> float | None:
+        for did in descriptor_ids:
+            if did in current:
+                return _normalize_temperature(current[did])
         return None
 
-    def _first_pending_dewpoint() -> float | None:
-        for did in ADPUPA_DEWPOINT_DIDS:
-            if did in pending:
-                return _normalize_temperature(pending[did])
-        return None
+    def _record_height() -> tuple[float | None, float | None]:
+        geopotential = current.get(10008)
+        if not _is_missing(geopotential):
+            geopotential_f = float(geopotential)
+            return round(geopotential_f / 9.80665, 1), geopotential_f
 
-    for descriptor, raw in zip(descs, vals):
-        did = descriptor.id
-        if did in ADPUPA_LEVEL_FIELD_IDS:
-            if did in (*ADPUPA_TEMP_DIDS, *ADPUPA_DEWPOINT_DIDS) and _backfill_last_level_temp(did, raw):
-                pass
-            else:
-                pending[did] = raw
-            continue
-        if did != 7004:
-            continue
+        geopotential_height = current.get(10009)
+        if not _is_missing(geopotential_height):
+            return float(geopotential_height), None
 
-        pressure = _normalize_pressure(raw, registry)
-        if pressure is None or pressure < 20 or pressure > 1100:
-            pending = {}
-            continue
+        height_coordinate = current.get(7007)
+        if not _is_missing(height_coordinate):
+            return float(height_coordinate), None
 
-        vsig_code = pending.get(8001)
-        vsig_label = _adpupa_vsig_label(vsig_code)
-        geopot = pending.get(7007)
-        geopot_f = None if _is_missing(geopot) else float(geopot)
+        return None, None
+
+    def _flush_record() -> None:
+        nonlocal current, seq
+        if 7004 not in current:
+            current = {}
+            return
+
+        pressure = _normalize_pressure(current.get(7004), registry)
+        if pressure is None or pressure > 1100:
+            current = {}
+            return
+
+        vsig_code = current.get(8001)
+        height_m, geopotential_m2s2 = _record_height()
         seq += 1
         levels.append(
             VerticalLevel(
                 pressure_hpa=pressure,
-                geopotential_height_m=None
-                if geopot_f is None
-                else round(geopot_f / 9.80665, 1),
-                geopotential_m2s2=geopot_f,
-                air_temperature_c=_first_pending_temp(),
-                dew_point_temperature_c=_first_pending_dewpoint(),
-                wind_direction_deg=None if _is_missing(pending.get(11001)) else float(pending[11001]),
-                wind_speed=None if _is_missing(pending.get(11002)) else float(pending[11002]),
+                geopotential_height_m=height_m,
+                geopotential_m2s2=geopotential_m2s2,
+                air_temperature_c=_first_record_temperature(ADPUPA_TEMP_DIDS),
+                dew_point_temperature_c=_first_record_temperature(ADPUPA_DEWPOINT_DIDS),
+                wind_direction_deg=None
+                if _is_missing(current.get(11001))
+                else float(current[11001]),
+                wind_speed=None
+                if _is_missing(current.get(11002))
+                else float(current[11002]),
                 replication_index=seq - 1,
                 seq=seq,
-                vertical_significance=vsig_label,
-                vertical_significance_code=None if _is_missing(vsig_code) else int(vsig_code),
+                vertical_significance=_adpupa_vsig_label(vsig_code),
+                vertical_significance_code=None
+                if _is_missing(vsig_code)
+                else int(vsig_code),
             )
         )
-        pending = {}
+        current = {}
 
+    for descriptor, raw in zip(descs, vals):
+        did = descriptor.id
+        if did not in ADPUPA_LEVEL_FIELD_IDS:
+            continue
+
+        if did == 8001:
+            _flush_record()
+            current[did] = raw
+            continue
+
+        # Defensive boundary for malformed/local templates without 0-08-001.
+        if did == 7004 and 7004 in current:
+            _flush_record()
+        current[did] = raw
+
+    _flush_record()
     return levels
 
 
