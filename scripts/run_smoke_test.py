@@ -38,15 +38,26 @@ def main() -> int:
 
     long_rows: list[dict] = []
     metrics_rows: list[dict] = []
+    decoded_rows: list[dict] = []
+    element_rows: list[dict] = []
 
     for day in range(1, 32):
         for cycle in ("00", "12"):
             profile = _synthetic_profile(day, cycle)
-            rows, metric = process_profile(profile, station_name="Aldan")
+            rows, metric, decoded, elements = process_profile(profile, station_name="Aldan")
             long_rows.extend(rows)
             metrics_rows.append(metric)
+            decoded_rows.extend(decoded)
+            element_rows.extend(elements)
 
-    paths = export_all(long_rows, metrics_rows, output_dir, config_info={"mode": "smoke_synthetic", "station": "31004"})
+    paths = export_all(
+        long_rows,
+        metrics_rows,
+        output_dir,
+        config_info={"mode": "smoke_synthetic", "station": "31004"},
+        decoded_rows=decoded_rows,
+        element_rows=element_rows,
+    )
     written = render_all_monthly_plots(
         station_slug="aldan",
         station_name="Aldan",

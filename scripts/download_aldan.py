@@ -163,6 +163,8 @@ def _stream_download_extract(app_cfg, pc_cfg, args: argparse.Namespace, start: d
 
     long_rows: list[dict] = []
     metrics_rows: list[dict] = []
+    decoded_rows: list[dict] = []
+    element_rows: list[dict] = []
     downloaded = 0
     skipped_404 = 0
     failed = 0
@@ -209,7 +211,7 @@ def _stream_download_extract(app_cfg, pc_cfg, args: argparse.Namespace, start: d
                 decode_mode=app_cfg.decode_mode,
             )
             for profile in profiles:
-                rows, metric = process_profile(
+                rows, metric, decoded, elements = process_profile(
                     profile,
                     station_name=STATION_NAME,
                     pressure_top_hpa=pressure_top,
@@ -218,6 +220,8 @@ def _stream_download_extract(app_cfg, pc_cfg, args: argparse.Namespace, start: d
                 )
                 long_rows.extend(rows)
                 metrics_rows.append(metric)
+                decoded_rows.extend(decoded)
+                element_rows.extend(elements)
                 profiles_found += 1
         except Exception as exc:  # noqa: BLE001 — декодер может падать на отдельных файлах
             logging.warning("Ошибка декодирования %s: %s", tmp_path.name, exc)
@@ -239,6 +243,8 @@ def _stream_download_extract(app_cfg, pc_cfg, args: argparse.Namespace, start: d
         long_rows,
         metrics_rows,
         output_dir,
+        decoded_rows=decoded_rows,
+        element_rows=element_rows,
         config_info={
             "station_id": STATION_ID,
             "station_slug": STATION_SLUG,
