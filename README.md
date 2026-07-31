@@ -2,7 +2,7 @@
 
 Исследовательский репозиторий для анализа вертикальных температурных профилей станций **Алдан** и **Якутск** по данным **GDAS ADPUPA BUFR** (GDEX/RDA d351000) за 1999–2026.
 
-Репозиторий содержит **vendored-копию** пакета [`gdex_bufr`](https://github.com/4berg7kreinevilvolsp18th0/meteo_parser) из upstream [`meteo_parser`](https://github.com/4berg7kreinevilvolsp18th0/meteo_parser) и новый модуль `gdex_bufr/profile_climate/`.
+Репозиторий содержит **копию** пакета [`gdex_bufr`](https://github.com/4berg7kreinevilvolsp18th0/meteo_parser) из  [`meteo_parser`](https://github.com/4berg7kreinevilvolsp18th0/meteo_parser) и новый модуль `gdex_bufr/profile_climate/`.
 
 Подробная инструкция: [PROFILE_CLIMATE_README.md](PROFILE_CLIMATE_README.md)
 
