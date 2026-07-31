@@ -132,7 +132,7 @@ def _decode_station_file(
     pressure_top: float,
     min_levels_to_500: int,
     min_inversion_delta_c: float,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     profiles = decode_bufr_file(
         bufr_path,
         station_id=station_id,
@@ -143,8 +143,10 @@ def _decode_station_file(
     )
     long_rows: list[dict[str, Any]] = []
     metrics_rows: list[dict[str, Any]] = []
+    decoded_rows: list[dict[str, Any]] = []
+    element_rows: list[dict[str, Any]] = []
     for profile in profiles:
-        rows, metric = process_profile(
+        rows, metric, decoded, elements = process_profile(
             profile,
             station_name=station_name,
             pressure_top_hpa=pressure_top,
@@ -153,7 +155,9 @@ def _decode_station_file(
         )
         long_rows.extend(rows)
         metrics_rows.append(metric)
-    return long_rows, metrics_rows
+        decoded_rows.extend(decoded)
+        element_rows.extend(elements)
+    return long_rows, metrics_rows, decoded_rows, element_rows
 
 
 def cmd_station_profiles(
@@ -193,6 +197,8 @@ def cmd_station_profiles(
     total_files = len(files)
     long_rows: list[dict] = []
     metrics_rows: list[dict] = []
+    decoded_rows: list[dict] = []
+    element_rows: list[dict] = []
     processed_files = 0
 
     logger.info(
@@ -219,12 +225,21 @@ def cmd_station_profiles(
             for bufr_path in files
         }
         for future in as_completed(futures):
-            file_long, file_metrics = future.result()
+            file_long, file_metrics, file_decoded, file_elements = future.result()
             long_rows.extend(file_long)
             metrics_rows.extend(file_metrics)
+            decoded_rows.extend(file_decoded)
+            element_rows.extend(file_elements)
             processed_files += 1
             if processed_files % checkpoint_every == 0 or processed_files == total_files:
-                export_checkpoint(long_rows, metrics_rows, output_dir, config_info=config_info)
+                export_checkpoint(
+                    long_rows,
+                    metrics_rows,
+                    output_dir,
+                    config_info=config_info,
+                    decoded_rows=decoded_rows,
+                    element_rows=element_rows,
+                )
                 logger.info(
                     "[%s/%s] profiles=%s levels=%s (checkpoint)",
                     processed_files,
@@ -238,6 +253,8 @@ def cmd_station_profiles(
         metrics_rows,
         output_dir,
         config_info=config_info,
+        decoded_rows=decoded_rows,
+        element_rows=element_rows,
     )
     print(json.dumps({
         "station_id": station_id,

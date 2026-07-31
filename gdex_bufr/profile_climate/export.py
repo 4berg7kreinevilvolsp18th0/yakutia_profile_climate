@@ -4,6 +4,7 @@ from __future__ import annotations
 import csv
 import json
 import logging
+import tempfile
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -24,10 +25,34 @@ PROFILES_LONG_COLUMNS = [
     "month",
     "cycle",
     "profile_id",
+    "subset_index",
+    "latitude_deg",
+    "longitude_deg",
+    "data_status",
+    "data_status_reason",
     "level_index",
+    "SEQ",
+    "VSIG",
+    "vertical_significance_code",
+    "replication_index",
+    "PRES",
     "pressure_hpa",
-    "temperature_c",
+    "GEOPOT",
+    "geopotential_m2s2",
+    "FLVL",
+    "geopotential_height_m",
     "height_m",
+    "AIR",
+    "air_temperature_c",
+    "temperature_c",
+    "DEW-",
+    "dew_point_temperature_c",
+    "REL",
+    "relative_humidity_percent",
+    "WIND",
+    "wind_direction_deg",
+    "WIND.1",
+    "wind_speed",
     "source_file",
     "qc_flag",
 ]
@@ -40,6 +65,15 @@ PROFILE_METRICS_COLUMNS = [
     "year",
     "month",
     "cycle",
+    "subset_index",
+    "latitude_deg",
+    "longitude_deg",
+    "data_status",
+    "data_status_reason",
+    "table_edition",
+    "n_pressure_raw",
+    "n_temp_raw",
+    "n_wind_raw",
     "n_levels_total",
     "n_levels_to_500",
     "p_surface_hpa",
@@ -56,39 +90,131 @@ PROFILE_METRICS_COLUMNS = [
     "source_file",
 ]
 
+# Как в gdex_bufr.xlsx_export.LEVEL_COLUMNS + ключи стыковки с климатическим слоем
+DECODED_LEVEL_BASE_COLUMNS = [
+    "profile_id",
+    "station_name",
+    "source_file",
+    "station_id",
+    "subset_index",
+    "report_datetime_utc",
+    "data_status",
+    "REC",
+    "OBS",
+    "REPORT TIME",
+    "WMO/STATION/SATELLITE ID",
+    "LATI-",
+    "LONGI-",
+    "STN",
+    "SEQ",
+    "VSIG",
+    "PRES",
+    "GEOPOT",
+    "FLVL",
+    "AIR",
+    "DEW-",
+    "REL",
+    "WIND",
+    "WIND.1",
+    "replication_index",
+    "pressure_hpa",
+    "geopotential_height_m",
+    "geopotential_m2s2",
+    "air_temperature_c",
+    "dew_point_temperature_c",
+    "wind_direction_deg",
+    "wind_speed",
+    "relative_humidity_percent",
+    "vertical_significance_code",
+]
+
+# Type-суффиксы добавляются лениво через field_types.type_suffix_columns()
+def _decoded_level_columns() -> list[str]:
+    from gdex_bufr.profile_climate.field_types import type_suffix_columns
+
+    return list(DECODED_LEVEL_BASE_COLUMNS) + type_suffix_columns()
+
+
+DECODED_LEVEL_COLUMNS = _decoded_level_columns()
+
+DEBUFR_ELEMENT_COLUMNS = [
+    "profile_id",
+    "station_name",
+    "source_file",
+    "station_id",
+    "subset_index",
+    "report_datetime_utc",
+    "seq",
+    "fxy",
+    "name",
+    "value",
+    "value_text",
+    "unit",
+    "kind",
+    "scale",
+    "reference",
+    "nbits",
+]
+
 
 def _write_csv(path: Path, rows: list[dict[str, Any]], columns: list[str]) -> Path:
     """Атомарная запись CSV с retry — защита от Windows Errno 22 / блокировок."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        newline="",
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=path.parent,
+        delete=False,
+    ) as handle:
+        tmp_path = Path(handle.name)
+        writer = csv.DictWriter(handle, fieldnames=columns, extrasaction="ignore")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({col: row.get(col, "") for col in columns})
+
     last_error: Exception | None = None
-
-    for attempt in range(1, 6):
-        try:
-            with tmp_path.open("w", encoding="utf-8", newline="") as handle:
-                writer = csv.DictWriter(handle, fieldnames=columns, extrasaction="ignore")
-                writer.writeheader()
-                for row in rows:
-                    writer.writerow({col: row.get(col, "") for col in columns})
-            tmp_path.replace(path)
-            return path
-        except OSError as exc:
-            last_error = exc
-            logger.warning(
-                "Не удалось записать %s (попытка %s/5): %s",
-                path.name,
-                attempt,
-                exc,
-            )
-            time.sleep(0.5 * attempt)
+    try:
+        for attempt in range(1, 6):
             try:
-                tmp_path.unlink(missing_ok=True)
-            except OSError:
-                pass
+                tmp_path.replace(path)
+                return path
+            except OSError as exc:
+                last_error = exc
+                logger.warning(
+                    "Не удалось заменить %s (попытка %s/5): %s",
+                    path.name,
+                    attempt,
+                    exc,
+                )
+                time.sleep(0.5 * attempt)
 
-    assert last_error is not None
-    raise last_error
+        assert last_error is not None
+        raise last_error
+    finally:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def append_csv(path: Path, rows: list[dict[str, Any]], columns: list[str]) -> Path:
+    """Дописывает строки в CSV; пишет header, если файла ещё нет."""
+    if not rows:
+        return Path(path)
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_header = not path.exists() or path.stat().st_size == 0
+    with path.open("a", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=columns, extrasaction="ignore")
+        if write_header:
+            writer.writeheader()
+        for row in rows:
+            writer.writerow({col: row.get(col, "") for col in columns})
+    return path
 
 
 def write_profiles_long_csv(rows: list[dict[str, Any]], output_dir: Path) -> Path:
@@ -97,6 +223,20 @@ def write_profiles_long_csv(rows: list[dict[str, Any]], output_dir: Path) -> Pat
 
 def write_profile_metrics_csv(rows: list[dict[str, Any]], output_dir: Path) -> Path:
     return _write_csv(output_dir / "profile_metrics.csv", rows, PROFILE_METRICS_COLUMNS)
+
+
+def write_decoded_levels_csv(rows: list[dict[str, Any]], output_dir: Path) -> Path:
+    return _write_csv(output_dir / "decoded_levels.csv", rows, DECODED_LEVEL_COLUMNS)
+
+
+def write_debufr_elements_csv(rows: list[dict[str, Any]], output_dir: Path) -> Path:
+    return _write_csv(output_dir / "debufr_elements.csv", rows, DEBUFR_ELEMENT_COLUMNS)
+
+
+def write_field_types_csv(output_dir: Path, rows: list[dict[str, Any]] | None = None) -> Path:
+    from gdex_bufr.profile_climate.field_types import FIELD_TYPE_COLUMNS, build_field_types_rows
+
+    return _write_csv(output_dir / "field_types.csv", rows if rows is not None else build_field_types_rows(), FIELD_TYPE_COLUMNS)
 
 
 def write_monthly_summary(metrics_rows: list[dict[str, Any]], output_dir: Path) -> Path:
@@ -188,14 +328,36 @@ def write_summary_json(
     return path
 
 
-def write_xlsx_exports(long_rows: list[dict[str, Any]], metrics_rows: list[dict[str, Any]], output_dir: Path) -> Path | None:
+def write_xlsx_exports(
+    long_rows: list[dict[str, Any]],
+    metrics_rows: list[dict[str, Any]],
+    output_dir: Path,
+    *,
+    decoded_rows: list[dict[str, Any]] | None = None,
+    element_rows: list[dict[str, Any]] | None = None,
+    field_type_rows: list[dict[str, Any]] | None = None,
+) -> Path | None:
     if pd is None:
         return None
+    from gdex_bufr.profile_climate.field_types import FIELD_TYPE_COLUMNS, build_field_types_rows
+
     path = output_dir / "profile_climate.xlsx"
     path.parent.mkdir(parents=True, exist_ok=True)
+    types_rows = field_type_rows if field_type_rows is not None else build_field_types_rows()
     with pd.ExcelWriter(path, engine="openpyxl") as writer:
         pd.DataFrame(long_rows, columns=PROFILES_LONG_COLUMNS).to_excel(writer, sheet_name="profiles_long", index=False)
         pd.DataFrame(metrics_rows, columns=PROFILE_METRICS_COLUMNS).to_excel(writer, sheet_name="profile_metrics", index=False)
+        if decoded_rows is not None:
+            pd.DataFrame(decoded_rows, columns=DECODED_LEVEL_COLUMNS).to_excel(
+                writer, sheet_name="decoded_levels", index=False
+            )
+        if element_rows is not None:
+            pd.DataFrame(element_rows, columns=DEBUFR_ELEMENT_COLUMNS).to_excel(
+                writer, sheet_name="debufr_elements", index=False
+            )
+        pd.DataFrame(types_rows, columns=FIELD_TYPE_COLUMNS).to_excel(
+            writer, sheet_name="field_types", index=False
+        )
     return path
 
 
@@ -205,16 +367,24 @@ def export_checkpoint(
     output_dir: Path,
     *,
     config_info: dict[str, Any] | None = None,
+    decoded_rows: list[dict[str, Any]] | None = None,
+    element_rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, str]:
     """Быстрое промежуточное сохранение без XLSX."""
     output_dir = Path(output_dir)
-    return {
+    paths = {
         "profiles_long": str(write_profiles_long_csv(long_rows, output_dir)),
         "profile_metrics": str(write_profile_metrics_csv(metrics_rows, output_dir)),
         "monthly_summary": str(write_monthly_summary(metrics_rows, output_dir)),
         "station_summary": str(write_station_summary(metrics_rows, output_dir)),
         "summary_json": str(write_summary_json(metrics_rows, long_rows, output_dir, config_info=config_info)),
+        "field_types": str(write_field_types_csv(output_dir)),
     }
+    if decoded_rows is not None:
+        paths["decoded_levels"] = str(write_decoded_levels_csv(decoded_rows, output_dir))
+    if element_rows is not None:
+        paths["debufr_elements"] = str(write_debufr_elements_csv(element_rows, output_dir))
+    return paths
 
 
 def export_all(
@@ -223,6 +393,8 @@ def export_all(
     output_dir: Path,
     *,
     config_info: dict[str, Any] | None = None,
+    decoded_rows: list[dict[str, Any]] | None = None,
+    element_rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, str]:
     output_dir = Path(output_dir)
     paths = {
@@ -231,8 +403,19 @@ def export_all(
         "monthly_summary": str(write_monthly_summary(metrics_rows, output_dir)),
         "station_summary": str(write_station_summary(metrics_rows, output_dir)),
         "summary_json": str(write_summary_json(metrics_rows, long_rows, output_dir, config_info=config_info)),
+        "field_types": str(write_field_types_csv(output_dir)),
     }
-    xlsx_path = write_xlsx_exports(long_rows, metrics_rows, output_dir)
+    if decoded_rows is not None:
+        paths["decoded_levels"] = str(write_decoded_levels_csv(decoded_rows, output_dir))
+    if element_rows is not None:
+        paths["debufr_elements"] = str(write_debufr_elements_csv(element_rows, output_dir))
+    xlsx_path = write_xlsx_exports(
+        long_rows,
+        metrics_rows,
+        output_dir,
+        decoded_rows=decoded_rows,
+        element_rows=element_rows,
+    )
     if xlsx_path:
         paths["xlsx"] = str(xlsx_path)
     return paths

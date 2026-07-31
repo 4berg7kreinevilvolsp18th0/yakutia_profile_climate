@@ -266,6 +266,46 @@ def _adpupa_vsig_label(code: Any) -> str | None:
         return None
 
 
+def _collect_debufr_elements(
+    message: Any,
+    subset_index: int,
+    registry: BufrTablesRegistry,
+) -> list[dict[str, Any]]:
+    """Element dump в стиле NCEPLIBS-bufr ufdump: FXY, value, unit, kind, scale."""
+    try:
+        template_data = message.template_data.value
+        template_data.wire()
+        descs = template_data.decoded_descriptors_all_subsets[subset_index]
+        vals = template_data.decoded_values_all_subsets[subset_index]
+    except Exception:
+        return []
+
+    rows: list[dict[str, Any]] = []
+    for seq, (descriptor, raw) in enumerate(zip(descs, vals), start=1):
+        fxy = normalize_fxy(descriptor.id)
+        info = registry.lookup_descriptor(fxy)
+        value: Any = None if _is_missing(raw) else raw
+        value_text = None
+        if value is not None:
+            if info.kind == "code":
+                value_text = registry.decode_code_value(fxy, value)
+            elif info.kind == "flag":
+                value_text = registry.decode_flag_bits(fxy, value)
+        rows.append({
+            "seq": seq,
+            "fxy": info.fxy,
+            "name": info.name,
+            "value": value,
+            "value_text": value_text,
+            "unit": info.unit,
+            "kind": info.kind,
+            "scale": info.scale,
+            "reference": info.reference,
+            "nbits": info.nbits,
+        })
+    return rows
+
+
 def _decode_adpupa_flat_levels(
     message: Any,
     subset_index: int,
@@ -686,6 +726,9 @@ def _decode_subset(
         "table_edition": header_meta.get("master_table_version"),
         "bufr_header": header_meta,
     }
+    debufr_elements = _collect_debufr_elements(message, subset_index, registry)
+    if debufr_elements:
+        metadata["debufr_elements"] = debufr_elements
     if coded_metadata:
         metadata["coded_metadata"] = coded_metadata
     if enrichment_meta:

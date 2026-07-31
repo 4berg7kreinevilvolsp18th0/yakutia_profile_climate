@@ -40,8 +40,10 @@ user_agent: "gdex-bufr-downloader/1.0 (research; contact=local)"
 ssl_verify: false
 # ssl_cert_bundle: null  # путь к CA-bundle; по умолчанию certifi
 
-# Путь к существующему meteo_parser (для общих соглашений по полям)
-meteo_parser_path: "."
+# Эталон типов данных дескрипторов: NCEPLIBS-bufr (debufr/ufdump).
+# meteo_parser опционален (RH/glossary); путь не обязателен для декодирования.
+meteo_parser_path: "../meteo_parser"
+# nceplibs_bufr_path: "../NCEPLIBS-bufr"  # справочно, Fortran debufr не вызывается
 
 outputs_dir: ./gdex_outputs
 

@@ -67,10 +67,21 @@ def estimate_geopotential_height_m(
 
 
 def _calculate_rh_percent(air_c: float | None, dewpoint_c: float | None) -> float | None:
+    if air_c is None or dewpoint_c is None:
+        return None
     try:
         from decoders import calculate_relative_humidity
 
         return calculate_relative_humidity(air_c, dewpoint_c).get("relative_humidity_percent")
+    except Exception:
+        pass
+    # Magnus (как в meteo_parser.decoders.calculate_relative_humidity)
+    try:
+        from math import exp
+
+        es_t = 6.112 * exp((17.62 * air_c) / (243.12 + air_c))
+        es_td = 6.112 * exp((17.62 * dewpoint_c) / (243.12 + dewpoint_c))
+        return round(max(0.0, min(100.0, 100.0 * es_td / es_t)), 1)
     except Exception:
         return None
 
