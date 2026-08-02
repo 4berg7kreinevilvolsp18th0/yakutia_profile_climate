@@ -4,18 +4,28 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from plotly.offline import get_plotlyjs
+
 ROOT = Path(__file__).resolve().parents[1]
 DATA_PATH = ROOT / "gdex_outputs" / "profile_climate" / "aldan" / "daily_profiles.json"
 OUT_PATH = ROOT / "gdex_outputs" / "profile_climate" / "aldan" / "aldan_dashboard.html"
+REQUIRED_SCHEMA = "observations_v1"
 
 
 def main() -> int:
     data = json.loads(DATA_PATH.read_text(encoding="utf-8"))
+    if data.get("schema") != REQUIRED_SCHEMA:
+        raise ValueError(
+            f"Нужна схема {REQUIRED_SCHEMA}, получена {data.get('schema')!r}. "
+            "Сначала пересоберите daily_profiles.json."
+        )
     payload = {
         "station": data.get("station_name", "Aldan"),
+        "schema": data["schema"],
         "months": data["months"],
     }
     payload_json = json.dumps(payload, ensure_ascii=False)
+    plotly_js = get_plotlyjs()
 
     html = f"""<!DOCTYPE html>
 <html lang="ru">
@@ -23,7 +33,7 @@ def main() -> int:
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Алдан — суточные профили</title>
-<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script>{plotly_js}</script>
 <style>
   body{{font-family:Segoe UI,Arial,sans-serif;margin:0;background:#f7f8fa;color:#1a2332}}
   header{{padding:16px 20px;background:#fff;border-bottom:1px solid #e5e7eb}}
@@ -46,7 +56,7 @@ def main() -> int:
 <body>
 <header>
   <h1>Алдан — суточные температурные профили</h1>
-  <div class="sub">Офлайн-файл: выберите месяц и отключите дни-выбросы. Можно открыть без сервера (нужен интернет только для графика Plotly).</div>
+  <div class="sub">Автономный офлайн-файл: выберите месяц и отключите дни-выбросы. Интернет и сервер не требуются.</div>
 </header>
 <div class="wrap">
   <div class="panel">
@@ -89,6 +99,24 @@ function fillMonths() {{
 }}
 fillMonths();
 
+function daySeries(day) {{
+  const source = day.day_mean || day;
+  const heights = Array.isArray(source.heights_m) ? source.heights_m : [];
+  const temps = Array.isArray(source.temperature_c) ? source.temperature_c : [];
+  const byHeight = new Map();
+  for (let i = 0; i < Math.min(heights.length, temps.length); i++) {{
+    const h = Number(heights[i]);
+    const t = Number(temps[i]);
+    if (Number.isFinite(h) && Number.isFinite(t)) byHeight.set(h, t);
+  }}
+  const pairs = [...byHeight.entries()].sort((a, b) => a[0] - b[0]);
+  if (pairs.length < 2) return null;
+  return {{
+    heights_m: pairs.map(pair => pair[0]),
+    temperature_c: pairs.map(pair => pair[1]),
+  }};
+}}
+
 function interp(xh, xt, grid) {{
   const y = new Array(grid.length).fill(null);
   for (let i = 0; i < grid.length; i++) {{
@@ -103,12 +131,15 @@ function interp(xh, xt, grid) {{
   return y;
 }}
 function monthMean(days, enabled) {{
-  const active = days.filter(d => enabled.has(d.date));
+  const active = days
+    .filter(d => enabled.has(d.date))
+    .map(daySeries)
+    .filter(series => series !== null);
   if (!active.length) return null;
-  const minH = Math.min(...active.map(d => d.heights_m[0]));
-  const maxH = Math.max(...active.map(d => d.heights_m[d.heights_m.length - 1]));
+  const minH = Math.min(...active.map(series => series.heights_m[0]));
+  const maxH = Math.max(...active.map(series => series.heights_m[series.heights_m.length - 1]));
   const grid = Array.from({{length: 40}}, (_, i) => minH + (maxH - minH) * i / 39);
-  const stack = active.map(d => interp(d.heights_m, d.temperature_c.map(v => v ?? NaN), grid));
+  const stack = active.map(series => interp(series.heights_m, series.temperature_c, grid));
   const mean = grid.map((_, i) => {{
     let s = 0, n = 0;
     for (const row of stack) {{
@@ -120,7 +151,9 @@ function monthMean(days, enabled) {{
   return {{grid, mean}};
 }}
 function rms(day, mean) {{
-  const t = interp(day.heights_m, day.temperature_c.map(v => v ?? NaN), mean.grid);
+  const series = daySeries(day);
+  if (!series) return Infinity;
+  const t = interp(series.heights_m, series.temperature_c, mean.grid);
   let s = 0, n = 0;
   for (let i = 0; i < t.length; i++) {{
     if (Number.isFinite(t[i]) && Number.isFinite(mean.mean[i])) {{
@@ -140,8 +173,10 @@ function render() {{
   const palette = ['#4C78A8','#F58518','#E45756','#72B7B2','#54A24B','#EECA3B','#B279A2','#FF9DA6','#9D755D','#BAB0AC'];
   days.forEach((d, i) => {{
     if (!enabled.has(d.date)) return;
+    const series = daySeries(d);
+    if (!series) return;
     traces.push({{
-      x: d.temperature_c, y: d.heights_m, mode: 'lines', name: d.date.slice(8),
+      x: series.temperature_c, y: series.heights_m, mode: 'lines', name: d.date.slice(8),
       line: {{width: 1.5, color: palette[i % palette.length]}}, opacity: 0.85
     }});
   }});
