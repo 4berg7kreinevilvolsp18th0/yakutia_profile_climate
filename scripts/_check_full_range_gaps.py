@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
-METRICS = ROOT / "gdex_outputs/profile_climate/aldan/profile_metrics.csv"
+METRICS = ROOT / "gdex_outputs/результаты-алдан/profile_metrics.csv"
 RAW = ROOT / "gdex_data/raw"
 PAT = re.compile(r"gdas\.adpupa\.t(00|12)z\.(\d{8})\.bufr$")
 

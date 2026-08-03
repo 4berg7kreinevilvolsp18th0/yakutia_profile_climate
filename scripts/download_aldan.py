@@ -77,7 +77,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--limit-files", type=int, help="Ограничить число BUFR-файлов")
     parser.add_argument(
         "--output",
-        default="gdex_outputs/profile_climate/aldan",
+        default="gdex_outputs/результаты-алдан",
         help="Каталог CSV/XLSX для Алдана",
     )
     parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])

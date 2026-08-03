@@ -45,7 +45,7 @@ from gdex_bufr.profile_climate.obs_qc import (  # noqa: E402
     suggest_outliers_spike,
 )
 
-DEFAULT_DATA = ROOT / "gdex_outputs" / "profile_climate" / "aldan" / "daily_profiles.json"
+DEFAULT_DATA = ROOT / "gdex_outputs" / "результаты-алдан" / "daily_profiles.json"
 REQUIRED_SCHEMA = "observations_v1"
 
 OBS_PALETTE = [

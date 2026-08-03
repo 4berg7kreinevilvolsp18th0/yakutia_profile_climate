@@ -2,7 +2,7 @@ import pandas as pd
 from pathlib import Path
 from datetime import date, timedelta
 
-m = pd.read_csv("gdex_outputs/profile_climate/aldan/profile_metrics.csv")
+m = pd.read_csv("gdex_outputs/результаты-алдан/profile_metrics.csv")
 print("metrics", len(m))
 print("date range", m["datetime_utc"].min(), "->", m["datetime_utc"].max())
 

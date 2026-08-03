@@ -7,8 +7,8 @@ from pathlib import Path
 from plotly.offline import get_plotlyjs
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA_PATH = ROOT / "gdex_outputs" / "profile_climate" / "aldan" / "daily_profiles.json"
-OUT_PATH = ROOT / "gdex_outputs" / "profile_climate" / "aldan" / "aldan_dashboard.html"
+DATA_PATH = ROOT / "gdex_outputs" / "результаты-алдан" / "daily_profiles.json"
+OUT_PATH = ROOT / "gdex_outputs" / "результаты-алдан" / "aldan_dashboard.html"
 REQUIRED_SCHEMA = "observations_v1"
 
 

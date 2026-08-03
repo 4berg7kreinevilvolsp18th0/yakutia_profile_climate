@@ -25,7 +25,7 @@ Write-Log "STEP1 decode --fresh"
   --workers 8 `
   --checkpoint-every 100 `
   --fresh `
-  --output gdex_outputs/profile_climate/aldan `
+  --output gdex_outputs/результаты-алдан `
   *>> $Log
 $rc1 = $LASTEXITCODE
 Write-Log "STEP1 exit=$rc1"
@@ -39,9 +39,10 @@ Write-Log "STEP2 monthly plots"
   --station aldan `
   --start-date 1999-10-01 `
   --end-date 2026-07-30 `
-  --input gdex_outputs/profile_climate/aldan/profiles_long.csv `
-  --metrics gdex_outputs/profile_climate/aldan/profile_metrics.csv `
+  --input gdex_outputs/результаты-алдан/profiles_long.csv `
+  --metrics gdex_outputs/результаты-алдан/profile_metrics.csv `
   --output gdex_outputs/monthly_temperature_profiles `
+  --set актуальное `
   *>> $Log
 $rc2 = $LASTEXITCODE
 Write-Log "STEP2 exit=$rc2"
@@ -52,9 +53,9 @@ if ($null -eq $rc2 -or $rc2 -ne 0) {
 
 Write-Log "STEP3 daily profiles json"
 & py -3 scripts/build_daily_profiles.py `
-  --long gdex_outputs/profile_climate/aldan/profiles_long.csv `
-  --metrics gdex_outputs/profile_climate/aldan/profile_metrics.csv `
-  --output gdex_outputs/profile_climate/aldan/daily_profiles.json `
+  --long gdex_outputs/результаты-алдан/profiles_long.csv `
+  --metrics gdex_outputs/результаты-алдан/profile_metrics.csv `
+  --output gdex_outputs/результаты-алдан/daily_profiles.json `
   *>> $Log
 $rc3 = $LASTEXITCODE
 Write-Log "STEP3 exit=$rc3"

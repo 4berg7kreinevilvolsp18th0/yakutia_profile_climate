@@ -32,9 +32,10 @@ python -m gdex_bufr station-profiles \
 python -m gdex_bufr monthly-profile-plots \
   --station aldan \
   --start-date 1999-01-01 --end-date 1999-01-31 \
-  --input gdex_outputs/profile_climate/profiles_long.csv \
-  --metrics gdex_outputs/profile_climate/profile_metrics.csv \
-  --output gdex_outputs/monthly_temperature_profiles
+  --input gdex_outputs/результаты-алдан/profiles_long.csv \
+  --metrics gdex_outputs/результаты-алдан/profile_metrics.csv \
+  --output gdex_outputs/monthly_temperature_profiles \
+  --set актуальное
 ```
 
 ## Тесты

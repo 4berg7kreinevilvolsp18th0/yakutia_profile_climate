@@ -48,7 +48,8 @@ BUFR-файлы GDEX глобальные (все станции в одном �
 python scripts/download_aldan.py --start-date 1999-10-01 --end-date 2026-12-31
 ```
 
-Выход: `gdex_outputs/profile_climate/aldan/`.
+Выход: `gdex_outputs/результаты-алдан/`.
+Старые smoke/test и черновики: `gdex_outputs/алдан старое/`.
 
 Классический режим (скачать и **хранить** все глобальные BUFR на диске):
 
@@ -108,12 +109,12 @@ python -m gdex_bufr station-profiles \
 
 | Файл | Описание |
 |------|----------|
-| `gdex_outputs/profile_climate/profiles_long.csv` | Уровни профилей (long format) |
-| `gdex_outputs/profile_climate/profile_metrics.csv` | Метрики каждого профиля |
-| `gdex_outputs/profile_climate/monthly_summary.csv` | Сводка по месяцам |
-| `gdex_outputs/profile_climate/station_summary.csv` | Сводка по станциям |
-| `gdex_outputs/profile_climate/summary.json` | Общая сводка |
-| `gdex_outputs/profile_climate/profile_climate.xlsx` | XLSX (если установлен pandas) |
+| `gdex_outputs/результаты-алдан/profiles_long.csv` | Уровни профилей (long format) |
+| `gdex_outputs/результаты-алдан/profile_metrics.csv` | Метрики каждого профиля |
+| `gdex_outputs/результаты-алдан/monthly_summary.csv` | Сводка по месяцам |
+| `gdex_outputs/результаты-алдан/station_summary.csv` | Сводка по станциям |
+| `gdex_outputs/результаты-алдан/summary.json` | Общая сводка |
+| `gdex_outputs/результаты-алдан/{slug}_profile_climate_YYYYMMDD_HHMMSS.xlsx` | XLSX-сводник с датой сборки |
 
 ## 5. Месячные графики
 
@@ -122,9 +123,28 @@ python -m gdex_bufr monthly-profile-plots \
   --station aldan \
   --start-date 1999-10-01 \
   --end-date 1999-10-31 \
-  --input gdex_outputs/profile_climate/aldan/profiles_long.csv \
-  --metrics gdex_outputs/profile_climate/aldan/profile_metrics.csv \
-  --output gdex_outputs/monthly_temperature_profiles
+  --input gdex_outputs/результаты-алдан/profiles_long.csv \
+  --metrics gdex_outputs/результаты-алдан/profile_metrics.csv \
+  --output gdex_outputs/monthly_temperature_profiles \
+  --set актуальное
+```
+
+Структура PNG:
+
+```text
+gdex_outputs/monthly_temperature_profiles/
+  актуальное/aldan/1999/...     # основной набор
+  сравнение/<попытка>/aldan/... # варианты с другими параметрами
+```
+
+Сравнение (не затирает актуальное):
+
+```bash
+python -m gdex_bufr monthly-profile-plots \
+  --station aldan \
+  --set мягче_фильтр \
+  --input gdex_outputs/результаты-алдан/profiles_long.csv \
+  --metrics gdex_outputs/результаты-алдан/profile_metrics.csv
 ```
 
 ### Интерактивный дашборд (дополнение к PNG)
@@ -151,7 +171,7 @@ python -m streamlit run scripts/profile_dashboard.py
 Пример пути PNG:
 
 ```text
-gdex_outputs/monthly_temperature_profiles/aldan/1999/aldan_1999_01_temperature_profiles_to_500hpa.png
+gdex_outputs/monthly_temperature_profiles/актуальное/aldan/1999/aldan_1999_01_temperature_profiles_to_500hpa.png
 ```
 
 ## Интерпретация `profile_metrics.csv`

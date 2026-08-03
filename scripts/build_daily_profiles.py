@@ -205,9 +205,9 @@ def build_daily_profiles(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Собрать daily_profiles.json (observations_v1)")
-    parser.add_argument("--long", default="gdex_outputs/profile_climate/aldan/profiles_long.csv")
-    parser.add_argument("--metrics", default="gdex_outputs/profile_climate/aldan/profile_metrics.csv")
-    parser.add_argument("--output", default="gdex_outputs/profile_climate/aldan/daily_profiles.json")
+    parser.add_argument("--long", default="gdex_outputs/результаты-алдан/profiles_long.csv")
+    parser.add_argument("--metrics", default="gdex_outputs/результаты-алдан/profile_metrics.csv")
+    parser.add_argument("--output", default="gdex_outputs/результаты-алдан/daily_profiles.json")
     args = parser.parse_args()
 
     payload = build_daily_profiles(Path(args.long), Path(args.metrics))

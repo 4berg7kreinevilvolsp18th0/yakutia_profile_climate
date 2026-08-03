@@ -34,7 +34,7 @@ def _synthetic_profile(day: int, cycle: str) -> RadiosondeProfile:
 
 def main() -> int:
     output_dir = Path("gdex_outputs/profile_climate")
-    plots_dir = Path("gdex_outputs/monthly_temperature_profiles")
+    plots_dir = Path("gdex_outputs/monthly_temperature_profiles/актуальное")
 
     long_rows: list[dict] = []
     metrics_rows: list[dict] = []
