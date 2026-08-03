@@ -66,6 +66,32 @@ def estimate_geopotential_height_m(
     return 44330.0 * (1.0 - ratio**0.1903)
 
 
+# g0 и радиус Земли как в MetPy (geopotential_to_height)
+_G0_M_S2 = 9.80665
+_EARTH_RADIUS_M = 6_371_229.0
+
+
+def geopotential_to_height_m(geopotential_m2s2: float) -> float:
+    """Геопотенциал Φ [м²/с²] → геометрическая высота [м].
+
+    Использует MetPy ``geopotential_to_height`` (учёт изменения g с высотой):
+    ``z = Φ · R_e / (g0 · R_e − Φ)``.
+    При недоступности MetPy — та же аналитическая формула.
+    """
+    phi = float(geopotential_m2s2)
+    try:
+        import metpy.calc as mpcalc
+        from metpy.units import units
+
+        height = mpcalc.geopotential_to_height(units.Quantity(phi, "m^2/s^2"))
+        return float(height.magnitude)
+    except Exception:
+        denom = _G0_M_S2 * _EARTH_RADIUS_M - phi
+        if abs(denom) < 1e-9:
+            return float("nan")
+        return (phi * _EARTH_RADIUS_M) / denom
+
+
 def _calculate_rh_percent(air_c: float | None, dewpoint_c: float | None) -> float | None:
     if air_c is None or dewpoint_c is None:
         return None
@@ -97,6 +123,10 @@ def enrich_vertical_level(
         rh = _calculate_rh_percent(level.air_temperature_c, level.dew_point_temperature_c)
 
     height = level.geopotential_height_m
+    # 1) Φ → z (MetPy), если высота отсутствует, но есть геопотенциал
+    if height is None and level.geopotential_m2s2 is not None:
+        height = round(geopotential_to_height_m(level.geopotential_m2s2), 1)
+    # 2) иначе грубая оценка по давлению (стандартная атмосфера)
     if height is None and level.pressure_hpa is not None and surface_pressure_hpa is not None:
         height = round(
             estimate_geopotential_height_m(
@@ -139,6 +169,11 @@ def enrich_profile_levels(profile: "RadiosondeProfile") -> "RadiosondeProfile":
     flags = profile.metadata.setdefault("enrichment", {})
     if any(lv.relative_humidity_percent is not None for lv in enriched_levels):
         flags["rh_from_t_td"] = True
+    if any(
+        lv.geopotential_height_m is not None and lv.geopotential_m2s2 is not None
+        for lv in enriched_levels
+    ):
+        flags["height_from_geopotential"] = True
     if any(lv.geopotential_height_m is not None for lv in enriched_levels):
         flags["height_from_pressure"] = True
     return profile

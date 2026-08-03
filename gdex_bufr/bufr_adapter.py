@@ -15,6 +15,7 @@ from gdex_bufr.meteo_parser_bridge import (
     VerticalLevel,
     assess_profile_data,
     enrich_profile_levels,
+    geopotential_to_height_m,
 )
 
 logger = logging.getLogger(__name__)
@@ -338,7 +339,8 @@ def _decode_adpupa_flat_levels(
         geopotential = current.get(10008)
         if not _is_missing(geopotential):
             geopotential_f = float(geopotential)
-            return round(geopotential_f / 9.80665, 1), geopotential_f
+            # MetPy geopotential_to_height: z = Φ·Re / (g0·Re − Φ)
+            return round(geopotential_to_height_m(geopotential_f), 1), geopotential_f
 
         geopotential_height = current.get(10009)
         if not _is_missing(geopotential_height):
