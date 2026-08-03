@@ -6,6 +6,8 @@ from typing import Any, Sequence
 import numpy as np
 
 from gdex_bufr.meteo_parser_bridge import (
+    _EARTH_RADIUS_M,
+    _G0_M_S2,
     estimate_geopotential_height_m,
     geopotential_to_height_m,
 )
@@ -175,38 +177,104 @@ def fill_profile_level_heights(
 
 
 def fill_long_dataframe_heights(long_df, metrics_df=None, *, station_id_default: str | None = None):
-    """Векторизова через groupby profile_id (pandas DataFrame)."""
+    """Заполняет height_* для DataFrame profiles_long (быстрый путь на numpy)."""
     import pandas as pd
 
     if long_df is None or len(long_df) == 0:
         return long_df
 
+    df = long_df.copy()
     metrics_map: dict[str, Any] = {}
     if metrics_df is not None and len(metrics_df):
         for row in metrics_df.itertuples(index=False):
-            metrics_map[str(row.profile_id)] = row
+            metrics_map[str(row.profile_id)] = {
+                "station_id": str(getattr(row, "station_id", "") or ""),
+                "p_surface_hpa": _finite(getattr(row, "p_surface_hpa", None)),
+            }
 
-    pieces: list = []
-    for profile_id, group in long_df.groupby("profile_id", sort=False):
-        metric = metrics_map.get(str(profile_id))
-        station_id = None
-        p_sfc = None
-        if metric is not None:
-            station_id = str(getattr(metric, "station_id", "") or "")
-            p_sfc = _finite(getattr(metric, "p_surface_hpa", None))
-        if not station_id:
-            station_id = str(group["station_id"].iloc[0]) if "station_id" in group.columns else station_id_default
-        if p_sfc is None and "pressure_hpa" in group.columns:
-            p_sfc = float(group["pressure_hpa"].max())
+    n = len(df)
+    height_interp = np.full(n, np.nan)
+    height_baro = np.full(n, np.nan)
+    height_final = np.full(n, np.nan)
+    height_source = np.array([None] * n, dtype=object)
 
-        levels = group.to_dict(orient="records")
-        filled = fill_profile_level_heights(
-            levels,
-            surface_pressure_hpa=p_sfc,
-            station_id=station_id,
+    # наблюдаемая / Φ→z (аналитика MetPy, векторно — без вызова MetPy на каждую строку)
+    h_col = df["height_m"].to_numpy(dtype=float) if "height_m" in df.columns else np.full(n, np.nan)
+    gh_col = (
+        df["geopotential_height_m"].to_numpy(dtype=float)
+        if "geopotential_height_m" in df.columns
+        else np.full(n, np.nan)
+    )
+    phi_col = (
+        df["geopotential_m2s2"].to_numpy(dtype=float)
+        if "geopotential_m2s2" in df.columns
+        else np.full(n, np.nan)
+    )
+    height_obs = np.where(~np.isnan(h_col), h_col, gh_col)
+    need_phi = np.isnan(height_obs) & ~np.isnan(phi_col)
+    if need_phi.any():
+        phi = phi_col[need_phi]
+        denom = _G0_M_S2 * _EARTH_RADIUS_M - phi
+        z_phi = np.where(np.abs(denom) < 1e-9, np.nan, (phi * _EARTH_RADIUS_M) / denom)
+        height_obs[need_phi] = z_phi
+
+    p_all = df["pressure_hpa"].to_numpy(dtype=float)
+    pid_all = df["profile_id"].astype(str).to_numpy()
+    sid_all = (
+        df["station_id"].astype(str).to_numpy()
+        if "station_id" in df.columns
+        else np.array([station_id_default or ""] * n)
+    )
+
+    # индексы по profile_id
+    order = np.argsort(pid_all, kind="mergesort")
+    pid_sorted = pid_all[order]
+    breaks = np.flatnonzero(pid_sorted[1:] != pid_sorted[:-1]) + 1
+    starts = np.r_[0, breaks]
+    ends = np.r_[breaks, len(pid_sorted)]
+
+    for a, b in zip(starts, ends):
+        idx = order[a:b]
+        pid = pid_sorted[a]
+        meta = metrics_map.get(pid, {})
+        station_id = meta.get("station_id") or sid_all[idx[0]] or station_id_default
+        elev = station_elevation_m(station_id)
+        p = p_all[idx]
+        h_obs = height_obs[idx]
+        p_sfc = meta.get("p_surface_hpa")
+        if p_sfc is None:
+            finite_p = p[~np.isnan(p)]
+            p_sfc = float(np.max(finite_p)) if len(finite_p) else None
+
+        interp = interpolate_heights_on_pressure(
+            [float(x) if not np.isnan(x) else np.nan for x in p],
+            [None if np.isnan(x) else float(x) for x in h_obs],
         )
-        pieces.append(pd.DataFrame(filled))
+        for j, row_i in enumerate(idx):
+            hi = interp[j]
+            if hi is not None:
+                height_interp[row_i] = hi
+            hb = None
+            if p_sfc is not None and not np.isnan(p[j]):
+                hb = barometric_height_m(
+                    float(p[j]),
+                    surface_pressure_hpa=float(p_sfc),
+                    station_elevation_m=elev,
+                )
+                height_baro[row_i] = hb
+            if not np.isnan(h_obs[j]):
+                height_final[row_i] = h_obs[j]
+                height_source[row_i] = "observed_or_geopot"
+            elif hi is not None:
+                height_final[row_i] = hi
+                height_source[row_i] = "interp"
+            elif hb is not None:
+                height_final[row_i] = hb
+                height_source[row_i] = "baro"
 
-    if not pieces:
-        return long_df
-    return pd.concat(pieces, ignore_index=True)
+    df["height_obs_m"] = height_obs
+    df["height_interp_m"] = height_interp
+    df["height_baro_m"] = height_baro
+    df["height_m"] = height_final
+    df["height_source"] = height_source
+    return df
