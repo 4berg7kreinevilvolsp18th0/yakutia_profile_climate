@@ -98,3 +98,4 @@ def test_clean_mode_keeps_legacy_status_filter(tmp_path):
 
     assert payload["level_mode"] == "clean"
     assert payload["n_observations"] == 0
+    
