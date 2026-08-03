@@ -26,6 +26,7 @@ MAX_SURFACE_PRESSURE_HPA = 1000.0
 PRESSURE_TOP_HPA = 500.0
 PLOT_MIN_LEVELS = 3
 SCHEMA = "observations_v1"
+LEVEL_MODES = ("raw", "clean")
 
 
 def _day_key(dt: str) -> str:
@@ -36,16 +37,22 @@ def _day_key(dt: str) -> str:
 def _series_to_levels(group: pd.DataFrame) -> list[dict[str, Any]]:
     levels: list[dict[str, Any]] = []
     for row in group.itertuples(index=False):
+        height = None if pd.isna(row.height_m) else float(row.height_m)
         levels.append({
             "pressure_hpa": float(row.pressure_hpa),
             "temperature_c": float(row.temperature_c),
-            "height_m": float(row.height_m),
+            "height_m": height,
         })
     return levels
 
 
-def _obs_arrays(levels: list[dict[str, Any]]) -> tuple[list[float], list[float | None], list[float | None]]:
-    heights = [round(float(lv["height_m"]), 1) for lv in levels]
+def _obs_arrays(
+    levels: list[dict[str, Any]],
+) -> tuple[list[float | None], list[float], list[float]]:
+    heights = [
+        None if lv.get("height_m") is None else round(float(lv["height_m"]), 1)
+        for lv in levels
+    ]
     pressures = [round(float(lv["pressure_hpa"]), 2) for lv in levels]
     temps = [round(float(lv["temperature_c"]), 3) for lv in levels]
     return heights, pressures, temps
@@ -97,13 +104,18 @@ def build_daily_profiles(
     *,
     pressure_top_hpa: float = PRESSURE_TOP_HPA,
     max_surface_pressure_hpa: float = MAX_SURFACE_PRESSURE_HPA,
-    plot_min_levels: int = PLOT_MIN_LEVELS,
+    plot_min_levels: int | None = None,
     grid_points: int = GRID_POINTS,
+    level_mode: str = "raw",
 ) -> dict[str, Any]:
-    long_df = pd.read_csv(long_csv)
-    metrics_df = pd.read_csv(metrics_csv)
+    if level_mode not in LEVEL_MODES:
+        raise ValueError(f"level_mode должен быть одним из {LEVEL_MODES}: {level_mode}")
+    min_levels = (1 if level_mode == "raw" else PLOT_MIN_LEVELS) if plot_min_levels is None else plot_min_levels
 
-    long_df = long_df.dropna(subset=["height_m", "temperature_c", "pressure_hpa"])
+    long_df = pd.read_csv(long_csv, low_memory=False)
+    metrics_df = pd.read_csv(metrics_csv, low_memory=False)
+
+    long_df = long_df.dropna(subset=["temperature_c", "pressure_hpa"])
     long_df = long_df[
         (long_df["pressure_hpa"] <= max_surface_pressure_hpa)
         & (long_df["pressure_hpa"] >= pressure_top_hpa)
@@ -115,19 +127,26 @@ def build_daily_profiles(
     }
 
     by_day: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    profiles_with_levels: set[str] = set()
 
     for profile_id, group in long_df.groupby("profile_id"):
-        metric = metrics_map.get(str(profile_id))
+        profile_id = str(profile_id)
+        profiles_with_levels.add(profile_id)
+        metric = metrics_map.get(profile_id)
         status = getattr(metric, "profile_status", None) if metric is not None else None
-        if status in {"no_temp", "bad_pressure", "duplicate_levels", "no_surface_level"}:
+        if level_mode == "clean" and status in {
+            "no_temp", "bad_pressure", "duplicate_levels", "no_surface_level",
+        }:
             continue
 
-        levels = clean_observation_levels(
-            _series_to_levels(group),
-            pressure_top_hpa=pressure_top_hpa,
-            max_surface_pressure_hpa=max_surface_pressure_hpa,
-        )
-        if len(levels) < plot_min_levels:
+        levels = _series_to_levels(group)
+        if level_mode == "clean":
+            levels = clean_observation_levels(
+                levels,
+                pressure_top_hpa=pressure_top_hpa,
+                max_surface_pressure_hpa=max_surface_pressure_hpa,
+            )
+        if len(levels) < min_levels:
             continue
 
         dt = str(group["datetime_utc"].iloc[0])
@@ -151,7 +170,7 @@ def build_daily_profiles(
             t_surface = temps[0]
 
         by_day[day].append({
-            "profile_id": str(profile_id),
+            "profile_id": profile_id,
             "datetime_utc": dt,
             "cycle": cycle,
             "heights_m": heights,
@@ -162,6 +181,34 @@ def build_daily_profiles(
             "inversion_detected": inversion,
             "profile_status": status or "",
         })
+
+    if level_mode == "raw":
+        for metric in metrics_df.itertuples(index=False):
+            profile_id = str(metric.profile_id)
+            if profile_id in profiles_with_levels:
+                continue
+            dt = str(getattr(metric, "datetime_utc", ""))
+            try:
+                day = _day_key(dt)
+            except ValueError:
+                continue
+            t_surface = getattr(metric, "t_surface_c", None)
+            if t_surface is not None and pd.isna(t_surface):
+                t_surface = None
+            inversion = getattr(metric, "inversion_detected", False)
+            by_day[day].append({
+                "profile_id": profile_id,
+                "datetime_utc": dt,
+                "cycle": str(getattr(metric, "cycle", "")).zfill(2)[-2:],
+                "heights_m": [],
+                "pressure_hpa": [],
+                "temperature_c": [],
+                "n_levels": 0,
+                "t_surface_c": None if t_surface is None else round(float(t_surface), 3),
+                "inversion_detected": False if pd.isna(inversion) else bool(inversion),
+                "profile_status": str(getattr(metric, "profile_status", "") or ""),
+                "missing_levels": True,
+            })
 
     months: dict[str, dict[str, Any]] = {}
     n_observations = 0
@@ -196,9 +243,17 @@ def build_daily_profiles(
         "station_name": station_name,
         "pressure_top_hpa": pressure_top_hpa,
         "max_surface_pressure_hpa": max_surface_pressure_hpa,
+        "level_mode": level_mode,
+        "plot_min_levels": min_levels,
         "grid_points": grid_points,
         "n_days": sum(len(m["days"]) for m in months.values()),
         "n_observations": n_observations,
+        "n_levels": sum(
+            obs["n_levels"]
+            for month in months.values()
+            for day in month["days"]
+            for obs in day["observations"]
+        ),
         "months": months,
     }
 
@@ -208,9 +263,25 @@ def main() -> int:
     parser.add_argument("--long", default="gdex_outputs/результаты-алдан/profiles_long.csv")
     parser.add_argument("--metrics", default="gdex_outputs/результаты-алдан/profile_metrics.csv")
     parser.add_argument("--output", default="gdex_outputs/результаты-алдан/daily_profiles.json")
+    parser.add_argument(
+        "--level-mode",
+        choices=LEVEL_MODES,
+        default="raw",
+        help="raw: сохранить все уровни без QC; clean: прежняя предварительная очистка",
+    )
+    parser.add_argument(
+        "--min-levels",
+        type=int,
+        help="Минимум уровней (по умолчанию: raw=1, clean=3)",
+    )
     args = parser.parse_args()
 
-    payload = build_daily_profiles(Path(args.long), Path(args.metrics))
+    payload = build_daily_profiles(
+        Path(args.long),
+        Path(args.metrics),
+        level_mode=args.level_mode,
+        plot_min_levels=args.min_levels,
+    )
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
@@ -219,8 +290,10 @@ def main() -> int:
         "schema": payload["schema"],
         "n_days": payload["n_days"],
         "n_observations": payload["n_observations"],
+        "n_levels": payload["n_levels"],
         "n_months": len(payload["months"]),
         "station": payload["station_name"],
+        "level_mode": payload["level_mode"],
     }, ensure_ascii=False, indent=2))
     return 0
 

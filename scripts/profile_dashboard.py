@@ -59,6 +59,25 @@ MEAN_COLOR = "#8B1E3F"
 DAY_MEAN_COLOR = "#4A4A4A"
 
 
+def raw_plot_arrays(
+    obs: dict,
+    y_axis: str,
+) -> tuple[np.ndarray, np.ndarray] | None:
+    """Исходные точки без зависимости от перезагрузки модуля QC в Streamlit."""
+    temps = obs.get("temperature_c") or []
+    y_source = obs.get("pressure_hpa") if y_axis == "pressure" else obs.get("heights_m")
+    y_values = y_source or []
+    n = min(len(temps), len(y_values))
+    if n == 0:
+        return None
+    t = np.asarray([np.nan if v is None else float(v) for v in temps[:n]], dtype=float)
+    y = np.asarray([np.nan if v is None else float(v) for v in y_values[:n]], dtype=float)
+    valid = ~np.isnan(t) & ~np.isnan(y)
+    if valid.sum() < 1:
+        return None
+    return t[valid], y[valid]
+
+
 @st.cache_data(show_spinner="Загрузка профилей…")
 def load_daily(path: str, mtime_ns: int) -> dict:
     """mtime_ns — ключ кэша: после пересборки JSON подхватывается новый файл."""
@@ -135,6 +154,18 @@ def month_mean(
     return grid, np.nanmean(np.vstack(stack), axis=0)
 
 
+def observation_plot_arrays(
+    obs: dict,
+    y_axis: str,
+    *,
+    apply_plot_qc: bool,
+) -> tuple[np.ndarray, np.ndarray] | None:
+    """Массивы для видимой кривой: исходные по умолчанию, QC только по запросу."""
+    if apply_plot_qc:
+        return prepare_plot_arrays(obs, y_axis)
+    return raw_plot_arrays(obs, y_axis)
+
+
 def _first_valid_temp(temps: np.ndarray) -> float | None:
     for value in temps:
         if not np.isnan(value):
@@ -157,21 +188,21 @@ def _cycle_dash(cycle: str) -> str:
     return "dot"
 
 
-def _obs_state_key(month_key: str, profile_id: str) -> str:
-    return f"obs::{month_key}::{profile_id}"
+def _obs_state_key(state_scope: str, profile_id: str) -> str:
+    return f"obs::{state_scope}::{profile_id}"
 
 
-def _set_enabled(month_key: str, observations: list[dict], predicate) -> None:
+def _set_enabled(state_scope: str, observations: list[dict], predicate) -> None:
     for obs in observations:
-        st.session_state[_obs_state_key(month_key, obs["profile_id"])] = bool(predicate(obs))
+        st.session_state[_obs_state_key(state_scope, obs["profile_id"])] = bool(predicate(obs))
 
 
 def main() -> None:
     st.set_page_config(page_title="Aldan profile dashboard", layout="wide")
     st.title("Алдан — профили наблюдений")
     st.caption(
-        "Одна кривая = один зонд (срок). Фильтры: 00/12, диапазон дней, инверсия. "
-        "QC: spike / форма / |ΔT| / (ΔT/ΔP)². Линии без спиралей (монотонный Y)."
+        "Одна кривая = один зонд (срок). По умолчанию показаны все исходные уровни "
+        "без предварительной QC-фильтрации. Фильтры и исключение выбросов применяются только вручную."
     )
 
     data_path = st.sidebar.text_input("daily_profiles.json", str(DEFAULT_DATA))
@@ -183,7 +214,8 @@ def main() -> None:
         )
         return
 
-    data = load_daily(str(data_file), data_file.stat().st_mtime_ns)
+    data_mtime_ns = data_file.stat().st_mtime_ns
+    data = load_daily(str(data_file), data_mtime_ns)
     if data.get("schema") != REQUIRED_SCHEMA:
         st.error(
             f"Нужен JSON со схемой `{REQUIRED_SCHEMA}` (сейчас: `{data.get('schema')}`).\n\n"
@@ -200,7 +232,11 @@ def main() -> None:
         st.error("В JSON нет месяцев.")
         return
 
-    st.sidebar.success(f"schema={REQUIRED_SCHEMA} · n_obs={data.get('n_observations', '—')}")
+    level_mode = data.get("level_mode", "legacy/clean")
+    st.sidebar.success(
+        f"schema={REQUIRED_SCHEMA} · уровни={level_mode} · "
+        f"n_obs={data.get('n_observations', '—')} · n_levels={data.get('n_levels', '—')}"
+    )
 
     years = sorted({m[:4] for m in months})
     col_y, col_m = st.sidebar.columns(2)
@@ -254,9 +290,17 @@ def main() -> None:
         "Вертикальная ось",
         options=["Давление, гПа", "Высота, м"],
         index=0,
-        help="После анти-спираль фильтра высота тоже без петель; давление надёжнее физически.",
+        help="В режиме исходных уровней петли и немонотонные участки намеренно сохраняются.",
     )
     y_axis = "pressure" if y_axis_label.startswith("Давление") else "height"
+    apply_plot_qc = st.sidebar.checkbox(
+        "Подготовить кривые (убрать петли и дубли)",
+        value=False,
+        help=(
+            "Выключено: график сохраняет исходный порядок и все конечные точки. "
+            "Включено: сортирует уровни и убирает немонотонные/дублирующиеся точки только при показе."
+        ),
+    )
 
     visible = filter_observations(
         observations,
@@ -266,6 +310,7 @@ def main() -> None:
         inversion_only=inversion_only,
     )
     visible_ids = {o["profile_id"] for o in visible}
+    state_scope = f"{data_file.resolve()}::{data_mtime_ns}::{month_key}"
     visible_by_day: dict[str, list[dict]] = {}
     for obs in visible:
         visible_by_day.setdefault(obs["date"], []).append(obs)
@@ -273,20 +318,20 @@ def main() -> None:
     st.sidebar.markdown("### Наблюдения")
     p1, p2 = st.sidebar.columns(2)
     if p1.button("Все видимые", use_container_width=True):
-        _set_enabled(month_key, observations, lambda o: o["profile_id"] in visible_ids)
+        _set_enabled(state_scope, observations, lambda o: o["profile_id"] in visible_ids)
     if p2.button("Сброс видимых", use_container_width=True):
         for obs in visible:
-            st.session_state[_obs_state_key(month_key, obs["profile_id"])] = False
+            st.session_state[_obs_state_key(state_scope, obs["profile_id"])] = False
     p3, p4 = st.sidebar.columns(2)
     if p3.button("Только 00", use_container_width=True):
         _set_enabled(
-            month_key,
+            state_scope,
             observations,
             lambda o: o["profile_id"] in visible_ids and str(o.get("cycle", "")).zfill(2)[-2:] == "00",
         )
     if p4.button("Только 12", use_container_width=True):
         _set_enabled(
-            month_key,
+            state_scope,
             observations,
             lambda o: o["profile_id"] in visible_ids and str(o.get("cycle", "")).zfill(2)[-2:] == "12",
         )
@@ -299,7 +344,7 @@ def main() -> None:
     def _apply_outliers(outlier_ids: set[str]) -> None:
         for obs in visible:
             pid = obs["profile_id"]
-            st.session_state[_obs_state_key(month_key, pid)] = pid not in outlier_ids
+            st.session_state[_obs_state_key(state_scope, pid)] = pid not in outlier_ids
 
     visible_id_list = [o["profile_id"] for o in visible]
     if q1.button(
@@ -349,7 +394,7 @@ def main() -> None:
             day_obs = visible_by_day[day_key]
             st.markdown(f"**{day_key[8:]}** · n={len(day_obs)}")
             for obs in day_obs:
-                key = _obs_state_key(month_key, obs["profile_id"])
+                key = _obs_state_key(state_scope, obs["profile_id"])
                 if key not in st.session_state:
                     st.session_state[key] = True
                 label = (
@@ -357,6 +402,8 @@ def main() -> None:
                     f"Ts={obs.get('t_surface_c')}°C · "
                     f"L={obs.get('n_levels', len(obs.get('temperature_c') or []))}"
                 )
+                if obs.get("missing_levels"):
+                    label += " · нет уровней"
                 if obs.get("inversion_detected"):
                     label += " · inv"
                 if st.checkbox(label, key=key):
@@ -366,7 +413,8 @@ def main() -> None:
     mean = month_mean(visible, enabled, y_axis=y_axis)
 
     st.info(
-        f"Фильтр: срок **{cycle_mode}** · дни "
+        f"Уровни: **{'подготовленные' if apply_plot_qc else 'все исходные без QC'}** · "
+        f"срок **{cycle_mode}** · дни "
         f"**{day_from.isoformat()}…{day_to.isoformat()}**"
         + (" · только инверсии" if inversion_only else "")
         + f" · видимо **{len(visible)}**, включено **{len(enabled)}**"
@@ -398,7 +446,11 @@ def main() -> None:
         for obs in visible_by_day[day_key]:
             if obs["profile_id"] not in enabled:
                 continue
-            prepared = prepare_plot_arrays(obs, y_axis)
+            prepared = observation_plot_arrays(
+                obs,
+                y_axis,
+                apply_plot_qc=apply_plot_qc,
+            )
             if prepared is None:
                 continue
             t_vals, y_vals = prepared
@@ -409,13 +461,14 @@ def main() -> None:
             fig.add_trace(go.Scatter(
                 x=t_vals,
                 y=y_vals,
-                mode="lines",
+                mode="lines+markers" if not apply_plot_qc else "lines",
                 name=name,
                 line=dict(
                     width=1.6,
                     color=color,
                     dash=_cycle_dash(str(obs.get("cycle", ""))),
                 ),
+                marker=dict(size=3),
                 opacity=0.88,
                 connectgaps=False,
                 hovertemplate=(
@@ -428,7 +481,11 @@ def main() -> None:
 
         day = day_lookup.get(day_key)
         if show_day_means and day_has_enabled and day and day.get("day_mean"):
-            prepared = prepare_plot_arrays(day["day_mean"], y_axis)
+            prepared = observation_plot_arrays(
+                day["day_mean"],
+                y_axis,
+                apply_plot_qc=apply_plot_qc,
+            )
             if prepared is not None:
                 t_vals, y_vals = prepared
                 fig.add_trace(go.Scatter(

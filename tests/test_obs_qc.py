@@ -11,6 +11,7 @@ from gdex_bufr.profile_climate.obs_qc import (
     max_abs_dt,
     month_median_shape,
     prepare_plot_arrays,
+    raw_plot_arrays,
     remove_hampel_spike_levels,
     remove_temperature_spikes_by_pressure,
     spike_scores,
@@ -144,6 +145,19 @@ def test_prepare_plot_arrays_pressure_strictly_decreasing():
     assert prepared is not None
     t, p = prepared
     assert np.all(np.diff(p) < 0)
+
+
+def test_raw_plot_arrays_preserves_order_duplicates_and_spiral():
+    obs = {
+        "temperature_c": [-10.0, 25.0, -14.0, -16.0],
+        "pressure_hpa": [900.0, 850.0, 850.0, 800.0],
+        "heights_m": [1000.0, 1500.0, 1200.0, 2000.0],
+    }
+    prepared = raw_plot_arrays(obs, "height")
+    assert prepared is not None
+    temps, heights = prepared
+    assert temps.tolist() == obs["temperature_c"]
+    assert heights.tolist() == obs["heights_m"]
 
 
 def test_clean_drops_decreasing_height():

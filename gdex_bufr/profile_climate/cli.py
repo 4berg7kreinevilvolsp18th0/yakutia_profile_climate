@@ -19,6 +19,7 @@ from gdex_bufr.config import AppConfig
 from gdex_bufr.profile_climate.config import ProfileClimateConfig, load_profile_climate_config
 from gdex_bufr.profile_climate.export import export_all, export_checkpoint
 from gdex_bufr.profile_climate.extract import normalize_station_id, process_profile
+from gdex_bufr.profile_climate.plot_filter import describe_plot_filters
 from gdex_bufr.profile_climate.plots import render_all_monthly_plots
 
 logger = logging.getLogger(__name__)
@@ -318,6 +319,14 @@ def cmd_monthly_profile_plots(
         "min_profiles_per_month": pc_cfg.min_profiles_per_month,
         "input": str(input_path),
         "metrics": str(metrics_path),
+        "note": "Дашборд показывает все профили; PNG отбирает по filters_human ниже.",
+        "filters_human": describe_plot_filters(
+            pressure_top_hpa=pressure_top,
+            max_surface_pressure_hpa=pc_cfg.max_surface_pressure_hpa,
+            plot_only_good=pc_cfg.plot_only_good,
+            plot_min_levels=pc_cfg.plot_min_levels,
+            min_profiles_per_month=pc_cfg.min_profiles_per_month,
+        ),
     }
     (output_root / "params.json").write_text(
         json.dumps(params, ensure_ascii=False, indent=2),

@@ -81,6 +81,40 @@ def remove_temperature_spikes(
     return kept
 
 
+def describe_plot_filters(
+    *,
+    pressure_top_hpa: float = 500.0,
+    max_surface_pressure_hpa: float = 1000.0,
+    plot_only_good: bool = False,
+    plot_min_levels: int = 3,
+    min_profiles_per_month: int = 5,
+    spike_max_delta_c: float = 10.0,
+    spike_max_height_step_m: float = 200.0,
+    quality_max_neighbor_delta_c: float = 10.0,
+    quality_height_bin_m: float = 200.0,
+    quality_max_temp_spread_c: float = 10.0,
+) -> list[str]:
+    """Человекочитаемые правила отбора для PNG / params.json (дашборд показывает всё)."""
+    status_rule = (
+        "только profile_status=good"
+        if plot_only_good
+        else "допуск: good/short/no_500; отсев: no_surface/no_temp/bad_pressure (+ duplicate без уникальных P)"
+    )
+    return [
+        "На графике НЕ все зонды из дашборда — ниже фильтры отбора.",
+        f"Давление уровня: {pressure_top_hpa:g}…{max_surface_pressure_hpa:g} гПа; нужны T и высота ≥ 0.",
+        "Дедуп уровней по P и по H (~10 м).",
+        f"Срез скачков: |ΔT|>{spike_max_delta_c:g}°C при |ΔH|<{spike_max_height_step_m:g} м.",
+        (
+            f"Quality профиля: соседний |ΔT|<{quality_max_neighbor_delta_c:g}°C; "
+            f"в bin {quality_height_bin_m:g} м разброс T≤{quality_max_temp_spread_c:g}°C."
+        ),
+        f"Статусы: {status_rule}.",
+        f"Минимум уровней после фильтров: {plot_min_levels}; порог «мало» за месяц: {min_profiles_per_month}.",
+        "Линия дня = среднее по допущенным профилям этой даты (00/12), не сырой зонд.",
+    ]
+
+
 def filter_plot_levels(
     levels: list[dict[str, Any]],
     *,

@@ -10,7 +10,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from gdex_bufr.profile_climate.metrics import PROFILE_STATUS_GOOD
-from gdex_bufr.profile_climate.plot_filter import filter_plot_levels, is_profile_plot_eligible
+from gdex_bufr.profile_climate.plot_filter import (
+    describe_plot_filters,
+    filter_plot_levels,
+    is_profile_plot_eligible,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -229,17 +233,38 @@ def render_monthly_temperature_profiles(
         ax.set_ylim(min(plot_heights), max(plot_heights))
     ax.grid(True, alpha=0.3)
     profiles_in_month = sum(n for _, _, n in daily_profiles.values())
+    raw_in_month = len(_group_profiles(month_long))
     ax.set_title(
         f"{station_name or station_slug} — {year}-{month:02d}\n"
-        f"Суточных линий: {len(daily_profiles)} | профилей: {profiles_in_month} | "
-        f"good: {len(good_ids)} | отброшено: {rejected} | инверсий: {inversion_count}"
+        f"Суточных линий: {len(daily_profiles)} | на графике профилей: {profiles_in_month}/{raw_in_month} | "
+        f"good: {len(good_ids)} | отброшено фильтром: {rejected} | инверсий: {inversion_count}"
     )
     ax.legend(loc="best", fontsize=8, ncol=2 if len(day_keys) > 8 else 1)
 
+    filter_lines = describe_plot_filters(
+        pressure_top_hpa=pressure_top_hpa,
+        max_surface_pressure_hpa=max_surface_pressure_hpa,
+        plot_only_good=plot_only_good,
+        plot_min_levels=plot_min_levels,
+        min_profiles_per_month=min_profiles_per_month,
+    )
+    filter_text = "Фильтры PNG:\n" + "\n".join(f"• {line}" for line in filter_lines)
+
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.tight_layout()
-    fig.savefig(output_path, dpi=150)
+    fig.subplots_adjust(bottom=0.28)
+    fig.text(
+        0.02,
+        0.02,
+        filter_text,
+        ha="left",
+        va="bottom",
+        fontsize=7,
+        family="sans-serif",
+        wrap=True,
+        bbox={"boxstyle": "round", "facecolor": "#f7f7f7", "edgecolor": "#bbbbbb", "alpha": 0.95},
+    )
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     return output_path
 

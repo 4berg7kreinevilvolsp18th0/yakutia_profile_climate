@@ -208,6 +208,26 @@ def prepare_plot_arrays(
     return np.asarray(keep_t, dtype=float), np.asarray(keep_y, dtype=float)
 
 
+def raw_plot_arrays(
+    obs: dict[str, Any],
+    y_axis: str,
+) -> tuple[np.ndarray, np.ndarray] | None:
+    """T и Y без сортировки, dedupe и QC — в исходном порядке наблюдения."""
+    temps = _as_float_array(obs.get("temperature_c"))
+    y_values = _as_float_array(
+        obs.get("pressure_hpa") if y_axis == "pressure" else obs.get("heights_m")
+    )
+    if temps is None or y_values is None:
+        return None
+    n = min(len(temps), len(y_values))
+    temps = temps[:n]
+    y_values = y_values[:n]
+    valid = ~np.isnan(temps) & ~np.isnan(y_values)
+    if valid.sum() < 1:
+        return None
+    return temps[valid], y_values[valid]
+
+
 def remove_temperature_spikes_by_pressure(
     levels: list[dict[str, Any]],
     *,
