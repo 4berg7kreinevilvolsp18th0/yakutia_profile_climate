@@ -50,7 +50,14 @@ def resolve_xlsx(path: Path | None, search_dir: Path) -> Path | None:
         return path if path.exists() else None
     if not search_dir.exists():
         return None
-    stamped = sorted(search_dir.glob("*_profile_climate_*.xlsx"), key=lambda p: p.stat().st_mtime)
+    stamped = sorted(
+        (
+            p
+            for p in search_dir.glob("*_profile_climate_*.xlsx")
+            if "heights_fixed" not in p.name
+        ),
+        key=lambda p: p.stat().st_mtime,
+    )
     if stamped:
         return stamped[-1]
     plain = search_dir / "profile_climate.xlsx"
@@ -187,7 +194,7 @@ def build_daily_profiles(
     print(f"Источник таблиц: {source}")
     print(
         f"Станция Алдан: высота {STATION_ELEVATION_M.get('31004')} м н.у.м.; "
-        f"типичное P у поверхности ≈ {ALDAN_TYPICAL_SURFACE_HPA} гПа (не константа)"
+        f"типичное P у поверхности ~ {ALDAN_TYPICAL_SURFACE_HPA} гПа (не константа)"
     )
 
     long_df = long_df.dropna(subset=["temperature_c", "pressure_hpa"])

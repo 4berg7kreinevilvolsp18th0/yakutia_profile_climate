@@ -217,6 +217,8 @@ def fill_long_dataframe_heights(long_df, metrics_df=None, *, station_id_default:
         denom = _G0_M_S2 * _EARTH_RADIUS_M - phi
         z_phi = np.where(np.abs(denom) < 1e-9, np.nan, (phi * _EARTH_RADIUS_M) / denom)
         height_obs[need_phi] = z_phi
+    # явный брак (напр. Φ<0 у поверхности) → дальше interp/baro
+    height_obs = np.where(height_obs < -50.0, np.nan, height_obs)
 
     p_all = df["pressure_hpa"].to_numpy(dtype=float)
     pid_all = df["profile_id"].astype(str).to_numpy()

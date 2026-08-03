@@ -48,6 +48,9 @@ def repair_xlsx(path: Path, *, output: Path | None = None) -> dict:
     xlsx = pd.ExcelFile(path)
     long_df = pd.read_excel(xlsx, sheet_name="profiles_long")
     metrics_df = pd.read_excel(xlsx, sheet_name="profile_metrics")
+    field_types = None
+    if "field_types" in xlsx.sheet_names:
+        field_types = pd.read_excel(xlsx, sheet_name="field_types")
     before = long_df.copy()
     filled = fill_long_dataframe_heights(long_df, metrics_df)
 
@@ -59,17 +62,25 @@ def repair_xlsx(path: Path, *, output: Path | None = None) -> dict:
     filled = filled[cols]
 
     out = output or path.with_name(path.stem + "_heights_fixed.xlsx")
-    with pd.ExcelWriter(out, engine="openpyxl") as writer:
+    if out.exists():
+        out.unlink()
+    # xlsxwriter быстрее openpyxl на ~180k строк; fallback — openpyxl
+    try:
+        import xlsxwriter  # noqa: F401
+
+        engine = "xlsxwriter"
+    except ImportError:
+        engine = "openpyxl"
+    with pd.ExcelWriter(out, engine=engine) as writer:
         filled.to_excel(writer, sheet_name="profiles_long", index=False)
         metrics_df.to_excel(writer, sheet_name="profile_metrics", index=False)
-        for sheet in xlsx.sheet_names:
-            if sheet in {"profiles_long", "profile_metrics"}:
-                continue
-            pd.read_excel(xlsx, sheet_name=sheet).to_excel(writer, sheet_name=sheet, index=False)
+        if field_types is not None:
+            field_types.to_excel(writer, sheet_name="field_types", index=False)
 
     report = _qc_report(before, filled)
     report["input"] = str(path)
     report["output"] = str(out)
+    report["engine"] = engine
     return report
 
 
