@@ -70,7 +70,9 @@ def test_raw_mode_keeps_spikes_bad_status_singletons_and_missing_height(tmp_path
     assert set(by_id) == {"p1", "p2", "p3"}
     assert by_id["p1"]["temperature_c"] == [-10.0, 30.0, -14.0, -16.0]
     assert by_id["p1"]["pressure_hpa"] == [900.0, 898.0, 850.0, 800.0]
-    assert by_id["p2"]["heights_m"] == [None]
+    # нет H → барометрия от станции Алдан (679 м) при P≈P_sfc
+    assert by_id["p2"]["heights_m"] == [679.0]
+    assert by_id["p2"]["heights_baro_m"] == [679.0]
     assert by_id["p3"]["n_levels"] == 0
     assert by_id["p3"]["missing_levels"] is True
 
@@ -96,3 +98,4 @@ def test_clean_mode_keeps_legacy_status_filter(tmp_path):
 
     assert payload["level_mode"] == "clean"
     assert payload["n_observations"] == 0
+    
