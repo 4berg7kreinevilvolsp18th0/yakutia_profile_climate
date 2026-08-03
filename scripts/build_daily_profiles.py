@@ -16,7 +16,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from gdex_bufr.meteo_parser_bridge import geopotential_to_height_m  # noqa: E402
+from gdex_bufr.profile_climate.height_fill import (  # noqa: E402
+    ALDAN_TYPICAL_SURFACE_HPA,
+    STATION_ELEVATION_M,
+    fill_long_dataframe_heights,
+)
 from gdex_bufr.profile_climate.obs_qc import (  # noqa: E402
     clean_observation_levels,
     interp_on_pressure_grid,
@@ -82,31 +86,46 @@ def load_long_and_metrics(
 
 def _series_to_levels(group: pd.DataFrame) -> list[dict[str, Any]]:
     levels: list[dict[str, Any]] = []
-    has_geopot = "geopotential_m2s2" in group.columns
     for row in group.itertuples(index=False):
-        height = None if pd.isna(row.height_m) else float(row.height_m)
-        if height is None and has_geopot:
-            geo = getattr(row, "geopotential_m2s2", None)
-            if geo is not None and not pd.isna(geo):
-                height = round(geopotential_to_height_m(float(geo)), 1)
+        height = None if pd.isna(getattr(row, "height_m", None)) else float(row.height_m)
         levels.append({
             "pressure_hpa": float(row.pressure_hpa),
             "temperature_c": float(row.temperature_c),
             "height_m": height,
+            "height_obs_m": None if pd.isna(getattr(row, "height_obs_m", None)) else float(row.height_obs_m),
+            "height_interp_m": None if pd.isna(getattr(row, "height_interp_m", None)) else float(row.height_interp_m),
+            "height_baro_m": None if pd.isna(getattr(row, "height_baro_m", None)) else float(row.height_baro_m),
+            "height_source": getattr(row, "height_source", None),
+            "geopotential_m2s2": (
+                None if pd.isna(getattr(row, "geopotential_m2s2", None))
+                else float(row.geopotential_m2s2)
+            ),
+            "geopotential_height_m": (
+                None if pd.isna(getattr(row, "geopotential_height_m", None))
+                else float(row.geopotential_height_m)
+            ),
         })
     return levels
 
 
 def _obs_arrays(
     levels: list[dict[str, Any]],
-) -> tuple[list[float | None], list[float], list[float]]:
+) -> tuple[list[float | None], list[float], list[float], list[float | None], list[float | None]]:
     heights = [
         None if lv.get("height_m") is None else round(float(lv["height_m"]), 1)
         for lv in levels
     ]
+    heights_interp = [
+        None if lv.get("height_interp_m") is None else round(float(lv["height_interp_m"]), 1)
+        for lv in levels
+    ]
+    heights_baro = [
+        None if lv.get("height_baro_m") is None else round(float(lv["height_baro_m"]), 1)
+        for lv in levels
+    ]
     pressures = [round(float(lv["pressure_hpa"]), 2) for lv in levels]
     temps = [round(float(lv["temperature_c"]), 3) for lv in levels]
-    return heights, pressures, temps
+    return heights, pressures, temps, heights_interp, heights_baro
 
 
 def _day_mean_on_pressure(
@@ -166,12 +185,17 @@ def build_daily_profiles(
 
     long_df, metrics_df, source = load_long_and_metrics(long_csv, metrics_csv, xlsx=xlsx)
     print(f"Источник таблиц: {source}")
+    print(
+        f"Станция Алдан: высота {STATION_ELEVATION_M.get('31004')} м н.у.м.; "
+        f"типичное P у поверхности ≈ {ALDAN_TYPICAL_SURFACE_HPA} гПа (не константа)"
+    )
 
     long_df = long_df.dropna(subset=["temperature_c", "pressure_hpa"])
     long_df = long_df[
         (long_df["pressure_hpa"] <= max_surface_pressure_hpa)
         & (long_df["pressure_hpa"] >= pressure_top_hpa)
     ]
+    long_df = fill_long_dataframe_heights(long_df, metrics_df)
 
     metrics_map = {
         str(row.profile_id): row
@@ -208,7 +232,7 @@ def build_daily_profiles(
             continue
 
         cycle = str(group["cycle"].iloc[0]).zfill(2)[-2:]
-        heights, pressures, temps = _obs_arrays(levels)
+        heights, pressures, temps, heights_interp, heights_baro = _obs_arrays(levels)
 
         t_surface = None
         inversion = False
@@ -226,6 +250,8 @@ def build_daily_profiles(
             "datetime_utc": dt,
             "cycle": cycle,
             "heights_m": heights,
+            "heights_interp_m": heights_interp,
+            "heights_baro_m": heights_baro,
             "pressure_hpa": pressures,
             "temperature_c": temps,
             "n_levels": len(levels),

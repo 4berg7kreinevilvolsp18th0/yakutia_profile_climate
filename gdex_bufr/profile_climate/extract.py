@@ -183,6 +183,13 @@ def process_profile(
         min_inversion_delta_c=min_inversion_delta_c,
         n_levels_total=len(profile.levels),
     )
+    from gdex_bufr.profile_climate.height_fill import fill_profile_level_heights
+
+    levels = fill_profile_level_heights(
+        levels,
+        surface_pressure_hpa=metrics.get("p_surface_hpa"),
+        station_id=station_id,
+    )
 
     profile_meta = {
         "station_id": station_id,
