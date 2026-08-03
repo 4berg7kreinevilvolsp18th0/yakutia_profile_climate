@@ -135,7 +135,20 @@ def build_parser() -> argparse.ArgumentParser:
     monthly_plots_cmd.add_argument("--pressure-top", type=float, help="Верхний уровень анализа, гПа")
     monthly_plots_cmd.add_argument("--input", help="profiles_long.csv")
     monthly_plots_cmd.add_argument("--metrics", help="profile_metrics.csv")
-    monthly_plots_cmd.add_argument("--output", help="Каталог PNG")
+    monthly_plots_cmd.add_argument(
+        "--output",
+        default="gdex_outputs/monthly_temperature_profiles",
+        help="Корневой каталог PNG (внутри: актуальное/ и сравнение/)",
+    )
+    monthly_plots_cmd.add_argument(
+        "--set",
+        dest="plot_set",
+        default="актуальное",
+        help=(
+            "Набор графиков: 'актуальное' (основной) или имя попытки в сравнение/ "
+            "(например мягче_фильтр)"
+        ),
+    )
 
     discover_cmd = sub.add_parser(
         "discover-stations",

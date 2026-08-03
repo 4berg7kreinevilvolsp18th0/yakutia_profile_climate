@@ -267,6 +267,18 @@ def cmd_station_profiles(
     return 0 if metrics_rows else 1
 
 
+def resolve_monthly_plots_root(output: Path | str, plot_set: str = "актуальное") -> Path:
+    """актуальное → base/актуальное; иначе → base/сравнение/<plot_set>."""
+    base = Path(output)
+    name = (plot_set or "актуальное").strip().replace("\\", "/").strip("/")
+    if name in {"актуальное", "основное", "actual", "main"}:
+        return base / "актуальное"
+    # допускаем уже полный путь сравнение/foo
+    if name.startswith("сравнение/"):
+        return base / name
+    return base / "сравнение" / name
+
+
 def cmd_monthly_profile_plots(
     pc_cfg: ProfileClimateConfig,
     args: argparse.Namespace,
@@ -276,9 +288,14 @@ def cmd_monthly_profile_plots(
     end = _parse_date(args.end_date) or pc_cfg.end_date
     pressure_top = float(args.pressure_top or pc_cfg.pressure_top_hpa)
 
-    input_path = Path(args.input or "gdex_outputs/profile_climate/profiles_long.csv")
-    metrics_path = Path(args.metrics or "gdex_outputs/profile_climate/profile_metrics.csv")
-    output_root = Path(args.output or "gdex_outputs/monthly_temperature_profiles")
+    input_path = Path(args.input or "gdex_outputs/результаты-алдан/profiles_long.csv")
+    metrics_path = Path(args.metrics or "gdex_outputs/результаты-алдан/profile_metrics.csv")
+    plot_set = getattr(args, "plot_set", None) or "актуальное"
+    output_root = resolve_monthly_plots_root(
+        Path(args.output or "gdex_outputs/monthly_temperature_profiles"),
+        plot_set,
+    )
+    output_root.mkdir(parents=True, exist_ok=True)
 
     long_rows = [r for r in _load_csv_rows(input_path) if normalize_station_id(r.get("station_id")) == station_id]
     metrics_rows = [r for r in _load_csv_rows(metrics_path) if normalize_station_id(r.get("station_id")) == station_id]
@@ -286,6 +303,26 @@ def cmd_monthly_profile_plots(
     if not long_rows:
         print(f"Нет данных в {input_path} для станции {station_id}", file=sys.stderr)
         return 1
+
+    params = {
+        "plot_set": plot_set,
+        "output_root": str(output_root),
+        "station_id": station_id,
+        "station_slug": station_slug,
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+        "pressure_top_hpa": pressure_top,
+        "max_surface_pressure_hpa": pc_cfg.max_surface_pressure_hpa,
+        "plot_only_good": pc_cfg.plot_only_good,
+        "plot_min_levels": pc_cfg.plot_min_levels,
+        "min_profiles_per_month": pc_cfg.min_profiles_per_month,
+        "input": str(input_path),
+        "metrics": str(metrics_path),
+    }
+    (output_root / "params.json").write_text(
+        json.dumps(params, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
     written = render_all_monthly_plots(
         station_slug=station_slug,
@@ -305,6 +342,8 @@ def cmd_monthly_profile_plots(
     )
     print(json.dumps({
         "station_id": station_id,
+        "plot_set": plot_set,
+        "output_root": str(output_root),
         "plots_written": len(written),
         "outputs": written[:20],
     }, ensure_ascii=False, indent=2))

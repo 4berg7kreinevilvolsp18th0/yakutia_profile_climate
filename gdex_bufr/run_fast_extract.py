@@ -93,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
     start = _parse_date(args.start_date)
     end = _parse_date(args.end_date)
     cycles = [c.strip().zfill(2)[-2:] for c in args.cycles.split(",") if c.strip()]
-    output_dir = Path(args.output or f"gdex_outputs/profile_climate/{station_slug}")
+    output_dir = Path(args.output or f"gdex_outputs/результаты-{station_slug}")
     output_dir.mkdir(parents=True, exist_ok=True)
     metrics_path = output_dir / "profile_metrics.csv"
     decoded_path = output_dir / "decoded_levels.csv"
@@ -112,6 +112,8 @@ def main(argv: list[str] | None = None) -> int:
             "profile_climate.xlsx",
         ):
             (output_dir / name).unlink(missing_ok=True)
+        for old_xlsx in output_dir.glob("*_profile_climate_*.xlsx"):
+            old_xlsx.unlink(missing_ok=True)
 
     files = list_bufr_files(
         app_cfg,

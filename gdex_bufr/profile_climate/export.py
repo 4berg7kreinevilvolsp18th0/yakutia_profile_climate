@@ -341,7 +341,8 @@ def write_xlsx_exports(
         return None
     from gdex_bufr.profile_climate.field_types import FIELD_TYPE_COLUMNS, build_field_types_rows
 
-    path = output_dir / "profile_climate.xlsx"
+    slug = output_dir.name.replace("результаты-", "") if "результаты-" in output_dir.name else output_dir.name
+    path = output_dir / f"{slug}_profile_climate_{time.strftime('%Y%m%d_%H%M%S')}.xlsx"
     path.parent.mkdir(parents=True, exist_ok=True)
     types_rows = field_type_rows if field_type_rows is not None else build_field_types_rows()
     with pd.ExcelWriter(path, engine="openpyxl") as writer:
