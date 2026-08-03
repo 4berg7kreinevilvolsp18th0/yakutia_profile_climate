@@ -120,8 +120,9 @@ def prepare_plot_arrays(
 ) -> tuple[np.ndarray, np.ndarray] | None:
     """T и Y для графика: без спиралей (строго монотонный Y).
 
-    Давление: сортировка по убыванию P, строгое убывание.
-    Высота: сортировка по убыванию P, затем только растущая H (гидростатика).
+    Давление: сортировка по убыванию P.
+    Высота: сортировка по возрастанию H (не по давлению — иначе при кривом
+    геопотенциале линия на оси метров снова ломается).
     Возвращает (temperature_c, y_values) или None.
     """
     temps = obs.get("temperature_c")
@@ -165,36 +166,14 @@ def prepare_plot_arrays(
         n = min(len(t), len(h))
         t = t[:n]
         h = h[:n]
-        if p is not None:
-            p = p[: min(len(p), n)]
-            if len(p) == n:
-                valid = ~np.isnan(t) & ~np.isnan(h) & ~np.isnan(p)
-                if valid.sum() < 2:
-                    return None
-                t = t[valid]
-                h = h[valid]
-                p = p[valid]
-                order = np.argsort(-p)
-                t = t[order]
-                h = h[order]
-            else:
-                valid = ~np.isnan(t) & ~np.isnan(h)
-                if valid.sum() < 2:
-                    return None
-                t = t[valid]
-                h = h[valid]
-                order = np.argsort(h)
-                t = t[order]
-                h = h[order]
-        else:
-            valid = ~np.isnan(t) & ~np.isnan(h)
-            if valid.sum() < 2:
-                return None
-            t = t[valid]
-            h = h[valid]
-            order = np.argsort(h)
-            t = t[order]
-            h = h[order]
+        valid = ~np.isnan(t) & ~np.isnan(h)
+        if valid.sum() < 2:
+            return None
+        t = t[valid]
+        h = h[valid]
+        order = np.argsort(h)
+        t = t[order]
+        h = h[order]
         keep_t = [float(t[0])]
         keep_y = [float(h[0])]
         for i in range(1, len(h)):
@@ -212,7 +191,7 @@ def raw_plot_arrays(
     obs: dict[str, Any],
     y_axis: str,
 ) -> tuple[np.ndarray, np.ndarray] | None:
-    """T и Y без сортировки, dedupe и QC — в исходном порядке наблюдения."""
+    """T и Y без QC-отбраковки, но с сортировкой по оси Y."""
     temps = _as_float_array(obs.get("temperature_c"))
     y_values = _as_float_array(
         obs.get("pressure_hpa") if y_axis == "pressure" else obs.get("heights_m")
@@ -225,7 +204,10 @@ def raw_plot_arrays(
     valid = ~np.isnan(temps) & ~np.isnan(y_values)
     if valid.sum() < 1:
         return None
-    return temps[valid], y_values[valid]
+    temps = temps[valid]
+    y_values = y_values[valid]
+    order = np.argsort(-y_values if y_axis == "pressure" else y_values)
+    return temps[order], y_values[order]
 
 
 def remove_temperature_spikes_by_pressure(

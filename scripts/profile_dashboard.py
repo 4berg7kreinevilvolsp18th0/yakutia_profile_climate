@@ -63,7 +63,7 @@ def raw_plot_arrays(
     obs: dict,
     y_axis: str,
 ) -> tuple[np.ndarray, np.ndarray] | None:
-    """Исходные точки без зависимости от перезагрузки модуля QC в Streamlit."""
+    """Исходные точки: только валидные T/Y, отсортированные по оси Y (без QC-отбраковки)."""
     temps = obs.get("temperature_c") or []
     y_source = obs.get("pressure_hpa") if y_axis == "pressure" else obs.get("heights_m")
     y_values = y_source or []
@@ -75,7 +75,11 @@ def raw_plot_arrays(
     valid = ~np.isnan(t) & ~np.isnan(y)
     if valid.sum() < 1:
         return None
-    return t[valid], y[valid]
+    t = t[valid]
+    y = y[valid]
+    # гПа: земля → верх (убывание); метры: низ → верх (возрастание)
+    order = np.argsort(-y if y_axis == "pressure" else y)
+    return t[order], y[order]
 
 
 @st.cache_data(show_spinner="Загрузка профилей…")
