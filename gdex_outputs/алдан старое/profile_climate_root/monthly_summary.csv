@@ -1,0 +1,2 @@
+station_id,station_name,year,month,profiles_total,profiles_good,profiles_with_inversion,mean_delta_t_top_surface_c,mean_inversion_delta_t_c
+31004,Aldan,1999,1,62,62,62,-6.0,3.0
