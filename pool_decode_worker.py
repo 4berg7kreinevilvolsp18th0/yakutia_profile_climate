@@ -100,7 +100,7 @@ def decode_one(payload: tuple) -> tuple[str, list[dict], list[dict], list[dict],
             profiles = decode_bufr_file(
                 path,
                 station_id=_WORKER["station_id"],
-                max_profiles=1,
+                max_profiles=None,
                 registry=_WORKER["registry"],
                 decode_mode=_WORKER["decode_mode"],
                 decoder=_WORKER["decoder"],

@@ -88,17 +88,33 @@ def _parse_date(value: str) -> date:
     return datetime.strptime(value, "%Y-%m-%d").date()
 
 
-def _load_done_sources(metrics_path: Path) -> set[str]:
-    if not metrics_path.exists():
-        return set()
+def _load_done_sources(metrics_path: Path, scanned_path: Path | None = None) -> set[str]:
     done: set[str] = set()
-    with metrics_path.open(encoding="utf-8", newline="") as handle:
-        for row in csv.DictReader(handle):
-            src = row.get("source_file") or ""
-            if src:
-                done.add(Path(src).name)
-                done.add(src)
+    for path in (metrics_path, scanned_path):
+        if path is None or not path.exists():
+            continue
+        with path.open(encoding="utf-8", newline="") as handle:
+            for row in csv.DictReader(handle):
+                src = row.get("source_file") or ""
+                if src:
+                    done.add(Path(src).name)
+                    done.add(src)
     return done
+
+
+def _append_scanned(scanned_path: Path, source_file: str, profiles_found: int, error: str | None) -> None:
+    from gdex_bufr.profile_climate.export import append_csv
+
+    append_csv(
+        scanned_path,
+        [{
+            "source_file": source_file,
+            "profiles_found": profiles_found,
+            "error": error or "",
+            "scanned_at": datetime.now(tz=None).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }],
+        ["source_file", "profiles_found", "error", "scanned_at"],
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -107,13 +123,18 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--profile-config", default="profile_climate_config.yaml")
     p.add_argument("--station", default="aldan")
     p.add_argument("--start-date", default="1999-10-01")
-    p.add_argument("--end-date", default="2026-07-08")
+    p.add_argument("--end-date", default="2026-07-30")
     p.add_argument("--cycles", default="00,12")
     p.add_argument("--workers", type=int, default=max(2, (os.cpu_count() or 4) - 2))
     p.add_argument("--checkpoint-every", type=int, default=200)
     p.add_argument("--fresh", action="store_true")
     p.add_argument("--limit-files", type=int)
     p.add_argument("--output", default="")
+    p.add_argument(
+        "--input-dir",
+        default="",
+        help="Корень BUFR вместо data_dir из config (напр. gdex_data/bufr_алдан)",
+    )
     p.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
     return p
 
@@ -150,6 +171,12 @@ def main(argv: list[str] | None = None) -> int:
 
     app_cfg = load_config(args.config)
     ensure_meteo_parser_import(app_cfg.meteo_parser_path)
+    if args.input_dir:
+        input_dir = Path(args.input_dir)
+        if not input_dir.is_absolute():
+            input_dir = (ROOT / input_dir).resolve()
+        app_cfg.data_dir = input_dir
+        logger.info("input-dir=%s", app_cfg.data_dir)
     pc_cfg = load_profile_climate_config(args.profile_config)
     station_id, station_slug, station_name = _resolve_station(pc_cfg, args.station)
     start = _parse_date(args.start_date)
@@ -165,12 +192,14 @@ def main(argv: list[str] | None = None) -> int:
     metrics_path = output_dir / "profile_metrics.csv"
     decoded_path = output_dir / "decoded_levels.csv"
     elements_path = output_dir / "debufr_elements.csv"
+    scanned_path = output_dir / "scanned_sources.csv"
 
     if args.fresh:
         for name in (
             "profiles_long.csv", "profile_metrics.csv", "decoded_levels.csv",
             "debufr_elements.csv", "monthly_summary.csv", "station_summary.csv",
             "summary.json", "field_types.csv", "profile_climate.xlsx",
+            "scanned_sources.csv",
         ):
             (output_dir / name).unlink(missing_ok=True)
         for old_xlsx in output_dir.glob("*_profile_climate_*.xlsx"):
@@ -180,7 +209,7 @@ def main(argv: list[str] | None = None) -> int:
         app_cfg, start_date=start, end_date=end, cycles=cycles,
         limit=args.limit_files, only_completed_downloads=False,
     )
-    done = set() if args.fresh else _load_done_sources(metrics_path)
+    done = set() if args.fresh else _load_done_sources(metrics_path, scanned_path)
     pending = [path for path in files if path.name not in done and str(path) not in done]
     logger.info(
         "Быстрая расшифровка %s (%s): всего=%s, уже готово=%s, осталось=%s, workers=%s",
@@ -245,13 +274,15 @@ def main(argv: list[str] | None = None) -> int:
                 except Exception as exc:  # noqa: BLE001
                     errors += 1
                     logger.warning("Сбой %s: %s", path.name, exc)
+                    _append_scanned(scanned_path, str(path), 0, repr(exc))
                     processed += 1
                     continue
                 if err:
                     errors += 1
                     logger.debug("Ошибка %s: %s", path.name, err)
+                n_found = len(file_metrics) if file_metrics else 0
                 if file_metrics:
-                    found += len(file_metrics)
+                    found += n_found
                     long_rows.extend(file_long)
                     metrics_rows.extend(file_metrics)
                     if file_decoded:
@@ -260,6 +291,7 @@ def main(argv: list[str] | None = None) -> int:
                     if file_elements:
                         append_csv(elements_path, file_elements, DEBUFR_ELEMENT_COLUMNS)
                         elements_streamed += len(file_elements)
+                _append_scanned(scanned_path, str(path), n_found, err)
                 processed += 1
                 if processed % args.checkpoint_every == 0 or processed == len(pending):
                     export_checkpoint(long_rows, metrics_rows, output_dir, config_info=config_info)
