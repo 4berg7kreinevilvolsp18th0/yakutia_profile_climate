@@ -1,0 +1,9 @@
+{
+  "plot_set": "актуальное",
+  "note": "текущий основной набор (перенесён без пересборки)",
+  "pressure_top_hpa": 500.0,
+  "max_surface_pressure_hpa": 1000.0,
+  "plot_only_good": false,
+  "plot_min_levels": 3,
+  "min_profiles_per_month": 5
+}
