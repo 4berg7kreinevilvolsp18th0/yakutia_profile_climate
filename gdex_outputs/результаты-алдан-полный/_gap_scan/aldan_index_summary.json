@@ -1,0 +1,21 @@
+{
+  "station_id": "31004",
+  "start_date": "1999-10-01",
+  "end_date": "2026-07-19",
+  "cycles": [
+    "00",
+    "06",
+    "12",
+    "18"
+  ],
+  "files_scanned": 480,
+  "index_csv": "gdex_outputs\\результаты-алдан-полный\\_gap_scan\\aldan_bufr_index.csv",
+  "compare_csv": "gdex_outputs\\результаты-алдан-полный\\_gap_scan\\compare_index_vs_old.csv",
+  "index_hits": 0,
+  "unique_obs_in_index": 0,
+  "unique_obs_in_old": 18202,
+  "in_bufr_not_old": 0,
+  "in_old_not_bufr": 18202,
+  "both": 0,
+  "delayed_rows": 0
+}
