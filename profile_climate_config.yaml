@@ -15,6 +15,10 @@ profile_climate:
   variable: temperature
   min_levels_to_500: 5
   min_inversion_delta_c: 0.2
+  # подтверждение верха инверсии: устойчивое падение T выше кандидата
+  confirm_drop_levels: 2
+  confirm_depth_hpa: 30
+  min_drop_delta_c: 0.2
   min_profiles_per_month: 5
   max_surface_pressure_hpa: 1000
   plot_only_good: false
