@@ -16,6 +16,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from gdex_bufr.profile_climate.height_fill import (  # noqa: E402
+    ALDAN_TYPICAL_SURFACE_HPA,
+    STATION_ELEVATION_M,
+    fill_long_dataframe_heights,
+)
 from gdex_bufr.profile_climate.obs_qc import (  # noqa: E402
     clean_observation_levels,
     interp_on_pressure_grid,
@@ -28,34 +33,106 @@ PLOT_MIN_LEVELS = 3
 SCHEMA = "observations_v1"
 LEVEL_MODES = ("raw", "clean")
 
+DEFAULT_DIR = Path("gdex_outputs") / "результаты-алдан"
+DEFAULT_LONG_CSV = DEFAULT_DIR / "profiles_long.csv"
+DEFAULT_METRICS_CSV = DEFAULT_DIR / "profile_metrics.csv"
+DEFAULT_OUTPUT = DEFAULT_DIR / "daily_profiles.json"
+
 
 def _day_key(dt: str) -> str:
     parsed = datetime.fromisoformat(str(dt).replace("Z", "+00:00"))
     return parsed.date().isoformat()
 
 
+def resolve_xlsx(path: Path | None, search_dir: Path) -> Path | None:
+    """Явный --xlsx или последний aldan_profile_climate_*.xlsx / profile_climate.xlsx."""
+    if path is not None:
+        return path if path.exists() else None
+    if not search_dir.exists():
+        return None
+    stamped = sorted(
+        (
+            p
+            for p in search_dir.glob("*_profile_climate_*.xlsx")
+            if "heights_fixed" not in p.name
+        ),
+        key=lambda p: p.stat().st_mtime,
+    )
+    if stamped:
+        return stamped[-1]
+    plain = search_dir / "profile_climate.xlsx"
+    return plain if plain.exists() else None
+
+
+def load_long_and_metrics(
+    long_csv: Path,
+    metrics_csv: Path,
+    *,
+    xlsx: Path | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, str]:
+    """CSV если есть, иначе листы profiles_long / profile_metrics из Excel."""
+    if long_csv.exists() and metrics_csv.exists():
+        return (
+            pd.read_csv(long_csv, low_memory=False),
+            pd.read_csv(metrics_csv, low_memory=False),
+            f"csv:{long_csv}|{metrics_csv}",
+        )
+
+    xlsx_path = resolve_xlsx(xlsx, long_csv.parent if long_csv.parent.exists() else DEFAULT_DIR)
+    if xlsx_path is None:
+        raise FileNotFoundError(
+            "Нет CSV (profiles_long / profile_metrics) и нет Excel. "
+            f"Искали CSV: {long_csv}, {metrics_csv}. "
+            "Положите xlsx в ту же папку или укажите --xlsx PATH."
+        )
+
+    long_df = pd.read_excel(xlsx_path, sheet_name="profiles_long")
+    metrics_df = pd.read_excel(xlsx_path, sheet_name="profile_metrics")
+    return long_df, metrics_df, f"xlsx:{xlsx_path}"
+
+
 def _series_to_levels(group: pd.DataFrame) -> list[dict[str, Any]]:
     levels: list[dict[str, Any]] = []
     for row in group.itertuples(index=False):
-        height = None if pd.isna(row.height_m) else float(row.height_m)
+        height = None if pd.isna(getattr(row, "height_m", None)) else float(row.height_m)
         levels.append({
             "pressure_hpa": float(row.pressure_hpa),
             "temperature_c": float(row.temperature_c),
             "height_m": height,
+            "height_obs_m": None if pd.isna(getattr(row, "height_obs_m", None)) else float(row.height_obs_m),
+            "height_interp_m": None if pd.isna(getattr(row, "height_interp_m", None)) else float(row.height_interp_m),
+            "height_baro_m": None if pd.isna(getattr(row, "height_baro_m", None)) else float(row.height_baro_m),
+            "height_source": getattr(row, "height_source", None),
+            "geopotential_m2s2": (
+                None if pd.isna(getattr(row, "geopotential_m2s2", None))
+                else float(row.geopotential_m2s2)
+            ),
+            "geopotential_height_m": (
+                None if pd.isna(getattr(row, "geopotential_height_m", None))
+                else float(row.geopotential_height_m)
+            ),
         })
     return levels
 
 
 def _obs_arrays(
     levels: list[dict[str, Any]],
-) -> tuple[list[float | None], list[float], list[float]]:
+) -> tuple[list[float | None], list[float], list[float], list[float | None], list[float | None]]:
     heights = [
         None if lv.get("height_m") is None else round(float(lv["height_m"]), 1)
         for lv in levels
     ]
+    heights_interp = [
+        None if lv.get("height_interp_m") is None else round(float(lv["height_interp_m"]), 1)
+        for lv in levels
+    ]
+    heights_baro = [
+        None if lv.get("height_baro_m") is None else round(float(lv["height_baro_m"]), 1)
+        for lv in levels
+    ]
     pressures = [round(float(lv["pressure_hpa"]), 2) for lv in levels]
     temps = [round(float(lv["temperature_c"]), 3) for lv in levels]
-    return heights, pressures, temps
+    return heights, pressures, temps, heights_interp, heights_baro
 
 
 def _day_mean_on_pressure(
@@ -102,6 +179,7 @@ def build_daily_profiles(
     long_csv: Path,
     metrics_csv: Path,
     *,
+    xlsx: Path | None = None,
     pressure_top_hpa: float = PRESSURE_TOP_HPA,
     max_surface_pressure_hpa: float = MAX_SURFACE_PRESSURE_HPA,
     plot_min_levels: int | None = None,
@@ -112,14 +190,19 @@ def build_daily_profiles(
         raise ValueError(f"level_mode должен быть одним из {LEVEL_MODES}: {level_mode}")
     min_levels = (1 if level_mode == "raw" else PLOT_MIN_LEVELS) if plot_min_levels is None else plot_min_levels
 
-    long_df = pd.read_csv(long_csv, low_memory=False)
-    metrics_df = pd.read_csv(metrics_csv, low_memory=False)
+    long_df, metrics_df, source = load_long_and_metrics(long_csv, metrics_csv, xlsx=xlsx)
+    print(f"Источник таблиц: {source}")
+    print(
+        f"Станция Алдан: высота {STATION_ELEVATION_M.get('31004')} м н.у.м.; "
+        f"типичное P у поверхности ~ {ALDAN_TYPICAL_SURFACE_HPA} гПа (не константа)"
+    )
 
     long_df = long_df.dropna(subset=["temperature_c", "pressure_hpa"])
     long_df = long_df[
         (long_df["pressure_hpa"] <= max_surface_pressure_hpa)
         & (long_df["pressure_hpa"] >= pressure_top_hpa)
     ]
+    long_df = fill_long_dataframe_heights(long_df, metrics_df)
 
     metrics_map = {
         str(row.profile_id): row
@@ -156,7 +239,7 @@ def build_daily_profiles(
             continue
 
         cycle = str(group["cycle"].iloc[0]).zfill(2)[-2:]
-        heights, pressures, temps = _obs_arrays(levels)
+        heights, pressures, temps, heights_interp, heights_baro = _obs_arrays(levels)
 
         t_surface = None
         inversion = False
@@ -174,6 +257,8 @@ def build_daily_profiles(
             "datetime_utc": dt,
             "cycle": cycle,
             "heights_m": heights,
+            "heights_interp_m": heights_interp,
+            "heights_baro_m": heights_baro,
             "pressure_hpa": pressures,
             "temperature_c": temps,
             "n_levels": len(levels),
@@ -241,6 +326,7 @@ def build_daily_profiles(
         "schema": SCHEMA,
         "station_id": station_id,
         "station_name": station_name,
+        "source_tables": source,
         "pressure_top_hpa": pressure_top_hpa,
         "max_surface_pressure_hpa": max_surface_pressure_hpa,
         "level_mode": level_mode,
@@ -260,9 +346,14 @@ def build_daily_profiles(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Собрать daily_profiles.json (observations_v1)")
-    parser.add_argument("--long", default="gdex_outputs/результаты-алдан/profiles_long.csv")
-    parser.add_argument("--metrics", default="gdex_outputs/результаты-алдан/profile_metrics.csv")
-    parser.add_argument("--output", default="gdex_outputs/результаты-алдан/daily_profiles.json")
+    parser.add_argument("--long", default=str(DEFAULT_LONG_CSV))
+    parser.add_argument("--metrics", default=str(DEFAULT_METRICS_CSV))
+    parser.add_argument(
+        "--xlsx",
+        help="Excel с листами profiles_long и profile_metrics "
+             "(если CSV нет — берётся автоматически из папки --long)",
+    )
+    parser.add_argument("--output", default=str(DEFAULT_OUTPUT))
     parser.add_argument(
         "--level-mode",
         choices=LEVEL_MODES,
@@ -279,6 +370,7 @@ def main() -> int:
     payload = build_daily_profiles(
         Path(args.long),
         Path(args.metrics),
+        xlsx=Path(args.xlsx) if args.xlsx else None,
         level_mode=args.level_mode,
         plot_min_levels=args.min_levels,
     )
@@ -288,6 +380,7 @@ def main() -> int:
     print(json.dumps({
         "output": str(out),
         "schema": payload["schema"],
+        "source_tables": payload.get("source_tables"),
         "n_days": payload["n_days"],
         "n_observations": payload["n_observations"],
         "n_levels": payload["n_levels"],

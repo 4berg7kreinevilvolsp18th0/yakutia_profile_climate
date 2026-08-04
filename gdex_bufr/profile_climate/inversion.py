@@ -1,34 +1,128 @@
-"""Поиск приземной температурной инверсии в вертикальном профиле."""
+"""Поиск приземной температурной инверсии в вертикальном профиле (v2)."""
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
 
+QUALITY_NONE = "none"
+QUALITY_CONFIRMED = "confirmed"
+QUALITY_REJECTED_NO_LAPSE = "rejected_no_lapse"
+
 
 @dataclass
 class InversionResult:
     inversion_detected: bool = False
+    inversion_candidate: bool = False
+    inversion_quality: str = QUALITY_NONE
     inversion_top_pressure_hpa: float | None = None
     inversion_top_height_m: float | None = None
     inversion_top_temp_c: float | None = None
     inversion_delta_t_c: float | None = None
+    inversion_confirm_drop_c: float | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "inversion_detected": self.inversion_detected,
+            "inversion_candidate": self.inversion_candidate,
+            "inversion_quality": self.inversion_quality,
             "inversion_top_pressure_hpa": self.inversion_top_pressure_hpa,
             "inversion_top_height_m": self.inversion_top_height_m,
             "inversion_top_temp_c": self.inversion_top_temp_c,
             "inversion_delta_t_c": self.inversion_delta_t_c,
+            "inversion_confirm_drop_c": self.inversion_confirm_drop_c,
         }
+
+
+def _candidate_result(
+    *,
+    surface_temp: float,
+    inversion_top: dict[str, Any],
+    quality: str,
+    confirm_drop_c: float | None,
+) -> InversionResult:
+    top_temp = inversion_top.get("temperature_c")
+    if top_temp is None:
+        return InversionResult()
+    confirmed = quality == QUALITY_CONFIRMED
+    return InversionResult(
+        inversion_detected=confirmed,
+        inversion_candidate=True,
+        inversion_quality=quality,
+        inversion_top_pressure_hpa=inversion_top.get("pressure_hpa"),
+        inversion_top_height_m=inversion_top.get("height_m"),
+        inversion_top_temp_c=top_temp,
+        inversion_delta_t_c=top_temp - surface_temp,
+        inversion_confirm_drop_c=confirm_drop_c,
+    )
+
+
+def _confirm_sustained_lapse(
+    levels_above: list[dict[str, Any]],
+    *,
+    top_temp: float,
+    top_pressure_hpa: float | None,
+    confirm_drop_levels: int,
+    confirm_depth_hpa: float,
+    min_drop_delta_c: float,
+) -> tuple[bool, float | None]:
+    """Проверка устойчивого падения T выше верха инверсии.
+
+    Возвращает (ok, суммарное падение T в окне подтверждения).
+    """
+    if len(levels_above) < confirm_drop_levels:
+        return False, None
+
+    # Подряд: confirm_drop_levels шагов ΔT ≤ -min_drop_delta_c
+    prev_temp = top_temp
+    for level in levels_above[:confirm_drop_levels]:
+        temp = level.get("temperature_c")
+        if temp is None:
+            return False, None
+        if (temp - prev_temp) > -min_drop_delta_c:
+            return False, None
+        prev_temp = temp
+
+    # Слой: окно по давлению ≥ confirm_depth_hpa, суммарно T падает
+    if top_pressure_hpa is None:
+        return False, None
+
+    window: list[dict[str, Any]] = []
+    for level in levels_above:
+        p = level.get("pressure_hpa")
+        if p is None or level.get("temperature_c") is None:
+            break
+        window.append(level)
+        if top_pressure_hpa - float(p) >= confirm_depth_hpa:
+            break
+
+    if not window:
+        return False, None
+    last_p = window[-1].get("pressure_hpa")
+    if last_p is None or top_pressure_hpa - float(last_p) < confirm_depth_hpa:
+        return False, None
+
+    last_temp = window[-1]["temperature_c"]
+    confirm_drop = float(last_temp) - float(top_temp)
+    if confirm_drop >= 0:
+        return False, confirm_drop
+    return True, confirm_drop
 
 
 def detect_surface_inversion(
     levels: list[dict[str, Any]],
     *,
     min_inversion_delta_c: float = 0.2,
+    confirm_drop_levels: int = 2,
+    confirm_depth_hpa: float = 30.0,
+    min_drop_delta_c: float = 0.2,
 ) -> InversionResult:
-    """Находит верхнюю границу приземной инверсии по росту T при движении вверх."""
+    """Приземная инверсия: рост T от земли + устойчивое падение выше верха.
+
+    Этап 1 — кандидат: непрерывный рост T с порогом min_inversion_delta_c.
+    Этап 2 — подтверждение: confirm_drop_levels шагов падения и слой
+    толщиной ≥ confirm_depth_hpa с суммарным падением T.
+    inversion_detected=True только при quality=confirmed.
+    """
     if len(levels) < 2:
         return InversionResult()
 
@@ -38,9 +132,10 @@ def detect_surface_inversion(
         return InversionResult()
 
     inversion_top = surface
+    top_index = 0
     growing = False
 
-    for level in levels[1:]:
+    for idx, level in enumerate(levels[1:], start=1):
         temp = level.get("temperature_c")
         if temp is None:
             break
@@ -51,6 +146,7 @@ def detect_surface_inversion(
         if delta > min_inversion_delta_c:
             growing = True
             inversion_top = level
+            top_index = idx
         elif growing:
             break
         else:
@@ -63,10 +159,19 @@ def detect_surface_inversion(
     if top_temp is None:
         return InversionResult()
 
-    return InversionResult(
-        inversion_detected=True,
-        inversion_top_pressure_hpa=inversion_top.get("pressure_hpa"),
-        inversion_top_height_m=inversion_top.get("height_m"),
-        inversion_top_temp_c=top_temp,
-        inversion_delta_t_c=top_temp - surface_temp,
+    levels_above = levels[top_index + 1 :]
+    ok, confirm_drop = _confirm_sustained_lapse(
+        levels_above,
+        top_temp=float(top_temp),
+        top_pressure_hpa=inversion_top.get("pressure_hpa"),
+        confirm_drop_levels=confirm_drop_levels,
+        confirm_depth_hpa=confirm_depth_hpa,
+        min_drop_delta_c=min_drop_delta_c,
+    )
+    quality = QUALITY_CONFIRMED if ok else QUALITY_REJECTED_NO_LAPSE
+    return _candidate_result(
+        surface_temp=float(surface_temp),
+        inversion_top=inversion_top,
+        quality=quality,
+        confirm_drop_c=confirm_drop,
     )

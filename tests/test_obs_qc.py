@@ -123,7 +123,7 @@ def test_prepare_plot_arrays_removes_height_spiral():
     obs = {
         "temperature_c": [-10.0, -12.0, -14.0, -16.0],
         "pressure_hpa": [900.0, 850.0, 800.0, 750.0],
-        # высота зигзаг при монотонном P → спираль на оси H
+        # высота зигзаг при монотонном P → на оси H нужна сортировка по H
         "heights_m": [1000.0, 1500.0, 1200.0, 2000.0],
     }
     prepared = prepare_plot_arrays(obs, "height")
@@ -131,8 +131,19 @@ def test_prepare_plot_arrays_removes_height_spiral():
     t, h = prepared
     assert len(h) >= 2
     assert np.all(np.diff(h) > 0)
-    # точка с h=1200 после 1500 должна быть отброшена
-    assert 1200.0 not in h.tolist()
+    # после сортировки по H остаются все уникальные возрастающие точки
+    assert list(h) == [1000.0, 1200.0, 1500.0, 2000.0]
+
+
+def test_raw_plot_arrays_sorts_height_ascending():
+    obs = {
+        "temperature_c": [-10.0, -12.0, -14.0],
+        "pressure_hpa": [900.0, 850.0, 800.0],
+        "heights_m": [1500.0, 1000.0, 2000.0],
+    }
+    t, h = raw_plot_arrays(obs, "height")
+    assert list(h) == [1000.0, 1500.0, 2000.0]
+    assert list(t) == [-12.0, -10.0, -14.0]
 
 
 def test_prepare_plot_arrays_pressure_strictly_decreasing():
@@ -147,17 +158,18 @@ def test_prepare_plot_arrays_pressure_strictly_decreasing():
     assert np.all(np.diff(p) < 0)
 
 
-def test_raw_plot_arrays_preserves_order_duplicates_and_spiral():
+def test_raw_plot_arrays_sorts_by_axis_keeps_all_points():
     obs = {
         "temperature_c": [-10.0, 25.0, -14.0, -16.0],
         "pressure_hpa": [900.0, 850.0, 850.0, 800.0],
         "heights_m": [1000.0, 1500.0, 1200.0, 2000.0],
     }
-    prepared = raw_plot_arrays(obs, "height")
-    assert prepared is not None
-    temps, heights = prepared
-    assert temps.tolist() == obs["temperature_c"]
-    assert heights.tolist() == obs["heights_m"]
+    temps, heights = raw_plot_arrays(obs, "height")
+    assert heights.tolist() == [1000.0, 1200.0, 1500.0, 2000.0]
+    assert temps.tolist() == [-10.0, -14.0, 25.0, -16.0]
+    temps_p, press = raw_plot_arrays(obs, "pressure")
+    assert press.tolist() == [900.0, 850.0, 850.0, 800.0]
+    assert len(temps_p) == 4
 
 
 def test_clean_drops_decreasing_height():

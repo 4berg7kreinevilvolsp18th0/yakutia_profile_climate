@@ -32,6 +32,9 @@ def compute_profile_metrics(
     pressure_top_hpa: float = 500.0,
     min_levels_to_500: int = 5,
     min_inversion_delta_c: float = 0.2,
+    confirm_drop_levels: int = 2,
+    confirm_depth_hpa: float = 30.0,
+    min_drop_delta_c: float = 0.2,
     n_levels_total: int | None = None,
 ) -> dict[str, Any]:
     """Считает метрики профиля и статус пригодности."""
@@ -68,6 +71,9 @@ def compute_profile_metrics(
             status=PROFILE_STATUS_NO_500,
             pressure_top_hpa=pressure_top_hpa,
             min_inversion_delta_c=min_inversion_delta_c,
+            confirm_drop_levels=confirm_drop_levels,
+            confirm_depth_hpa=confirm_depth_hpa,
+            min_drop_delta_c=min_drop_delta_c,
         )
 
     top_level = _nearest_top_level(trimmed, pressure_top_hpa) or trimmed[-1]
@@ -77,7 +83,13 @@ def compute_profile_metrics(
     if n_to_500 < min_levels_to_500:
         status = PROFILE_STATUS_SHORT
 
-    inversion = detect_surface_inversion(trimmed, min_inversion_delta_c=min_inversion_delta_c)
+    inversion = detect_surface_inversion(
+        trimmed,
+        min_inversion_delta_c=min_inversion_delta_c,
+        confirm_drop_levels=confirm_drop_levels,
+        confirm_depth_hpa=confirm_depth_hpa,
+        min_drop_delta_c=min_drop_delta_c,
+    )
 
     return {
         "n_levels_total": total,
@@ -106,10 +118,13 @@ def _empty_metrics(n_levels_total: int, status: str) -> dict[str, Any]:
         "t_top_c": None,
         "delta_t_top_surface_c": None,
         "inversion_detected": False,
+        "inversion_candidate": False,
+        "inversion_quality": "none",
         "inversion_top_pressure_hpa": None,
         "inversion_top_height_m": None,
         "inversion_top_temp_c": None,
         "inversion_delta_t_c": None,
+        "inversion_confirm_drop_c": None,
         "profile_status": status,
     }
 
@@ -122,9 +137,18 @@ def _fill_partial_metrics(
     status: str,
     pressure_top_hpa: float,
     min_inversion_delta_c: float,
+    confirm_drop_levels: int = 2,
+    confirm_depth_hpa: float = 30.0,
+    min_drop_delta_c: float = 0.2,
 ) -> dict[str, Any]:
     top_level = trimmed[-1]
-    inversion = detect_surface_inversion(trimmed, min_inversion_delta_c=min_inversion_delta_c)
+    inversion = detect_surface_inversion(
+        trimmed,
+        min_inversion_delta_c=min_inversion_delta_c,
+        confirm_drop_levels=confirm_drop_levels,
+        confirm_depth_hpa=confirm_depth_hpa,
+        min_drop_delta_c=min_drop_delta_c,
+    )
     return {
         "n_levels_total": total,
         "n_levels_to_500": len(trimmed),

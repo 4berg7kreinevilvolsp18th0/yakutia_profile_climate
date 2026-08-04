@@ -63,7 +63,7 @@ def raw_plot_arrays(
     obs: dict,
     y_axis: str,
 ) -> tuple[np.ndarray, np.ndarray] | None:
-    """Исходные точки без зависимости от перезагрузки модуля QC в Streamlit."""
+    """Исходные точки: только валидные T/Y, отсортированные по оси Y (без QC-отбраковки)."""
     temps = obs.get("temperature_c") or []
     y_source = obs.get("pressure_hpa") if y_axis == "pressure" else obs.get("heights_m")
     y_values = y_source or []
@@ -75,7 +75,11 @@ def raw_plot_arrays(
     valid = ~np.isnan(t) & ~np.isnan(y)
     if valid.sum() < 1:
         return None
-    return t[valid], y[valid]
+    t = t[valid]
+    y = y[valid]
+    # гПа: земля → верх (убывание); метры: низ → верх (возрастание)
+    order = np.argsort(-y if y_axis == "pressure" else y)
+    return t[order], y[order]
 
 
 @st.cache_data(show_spinner="Загрузка профилей…")
@@ -395,8 +399,8 @@ def main() -> None:
             st.markdown(f"**{day_key[8:]}** · n={len(day_obs)}")
             for obs in day_obs:
                 key = _obs_state_key(state_scope, obs["profile_id"])
-                if key not in st.session_state:
-                    st.session_state[key] = True
+            if key not in st.session_state:
+                st.session_state[key] = True
                 label = (
                     f"CY{obs.get('cycle', '??')} · "
                     f"Ts={obs.get('t_surface_c')}°C · "
@@ -405,8 +409,8 @@ def main() -> None:
                 if obs.get("missing_levels"):
                     label += " · нет уровней"
                 if obs.get("inversion_detected"):
-                    label += " · inv"
-                if st.checkbox(label, key=key):
+                label += " · inv"
+            if st.checkbox(label, key=key):
                     enabled.add(obs["profile_id"])
 
     st.sidebar.caption(f"Включено: {len(enabled)} / видимых {len(visible)}")
@@ -452,13 +456,13 @@ def main() -> None:
                 apply_plot_qc=apply_plot_qc,
             )
             if prepared is None:
-                continue
+            continue
             t_vals, y_vals = prepared
             day_has_enabled = True
             color = OBS_PALETTE[color_idx % len(OBS_PALETTE)]
             color_idx += 1
             name = f"{day_key[8:]}·{obs.get('cycle', '??')}"
-            fig.add_trace(go.Scatter(
+        fig.add_trace(go.Scatter(
                 x=t_vals,
                 y=y_vals,
                 mode="lines+markers" if not apply_plot_qc else "lines",
@@ -471,7 +475,7 @@ def main() -> None:
                 marker=dict(size=3),
                 opacity=0.88,
                 connectgaps=False,
-                hovertemplate=(
+            hovertemplate=(
                     f"{obs.get('datetime_utc', day_key)}<br>"
                     f"CY{obs.get('cycle', '??')}<br>"
                     f"T=%{{x:.1f}} °C<br>"
@@ -502,7 +506,7 @@ def main() -> None:
                         f"{y_hover}<extra></extra>"
                     ),
                     showlegend=False,
-                ))
+        ))
 
     if mean is not None:
         fig.add_trace(go.Scatter(

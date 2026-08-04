@@ -58,6 +58,11 @@ def _thermo_levels(profile: RadiosondeProfile) -> list[VerticalLevel]:
 
 def _level_climate_fields(level: VerticalLevel) -> dict[str, Any]:
     """Поля уровня в стиле оригинального дешифровщика + алиасы для климатических метрик."""
+    height = level.geopotential_height_m
+    if height is None and level.geopotential_m2s2 is not None:
+        from gdex_bufr.meteo_parser_bridge import geopotential_to_height_m
+
+        height = round(geopotential_to_height_m(level.geopotential_m2s2), 1)
     return {
         "SEQ": level.seq,
         "VSIG": level.vertical_significance,
@@ -67,9 +72,9 @@ def _level_climate_fields(level: VerticalLevel) -> dict[str, Any]:
         "pressure_hpa": level.pressure_hpa,
         "GEOPOT": level.geopotential_m2s2,
         "geopotential_m2s2": level.geopotential_m2s2,
-        "FLVL": level.geopotential_height_m,
-        "geopotential_height_m": level.geopotential_height_m,
-        "height_m": level.geopotential_height_m,
+        "FLVL": height,
+        "geopotential_height_m": height,
+        "height_m": height,
         "AIR": level.air_temperature_c,
         "air_temperature_c": level.air_temperature_c,
         "temperature_c": level.air_temperature_c,
@@ -177,6 +182,13 @@ def process_profile(
         min_levels_to_500=min_levels_to_500,
         min_inversion_delta_c=min_inversion_delta_c,
         n_levels_total=len(profile.levels),
+    )
+    from gdex_bufr.profile_climate.height_fill import fill_profile_level_heights
+
+    levels = fill_profile_level_heights(
+        levels,
+        surface_pressure_hpa=metrics.get("p_surface_hpa"),
+        station_id=station_id,
     )
 
     profile_meta = {
