@@ -27,3 +27,18 @@ def test_enrich_fills_height_from_geopotential():
     )
     enriched = enrich_vertical_level(level, surface_pressure_hpa=1000.0)
     assert enriched.geopotential_height_m == pytest.approx(999.99, abs=0.05)
+
+
+def test_enrich_sfc_uses_station_height_from_bufr():
+    level = VerticalLevel(
+        pressure_hpa=927.0,
+        air_temperature_c=12.0,
+        vertical_significance="SFC",
+        geopotential_height_m=None,
+    )
+    enriched = enrich_vertical_level(
+        level,
+        surface_pressure_hpa=927.0,
+        station_elevation_m=680.0,
+    )
+    assert enriched.geopotential_height_m == pytest.approx(680.0)

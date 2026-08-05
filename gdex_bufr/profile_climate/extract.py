@@ -8,6 +8,7 @@ from typing import Any
 from gdex_bufr.bufr_tables import BufrTablesRegistry, get_registry
 from gdex_bufr.meteo_parser_bridge import RadiosondeProfile, VerticalLevel
 from gdex_bufr.profile_climate.field_types import level_type_annotations
+from gdex_bufr.profile_climate.height_fill import STATION_ELEVATION_M, station_elevation_m
 from gdex_bufr.profile_climate.metrics import compute_profile_metrics
 from gdex_bufr.xlsx_export import _level_row
 
@@ -46,14 +47,72 @@ def _thermo_levels(profile: RadiosondeProfile) -> list[VerticalLevel]:
     if not thermo:
         return []
 
-    # ADPUPA: в одном subset несколько секций (SFC/WXPR) с повторяющимся давлением
+    # ADPUPA: несколько секций (sig SFC ≈ высота станции, затем manl с P~1000 и H≪z_st).
+    # Поверхность станции — SFC с высотой ближе к elevation станции; уровни с P выше неё отбрасываем.
+    surface = _pick_station_surface(
+        profile.levels,
+        station_id=profile.station_id,
+        bufr_station_elevation_m=profile.station_elevation_m,
+    )
+    if surface is not None and surface.pressure_hpa is not None:
+        p_cap = float(surface.pressure_hpa) + 2.0
+        thermo = [lv for lv in thermo if float(lv.pressure_hpa) <= p_cap]
+        if not any(
+            abs(float(lv.pressure_hpa) - float(surface.pressure_hpa)) < 0.15
+            and lv.air_temperature_c is not None
+            for lv in thermo
+        ):
+            # поверхность могла быть без T в sig-секции — добавим её явно
+            thermo.append(surface)
+
+    # Дедуп по давлению: при равном P предпочитаем уровень с T, затем SFC
     by_pressure: dict[float, VerticalLevel] = {}
     for level in thermo:
-        key = round(level.pressure_hpa, 1)
+        key = round(float(level.pressure_hpa), 1)
         prev = by_pressure.get(key)
-        if prev is None or (level.air_temperature_c is not None and prev.air_temperature_c is None):
+        if prev is None:
+            by_pressure[key] = level
+            continue
+        prev_score = (
+            (2 if prev.air_temperature_c is not None else 0)
+            + (1 if (prev.vertical_significance or "").upper() == "SFC" else 0)
+        )
+        cur_score = (
+            (2 if level.air_temperature_c is not None else 0)
+            + (1 if (level.vertical_significance or "").upper() == "SFC" else 0)
+        )
+        if cur_score >= prev_score:
             by_pressure[key] = level
     return sorted(by_pressure.values(), key=lambda lv: lv.pressure_hpa, reverse=True)
+
+
+def _pick_station_surface(
+    levels: list[VerticalLevel],
+    *,
+    station_id: str | None,
+    bufr_station_elevation_m: float | None = None,
+) -> VerticalLevel | None:
+    """Выбирает SFC ближе к высоте станции из BUFR (0-07-001) или справочника."""
+    elev = (
+        bufr_station_elevation_m
+        or station_elevation_m(station_id)
+        or STATION_ELEVATION_M.get("31004", 679.0)
+    )
+    sfc = [
+        lv
+        for lv in levels
+        if lv.pressure_hpa is not None
+        and (lv.vertical_significance or "").upper() == "SFC"
+    ]
+    if not sfc:
+        with_p = [lv for lv in levels if lv.pressure_hpa is not None]
+        return max(with_p, key=lambda lv: float(lv.pressure_hpa)) if with_p else None
+
+    with_h = [lv for lv in sfc if lv.geopotential_height_m is not None]
+    if with_h:
+        return min(with_h, key=lambda lv: abs(float(lv.geopotential_height_m) - float(elev)))
+    # без высоты — первый SFC в порядке шаблона (обычно sig-секция)
+    return min(sfc, key=lambda lv: lv.seq if lv.seq is not None else 10**9)
 
 
 def _level_climate_fields(level: VerticalLevel) -> dict[str, Any]:
@@ -190,6 +249,16 @@ def process_profile(
         surface_pressure_hpa=metrics.get("p_surface_hpa"),
         station_id=station_id,
     )
+    # если в BUFR есть 0-07-001 — пишем в метрики и подменяем SFC height при отсутствии
+    if profile.station_elevation_m is not None:
+        metrics["station_elevation_m"] = profile.station_elevation_m
+        for row in levels:
+            if (row.get("VSIG") or "").upper() == "SFC" and row.get("height_m") is None:
+                row["height_m"] = profile.station_elevation_m
+                row["geopotential_height_m"] = profile.station_elevation_m
+                row["FLVL"] = profile.station_elevation_m
+                row["height_obs_m"] = profile.station_elevation_m
+                row["height_source"] = "station_007001"
 
     profile_meta = {
         "station_id": station_id,

@@ -44,19 +44,33 @@ DESC_WSPD = "011002"
 DESC_HEIGHT = "010009"
 DESC_GEOPOT = "010008"
 DESC_HEIGHT_COORD = "007007"
+DESC_STATION_HEIGHT = "007001"  # Height of station [m]
 DESC_RH = "013003"
 DESC_VSIG = "008001"
 
-# NCEP ADPUPA: vertical significance (008001), не 008021 (time significance).
+# NCEP ADPUPA / WMO 0-08-001 (vertical sounding significance).
+# Короткие метки для климатического пайплайна; 2 = Standard level = MANL.
 ADPUPA_VSIG_LABELS: dict[int, str] = {
-    1: "SFC",
-    2: "WXPR",
+    1: "SFC",       # Surface
+    2: "MANL",      # Standard / mandatory level
     3: "TROP",
-    4: "TXPR",
+    4: "MAXW",
+    5: "SIGT",      # significant T/RH
+    6: "SIGW",      # significant wind
     8: "MAXW",
     16: "TROP",
-    32: "MANL",
+    32: "MANL",     # встречается в части ADPUPA как отдельный код
     64: "SFC",
+}
+
+# Битовые флаги WMO (номер бита → метка), схема 1<<(bit-1)
+ADPUPA_VSIG_BIT_LABELS: dict[int, str] = {
+    1: "SFC",
+    2: "MANL",
+    3: "TROP",
+    4: "MAXW",
+    5: "SIGT",
+    6: "SIGW",
 }
 
 ADPUPA_LEVEL_FIELD_IDS = frozenset({
@@ -200,6 +214,7 @@ PROFILE_QUERY_DESCRIPTORS = (
     DESC_HEIGHT,
     DESC_GEOPOT,
     DESC_HEIGHT_COORD,
+    DESC_STATION_HEIGHT,
     DESC_RH,
     DESC_VSIG,
 )
@@ -262,9 +277,24 @@ def _adpupa_vsig_label(code: Any) -> str | None:
     if _is_missing(code):
         return None
     try:
-        return ADPUPA_VSIG_LABELS.get(int(code))
+        bits = int(code)
     except (TypeError, ValueError):
         return None
+
+    # 1) точное совпадение с известными кодами ADPUPA
+    if bits in ADPUPA_VSIG_LABELS:
+        return ADPUPA_VSIG_LABELS[bits]
+
+    # 2) WMO flag-биты: bit N → 1<<(N-1) (Surface=1, Standard/MANL=2, …)
+    labels: list[str] = []
+    for bit, name in ADPUPA_VSIG_BIT_LABELS.items():
+        if bits & (1 << (bit - 1)):
+            if name not in labels:
+                labels.append(name)
+    if labels:
+        return "+".join(labels)
+
+    return None
 
 
 def _collect_debufr_elements(
@@ -626,6 +656,17 @@ def _decode_subset(
         minute_val = 0 if minute is None else int(minute)
         report_dt = f"{int(year):04d}-{int(month):02d}-{int(day):02d}T{int(hour):02d}:{minute_val:02d}:00"
 
+    station_height_raw = _subset_value(
+        _values_for_message(message, DESC_STATION_HEIGHT, query_cache),
+        subset_index,
+    )
+    station_elevation_m = None
+    if not _is_missing(station_height_raw):
+        try:
+            station_elevation_m = round(float(station_height_raw), 1)
+        except (TypeError, ValueError):
+            station_elevation_m = None
+
     pressures = [
         _normalize_pressure(v, registry)
         for v in _subset_series(_values_for_message(message, DESC_PRESSURE, query_cache), subset_index)
@@ -687,7 +728,14 @@ def _decode_subset(
             RadiosondeProfile(
                 source_file=str(path),
                 subset_index=subset_index,
+                station_id=station_id,
+                station_elevation_m=station_elevation_m,
                 levels=levels,
+                metadata=(
+                    {"station_elevation_m": station_elevation_m}
+                    if station_elevation_m is not None
+                    else {}
+                ),
             )
         )
         levels = enriched.levels
@@ -727,6 +775,9 @@ def _decode_subset(
         "table_edition": header_meta.get("master_table_version"),
         "bufr_header": header_meta,
     }
+    if station_elevation_m is not None:
+        metadata["station_elevation_m"] = station_elevation_m
+        metadata["station_height_fxy"] = DESC_STATION_HEIGHT
     debufr_elements = _collect_debufr_elements(message, subset_index, registry)
     if debufr_elements:
         metadata["debufr_elements"] = debufr_elements
@@ -765,6 +816,7 @@ def _decode_subset(
         latitude_deg=None if lat is None else float(lat),
         longitude_deg=None if lon is None else float(lon),
         report_datetime_utc=report_dt,
+        station_elevation_m=station_elevation_m,
         levels=levels,
         metadata=metadata,
     )

@@ -82,6 +82,7 @@ PROFILE_METRICS_COLUMNS = [
     "n_levels_to_500",
     "p_surface_hpa",
     "t_surface_c",
+    "station_elevation_m",
     "p_top_hpa",
     "t_top_c",
     "delta_t_top_surface_c",

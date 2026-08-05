@@ -116,25 +116,29 @@ def enrich_vertical_level(
     level: VerticalLevel,
     *,
     surface_pressure_hpa: float | None,
+    station_elevation_m: float | None = None,
 ) -> VerticalLevel:
-    """Дополняю уровень: RH из T/Td и высота по давлению, если в BUFR их нет."""
+    """Дополняю уровень: RH из T/Td и высота, если в BUFR на уровне её нет."""
     rh = level.relative_humidity_percent
     if rh is None:
         rh = _calculate_rh_percent(level.air_temperature_c, level.dew_point_temperature_c)
 
     height = level.geopotential_height_m
+    vsig = (level.vertical_significance or "").upper()
+    # 0) поверхность станции: Height of station (0-07-001)
+    if height is None and vsig == "SFC" and station_elevation_m is not None:
+        height = round(float(station_elevation_m), 1)
     # 1) Φ → z (MetPy), если высота отсутствует, но есть геопотенциал
     if height is None and level.geopotential_m2s2 is not None:
         height = round(geopotential_to_height_m(level.geopotential_m2s2), 1)
-    # 2) иначе грубая оценка по давлению (стандартная атмосфера)
+    # 2) иначе оценка от высоты станции + барометрия от P_sfc
     if height is None and level.pressure_hpa is not None and surface_pressure_hpa is not None:
-        height = round(
-            estimate_geopotential_height_m(
-                level.pressure_hpa,
-                surface_pressure_hpa=surface_pressure_hpa,
-            ),
-            1,
+        above = estimate_geopotential_height_m(
+            level.pressure_hpa,
+            surface_pressure_hpa=surface_pressure_hpa,
         )
+        base = 0.0 if station_elevation_m is None else float(station_elevation_m)
+        height = round(base + above, 1)
 
     if rh == level.relative_humidity_percent and height == level.geopotential_height_m:
         return level
@@ -154,19 +158,47 @@ def enrich_vertical_level(
         geopotential_m2s2=level.geopotential_m2s2,
     )
 
-# функция для обогащения профиля BUFR полями, как в decoded-слое meteo_parser
+
 def enrich_profile_levels(profile: "RadiosondeProfile") -> "RadiosondeProfile":
     """Обогащаю профиль BUFR полями, как в decoded-слое meteo_parser."""
     if not profile.levels:
         return profile
 
-    surface_p = _surface_pressure_hpa(profile.levels)
+    station_z = profile.station_elevation_m
+    if station_z is None:
+        station_z = profile.metadata.get("station_elevation_m")
+
+    # P_sfc: давление SFC (предпочтительно), иначе max P
+    sfc_ps = [
+        lv.pressure_hpa
+        for lv in profile.levels
+        if lv.pressure_hpa is not None and (lv.vertical_significance or "").upper() == "SFC"
+    ]
+    if sfc_ps and station_z is not None:
+        # если несколько SFC — берём тот, чья будущая H ближе к station_z после назначения
+        # (давление первого/ближайшего по шаблону часто вернее max P)
+        sfc_levels = [
+            lv for lv in profile.levels
+            if lv.pressure_hpa is not None and (lv.vertical_significance or "").upper() == "SFC"
+        ]
+        # без высоты на уровне — предпочитаем меньший seq (sig-секция)
+        surface_p = min(sfc_levels, key=lambda lv: lv.seq if lv.seq is not None else 10**9).pressure_hpa
+    else:
+        surface_p = _surface_pressure_hpa(profile.levels)
+
     enriched_levels = [
-        enrich_vertical_level(level, surface_pressure_hpa=surface_p) for level in profile.levels
+        enrich_vertical_level(
+            level,
+            surface_pressure_hpa=surface_p,
+            station_elevation_m=None if station_z is None else float(station_z),
+        )
+        for level in profile.levels
     ]
     profile.levels = enriched_levels
 
     flags = profile.metadata.setdefault("enrichment", {})
+    if station_z is not None:
+        flags["station_elevation_from_bufr"] = True
     if any(lv.relative_humidity_percent is not None for lv in enriched_levels):
         flags["rh_from_t_td"] = True
     if any(
@@ -175,7 +207,7 @@ def enrich_profile_levels(profile: "RadiosondeProfile") -> "RadiosondeProfile":
     ):
         flags["height_from_geopotential"] = True
     if any(lv.geopotential_height_m is not None for lv in enriched_levels):
-        flags["height_from_pressure"] = True
+        flags["height_from_pressure_or_station"] = True
     return profile
 
 # функция для оценки статуса данных профиля
@@ -227,6 +259,7 @@ class RadiosondeProfile:
     latitude_deg: float | None = None
     longitude_deg: float | None = None
     report_datetime_utc: str | None = None
+    station_elevation_m: float | None = None
     levels: list[VerticalLevel] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -248,6 +281,7 @@ class RadiosondeProfile:
             "latitude_deg": self.latitude_deg,
             "longitude_deg": self.longitude_deg,
             "report_datetime_utc": self.report_datetime_utc,
+            "station_elevation_m": self.station_elevation_m,
             "air_temperature_c": surface.air_temperature_c,
             "dew_point_temperature_c": surface.dew_point_temperature_c,
             "wind_direction_deg": surface.wind_direction_deg,
