@@ -17,7 +17,7 @@ import math
 import shutil
 import subprocess
 import sys
-from collections import defaultdict
+from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -591,6 +591,7 @@ def run_decode(
     station_id: str,
     output: Path,
     fresh: bool,
+    bufr_root: Path,
 ) -> dict[str, Any]:
     if fresh:
         clear_own_output(output)
@@ -615,10 +616,11 @@ def run_decode(
     write_csv(output / "profiles_long.csv", long_rows, LONG_FIELDS)
     write_csv(output / "profile_metrics.csv", metrics, METRIC_FIELDS)
     write_csv(output / "sfc_raw.csv", sfc_rows, SFC_FIELDS)
+    sfc_counts = Counter(str(row["profile_id"]) for row in sfc_rows)
     summary = {
         "generated_utc": datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z"),
         "station_id": normalize_station_id(station_id),
-        "bufr_root": str(BUFR_ROOT),
+        "bufr_root": str(bufr_root),
         "output_dir": str(output),
         "files_total": len(files),
         "files_failed": len(errors),
@@ -628,13 +630,7 @@ def run_decode(
         "levels_total": len(long_rows),
         "levels_with_bufr_height": sum(row["height_bufr_m"] is not None for row in long_rows),
         "levels_with_phi": sum(row["geopotential_m2s2"] is not None for row in long_rows),
-        "multi_sfc_profiles": sum(
-            count > 1
-            for count in (
-                sum(1 for row in sfc_rows if row["profile_id"] == metric["profile_id"])
-                for metric in metrics
-            )
-        ),
+        "multi_sfc_profiles": sum(count > 1 for count in sfc_counts.values()),
         "errors": errors,
     }
     (output / "summary.json").write_text(
@@ -818,7 +814,13 @@ def main(argv: list[str] | None = None) -> int:
         if not files:
             raise SystemExit(f"BUFR-файлы не найдены в {args.bufr_root}")
     if files:
-        run_decode(files, station_id=args.station, output=output, fresh=args.fresh)
+        run_decode(
+            files,
+            station_id=args.station,
+            output=output,
+            fresh=args.fresh,
+            bufr_root=args.bufr_root,
+        )
     elif not args.plots and not args.dashboard:
         build_parser().error("Укажите --date, --bufr, --all, --plots или --dashboard")
     if args.plots:

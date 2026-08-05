@@ -1,0 +1,4 @@
+﻿profile_id,station_id,datetime_utc,source_file,subset_index,seq,pressure_hpa,temperature_c,height_bufr_m,geopotential_m2s2,station_elevation_m,is_preferred
+31004_20000914_1200_12_2,31004,2000-09-14T12:00:00,B:\Kutunika programmist\yakutia_profile_climate\gdex_data\raw\2000\gdas.adpupa.t12z.20000914.bufr,2,1,927.0,12.0,680.0,,680.0,True
+31004_20000914_1200_12_2,31004,2000-09-14T12:00:00,B:\Kutunika programmist\yakutia_profile_climate\gdex_data\raw\2000\gdas.adpupa.t12z.20000914.bufr,2,13,927.0,,680.0,,680.0,False
+31004_20000914_1200_12_2,31004,2000-09-14T12:00:00,B:\Kutunika programmist\yakutia_profile_climate\gdex_data\raw\2000\gdas.adpupa.t12z.20000914.bufr,2,38,992.0,12.0,680.0,,680.0,False

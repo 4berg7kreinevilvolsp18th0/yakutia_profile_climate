@@ -1,0 +1,16 @@
+{
+  "generated_utc": "2026-08-05T05:00:33Z",
+  "station_id": "31004",
+  "bufr_root": "B:\\Kutunika programmist\\yakutia_profile_climate\\gdex_data\\raw",
+  "output_dir": "B:\\Kutunika programmist\\yakutia_profile_climate\\gdex_outputs\\алдан-simple",
+  "files_total": 1,
+  "files_failed": 0,
+  "profiles_total": 1,
+  "profiles_good": 1,
+  "profiles_with_inversion": 1,
+  "levels_total": 5,
+  "levels_with_bufr_height": 1,
+  "levels_with_phi": 4,
+  "multi_sfc_profiles": 1,
+  "errors": []
+}
