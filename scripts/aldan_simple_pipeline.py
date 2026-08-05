@@ -19,7 +19,7 @@ import subprocess
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -280,8 +280,10 @@ def select_levels(
     ordered = sorted(by_pressure.values(), key=lambda level: float(level.pressure_hpa), reverse=True)
     rows: list[dict[str, Any]] = []
     for index, level in enumerate(ordered):
-        raw_height = finite(level.geopotential_height_m)
         phi = finite(level.geopotential_m2s2)
+        # Адаптер кладёт в geopotential_height_m также уже рассчитанное Φ→z.
+        # Поэтому прямой BUFR height (010009/007007) отделяем по отсутствию Φ.
+        raw_height = finite(level.geopotential_height_m) if phi is None else None
         phi_height = None
         if phi is not None:
             converted = geopotential_to_height_m(phi)
@@ -614,7 +616,7 @@ def run_decode(
     write_csv(output / "profile_metrics.csv", metrics, METRIC_FIELDS)
     write_csv(output / "sfc_raw.csv", sfc_rows, SFC_FIELDS)
     summary = {
-        "generated_utc": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "generated_utc": datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z"),
         "station_id": normalize_station_id(station_id),
         "bufr_root": str(BUFR_ROOT),
         "output_dir": str(output),
@@ -738,7 +740,11 @@ def run_dashboard(output: Path) -> None:
                 ),
             )
         )
-        if bool(metric.get("inversion_detected")):
+        inversion_detected = str(metric.get("inversion_detected", "")).lower() in {
+            "true",
+            "1",
+        }
+        if inversion_detected:
             figure.add_trace(
                 go.Scatter(
                     x=[metric["inversion_top_temp_c"]],
