@@ -410,14 +410,6 @@ def main() -> None:
                     label += " · нет уровней"
                 if obs.get("inversion_detected"):
                     label += " · inv"
-                # #region agent log
-                try:
-                    import json as _json, time as _time
-                    with open("debug-b4c222.log", "a", encoding="utf-8") as _f:
-                        _f.write(_json.dumps({"sessionId": "b4c222", "runId": "post-fix", "hypothesisId": "A", "location": "profile_dashboard.py:obs_list", "message": "obs checkbox label built", "data": {"profile_id": obs.get("profile_id"), "inv": bool(obs.get("inversion_detected")), "label_has_inv": " · inv" in label}, "timestamp": int(_time.time() * 1000)}, ensure_ascii=False) + "\n")
-                except Exception:
-                    pass
-                # #endregion
                 if st.checkbox(label, key=key):
                     enabled.add(obs["profile_id"])
 
