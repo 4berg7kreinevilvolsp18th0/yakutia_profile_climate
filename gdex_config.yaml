@@ -94,14 +94,14 @@ plots:
       wind_shear: "#26DE81"
       axis_reference: "#636E72"
 
-  dpi: 270
+  dpi: 350
   export_format: png
   max_profiles_per_file: null
   min_levels: 5
   output_subdir_by_date: true
   output_subdir_by_cycle: false
   skip_existing: true
-  workers: 4
+  workers: 10
   export_xlsx: true
   title_datetime_format: "%Y-%m-%d %HZ"
   pressure_tick_step_hpa: 50
