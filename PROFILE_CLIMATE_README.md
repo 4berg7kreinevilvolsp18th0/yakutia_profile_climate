@@ -182,6 +182,10 @@ python scripts/build_daily_profiles.py --level-mode clean
 ```text
 gdex_outputs/monthly_temperature_profiles/актуальное/aldan/1999/aldan_1999_01_temperature_profiles_to_500hpa.png
 ```
+python -m gdex_bufr.run_fast_extract --actual --fresh --station aldan
+python scripts/build_daily_profiles.py
+python -m gdex_bufr monthly-profile-plots
+python -m streamlit run scripts/profile_dashboard.py
 
 ## Интерпретация `profile_metrics.csv`
 
