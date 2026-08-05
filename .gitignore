@@ -42,3 +42,4 @@ scripts/overnight_aldan.bat
 scripts/overnight_aldan.ps1
 scripts/scan_1999_decode_qc.py
 scripts/start_overnight_aldan.ps1
+gdex_outputs/актуальное/plots/profiles_2000-09.png
