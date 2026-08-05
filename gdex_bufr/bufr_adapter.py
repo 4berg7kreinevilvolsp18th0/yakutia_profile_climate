@@ -585,11 +585,10 @@ def _decode_bufr_file_impl(
             if station_id is not None and profile.station_id != station_id:
                 continue
             profiles.append(profile)
-            if station_id is not None:
-                # Для одной станции в ADPUPA обычно один профиль на файл — выходим сразу
-                return profiles
             if max_profiles is not None and len(profiles) >= max_profiles:
                 return profiles
+            # Не выходим после первого hit станции: в файле могут быть
+            # несколько сроков/subset одной WMO (дополнения, 00+12 в одном сообщении).
     return profiles
 
 # Декодирую subset (подмножество данных)

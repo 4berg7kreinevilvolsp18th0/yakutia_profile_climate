@@ -1,0 +1,12 @@
+{
+  "old_unique_obs": 18202,
+  "new_unique_obs": 18215,
+  "only_new": 13,
+  "only_old": 0,
+  "both": 18202,
+  "index_unique_obs": 18202,
+  "gap_absent_in_archive": 121,
+  "gap_in_bufr_missing_csv": 0,
+  "gap_present": 9668,
+  "sorted_metrics": "gdex_outputs\\результаты-алдан-полный\\profile_metrics_sorted.csv"
+}

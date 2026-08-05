@@ -1,0 +1,15 @@
+{
+  "plot_set": "мягче_фильтр",
+  "output_root": "gdex_outputs\\monthly_temperature_profiles\\сравнение\\мягче_фильтр",
+  "station_id": "31004",
+  "station_slug": "aldan",
+  "start_date": "1999-10-01",
+  "end_date": "2026-07-19",
+  "pressure_top_hpa": 500.0,
+  "max_surface_pressure_hpa": 1000.0,
+  "plot_only_good": false,
+  "plot_min_levels": 3,
+  "min_profiles_per_month": 5,
+  "input": "gdex_outputs\\результаты-алдан\\profiles_long.csv",
+  "metrics": "gdex_outputs\\результаты-алдан\\profile_metrics.csv"
+}

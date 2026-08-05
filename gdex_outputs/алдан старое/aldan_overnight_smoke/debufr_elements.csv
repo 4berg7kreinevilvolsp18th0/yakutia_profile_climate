@@ -1,0 +1,706 @@
+profile_id,station_name,source_file,station_id,subset_index,report_datetime_utc,seq,fxy,name,value,value_text,unit,kind,scale,reference,nbits
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,1,063000,BYTCNT,1239,,BYTES,numeric,0,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,2,004001,Year,1999,,a,numeric,0,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,3,004002,Month,10,,mon,numeric,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,4,004003,Day,2,,d,numeric,0,0,6
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,5,004004,Hour,12,,h,numeric,0,0,5
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,6,031001,Delayed descriptor replication factor,3,,Numeric,numeric,0,0,8
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,7,008202,RCTS     RECEIPT TIME SIGNIFICANCE,5,,CODE TABLE,code,0,0,6
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,8,004200,RCYR     YEAR   - TIME OF RECEIPT,1999,,YEAR,numeric,0,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,9,004201,RCMO     MONTH  - TIME OF RECEIPT,10,,MONTH,numeric,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,10,004202,RCDY     DAY    - TIME OF RECEIPT,2,,DAY,numeric,0,0,6
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,11,004203,RCHR     HOUR   - TIME OF RECEIPT,13,,HOUR,numeric,0,0,5
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,12,004204,RCMI     MINUTE - TIME OF RECEIPT,49,,MINUTE,numeric,0,0,6
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,13,008202,RCTS     RECEIPT TIME SIGNIFICANCE,4,,CODE TABLE,code,0,0,6
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,14,004200,RCYR     YEAR   - TIME OF RECEIPT,1999,,YEAR,numeric,0,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,15,004201,RCMO     MONTH  - TIME OF RECEIPT,10,,MONTH,numeric,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,16,004202,RCDY     DAY    - TIME OF RECEIPT,2,,DAY,numeric,0,0,6
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,17,004203,RCHR     HOUR   - TIME OF RECEIPT,13,,HOUR,numeric,0,0,5
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,18,004204,RCMI     MINUTE - TIME OF RECEIPT,44,,MINUTE,numeric,0,0,6
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,19,008202,RCTS     RECEIPT TIME SIGNIFICANCE,7,,CODE TABLE,code,0,0,6
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,20,004200,RCYR     YEAR   - TIME OF RECEIPT,1999,,YEAR,numeric,0,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,21,004201,RCMO     MONTH  - TIME OF RECEIPT,10,,MONTH,numeric,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,22,004202,RCDY     DAY    - TIME OF RECEIPT,2,,DAY,numeric,0,0,6
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,23,004203,RCHR     HOUR   - TIME OF RECEIPT,14,,HOUR,numeric,0,0,5
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,24,004204,RCMI     MINUTE - TIME OF RECEIPT,49,,MINUTE,numeric,0,0,6
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,25,031001,Delayed descriptor replication factor,3,,Numeric,numeric,0,0,8
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,26,002195,SEQNUM   LDM CHANNEL SEQUENCE NUMBER,b'000 ',,CCITT IA5,numeric,0,0,32
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,27,001194,BUHD     BULLETIN HEADER,b'UKRA04  ',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,28,001063,ICAO location indicator,b'RUHB    ',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,29,058006,BULTIM   BULLETIN TIME (DDHHMM),b'021200  ',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,30,058007,BBB      WMO BBB INDICATOR,b'        ',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,31,002195,SEQNUM   LDM CHANNEL SEQUENCE NUMBER,b'000 ',,CCITT IA5,numeric,0,0,32
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,32,001194,BUHD     BULLETIN HEADER,b'USRA04  ',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,33,001063,ICAO location indicator,b'RUHB    ',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,34,058006,BULTIM   BULLETIN TIME (DDHHMM),b'021200  ',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,35,058007,BBB      WMO BBB INDICATOR,b'        ',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,36,002195,SEQNUM   LDM CHANNEL SEQUENCE NUMBER,b'000 ',,CCITT IA5,numeric,0,0,32
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,37,001194,BUHD     BULLETIN HEADER,b'UERA04  ',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,38,001063,ICAO location indicator,b'RUHB    ',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,39,058006,BULTIM   BULLETIN TIME (DDHHMM),b'021200  ',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,40,058007,BBB      WMO BBB INDICATOR,b'        ',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,41,001198,RPID     REPORT IDENTIFIER,b'31004   ',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,42,005002,Latitude (coarse accuracy),58.62,,deg,numeric,2,-9000,15
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,43,006002,Longitude (coarse accuracy),125.37,,deg,numeric,2,-18000,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,44,007001,Height of station,680,,m,numeric,0,-400,15
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,45,031001,Delayed descriptor replication factor,3,,Numeric,numeric,0,0,8
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,46,002011,Radiosonde type,27,,Code table,numeric,0,0,8
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,47,002003,Type of measuring equipment used,3,,Code table,numeric,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,48,033215,CORN     CORRECTED REPORT INDICATOR,0,,CODE TABLE,code,0,0,3
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,49,001192,UAPART   RADIOSONDE PART NAME,b'TTBB',,CCITT IA5,numeric,0,0,32
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,50,002011,Radiosonde type,27,,Code table,numeric,0,0,8
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,51,002003,Type of measuring equipment used,,,Code table,numeric,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,52,033215,CORN     CORRECTED REPORT INDICATOR,0,,CODE TABLE,code,0,0,3
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,53,001192,UAPART   RADIOSONDE PART NAME,b'TTAA',,CCITT IA5,numeric,0,0,32
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,54,002011,Radiosonde type,27,,Code table,numeric,0,0,8
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,55,002003,Type of measuring equipment used,,,Code table,numeric,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,56,033215,CORN     CORRECTED REPORT INDICATOR,0,,CODE TABLE,code,0,0,3
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,57,001192,UAPART   RADIOSONDE PART NAME,b'TTDD',,CCITT IA5,numeric,0,0,32
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,58,031001,Delayed descriptor replication factor,40,,Numeric,numeric,0,0,8
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,59,008001,Vertical sounding significance,64,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,60,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,61,007004,Pressure,93500.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,62,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,63,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,64,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,65,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,66,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,67,012225,Non-standard temperature,270.05,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,68,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,69,012227,Non-standard dewpoint temperature,267.15,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,70,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,71,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,72,008001,Vertical sounding significance,4,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,73,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,74,007004,Pressure,92100.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,75,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,76,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,77,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,78,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,79,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,80,012225,Non-standard temperature,269.25,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,81,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,82,012227,Non-standard dewpoint temperature,267.15,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,83,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,84,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,85,008001,Vertical sounding significance,4,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,86,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,87,007004,Pressure,72900.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,88,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,89,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,90,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,91,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,92,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,93,012225,Non-standard temperature,256.45,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,94,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,95,012227,Non-standard dewpoint temperature,255.25,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,96,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,97,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,98,008001,Vertical sounding significance,4,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,99,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,100,007004,Pressure,60300.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,101,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,102,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,103,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,104,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,105,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,106,012225,Non-standard temperature,247.05,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,107,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,108,012227,Non-standard dewpoint temperature,245.75,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,109,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,110,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,111,008001,Vertical sounding significance,4,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,112,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,113,007004,Pressure,53900.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,114,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,115,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,116,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,117,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,118,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,119,012225,Non-standard temperature,243.45,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,120,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,121,012227,Non-standard dewpoint temperature,241.15,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,122,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,123,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,124,008001,Vertical sounding significance,4,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,125,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,126,007004,Pressure,42200.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,127,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,128,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,129,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,130,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,131,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,132,012225,Non-standard temperature,231.25,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,133,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,134,012227,Non-standard dewpoint temperature,228.85,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,135,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,136,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,137,008001,Vertical sounding significance,4,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,138,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,139,007004,Pressure,26900.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,140,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,141,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,142,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,143,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,144,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,145,012225,Non-standard temperature,223.25,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,146,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,147,012227,Non-standard dewpoint temperature,220.25,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,148,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,149,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,150,008001,Vertical sounding significance,4,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,151,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,152,007004,Pressure,18400.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,153,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,154,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,155,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,156,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,157,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,158,012225,Non-standard temperature,223.05,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,159,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,160,012227,Non-standard dewpoint temperature,219.25,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,161,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,162,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,163,008001,Vertical sounding significance,4,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,164,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,165,007004,Pressure,10700.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,166,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,167,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,168,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,169,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,170,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,171,012225,Non-standard temperature,221.65,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,172,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,173,012227,Non-standard dewpoint temperature,216.65,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,174,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,175,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,176,008001,Vertical sounding significance,64,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,177,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,178,007004,Pressure,93500.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,179,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,180,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,181,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,182,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,183,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,184,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,185,011001,Wind direction,305,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,186,011002,Wind speed,6.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,187,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,188,008001,Vertical sounding significance,2,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,189,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,190,007004,Pressure,92100.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,191,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,192,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,193,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,194,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,195,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,196,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,197,011001,Wind direction,280,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,198,011002,Wind speed,8.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,199,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,200,008001,Vertical sounding significance,2,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,201,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,202,007004,Pressure,85300.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,203,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,204,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,205,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,206,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,207,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,208,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,209,011001,Wind direction,300,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,210,011002,Wind speed,16.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,211,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,212,008001,Vertical sounding significance,2,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,213,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,214,007004,Pressure,67200.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,215,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,216,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,217,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,218,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,219,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,220,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,221,011001,Wind direction,300,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,222,011002,Wind speed,17.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,223,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,224,008001,Vertical sounding significance,2,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,225,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,226,007004,Pressure,52400.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,227,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,228,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,229,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,230,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,231,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,232,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,233,011001,Wind direction,305,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,234,011002,Wind speed,22.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,235,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,236,008001,Vertical sounding significance,2,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,237,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,238,007004,Pressure,33800.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,239,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,240,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,241,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,242,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,243,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,244,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,245,011001,Wind direction,315,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,246,011002,Wind speed,23.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,247,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,248,008001,Vertical sounding significance,2,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,249,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,250,007004,Pressure,23100.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,251,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,252,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,253,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,254,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,255,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,256,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,257,011001,Wind direction,295,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,258,011002,Wind speed,19.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,259,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,260,008001,Vertical sounding significance,2,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,261,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,262,007004,Pressure,19800.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,263,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,264,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,265,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,266,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,267,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,268,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,269,011001,Wind direction,320,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,270,011002,Wind speed,12.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,271,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,272,008001,Vertical sounding significance,2,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,273,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,274,007004,Pressure,18400.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,275,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,276,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,277,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,278,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,279,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,280,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,281,011001,Wind direction,305,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,282,011002,Wind speed,12.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,283,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,284,008001,Vertical sounding significance,2,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,285,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,286,007004,Pressure,13500.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,287,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,288,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,289,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,290,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,291,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,292,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,293,011001,Wind direction,310,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,294,011002,Wind speed,8.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,295,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,296,008001,Vertical sounding significance,2,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,297,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,298,007004,Pressure,12500.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,299,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,300,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,301,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,302,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,303,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,304,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,305,011001,Wind direction,285,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,306,011002,Wind speed,9.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,307,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,308,008001,Vertical sounding significance,2,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,309,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,310,007004,Pressure,11600.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,311,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,312,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,313,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,314,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,315,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,316,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,317,011001,Wind direction,310,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,318,011002,Wind speed,9.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,319,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,320,008001,Vertical sounding significance,2,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,321,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,322,007004,Pressure,10700.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,323,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,324,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,325,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,326,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,327,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,328,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,329,011001,Wind direction,295,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,330,011002,Wind speed,10.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,331,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,332,008001,Vertical sounding significance,64,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,333,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,334,007004,Pressure,93500.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,335,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,336,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,337,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,338,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,339,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,340,012225,Non-standard temperature,270.05,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,341,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,342,012227,Non-standard dewpoint temperature,267.15,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,343,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,344,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,345,011001,Wind direction,305,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,346,011002,Wind speed,6.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,347,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,348,008001,Vertical sounding significance,32,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,349,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,350,007004,Pressure,100000.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,351,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,352,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,353,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,354,010008,Geopotential,1274,,m2 s-2,numeric,0,-10000,20
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,355,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,356,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,357,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,358,008001,Vertical sounding significance,32,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,359,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,360,007004,Pressure,92500.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,361,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,362,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,363,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,364,010008,Geopotential,7448,,m2 s-2,numeric,0,-10000,20
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,365,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,366,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,367,012225,Non-standard temperature,269.45,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,368,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,369,012227,Non-standard dewpoint temperature,267.15,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,370,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,371,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,372,008001,Vertical sounding significance,32,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,373,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,374,007004,Pressure,85000.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,375,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,376,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,377,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,378,010008,Geopotential,13916,,m2 s-2,numeric,0,-10000,20
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,379,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,380,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,381,012225,Non-standard temperature,264.45,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,382,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,383,012227,Non-standard dewpoint temperature,263.25,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,384,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,385,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,386,011001,Wind direction,300,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,387,011002,Wind speed,16.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,388,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,389,008001,Vertical sounding significance,32,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,390,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,391,007004,Pressure,70000.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,392,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,393,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,394,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,395,010008,Geopotential,28420,,m2 s-2,numeric,0,-10000,20
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,396,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,397,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,398,012225,Non-standard temperature,254.25,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,399,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,400,012227,Non-standard dewpoint temperature,253.25,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,401,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,402,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,403,011001,Wind direction,300,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,404,011002,Wind speed,17.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,405,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,406,008001,Vertical sounding significance,32,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,407,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,408,007004,Pressure,50000.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,409,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,410,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,411,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,412,010008,Geopotential,52332,,m2 s-2,numeric,0,-10000,20
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,413,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,414,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,415,012225,Non-standard temperature,239.45,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,416,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,417,012227,Non-standard dewpoint temperature,237.75,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,418,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,419,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,420,011001,Wind direction,310,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,421,011002,Wind speed,25.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,422,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,423,008001,Vertical sounding significance,32,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,424,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,425,007004,Pressure,40000.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,426,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,427,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,428,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,429,010008,Geopotential,67228,,m2 s-2,numeric,0,-10000,20
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,430,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,431,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,432,012225,Non-standard temperature,230.25,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,433,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,434,012227,Non-standard dewpoint temperature,227.85,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,435,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,436,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,437,011001,Wind direction,315,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,438,011002,Wind speed,23.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,439,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,440,008001,Vertical sounding significance,32,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,441,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,442,007004,Pressure,30000.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,443,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,444,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,445,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,446,010008,Geopotential,86044,,m2 s-2,numeric,0,-10000,20
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,447,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,448,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,449,012225,Non-standard temperature,224.25,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,450,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,451,012227,Non-standard dewpoint temperature,221.35,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,452,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,453,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,454,011001,Wind direction,310,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,455,011002,Wind speed,23.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,456,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,457,008001,Vertical sounding significance,32,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,458,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,459,007004,Pressure,25000.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,460,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,461,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,462,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,463,010008,Geopotential,97706,,m2 s-2,numeric,0,-10000,20
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,464,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,465,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,466,012225,Non-standard temperature,223.05,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,467,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,468,012227,Non-standard dewpoint temperature,219.85,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,469,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,470,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,471,011001,Wind direction,305,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,472,011002,Wind speed,20.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,473,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,474,008001,Vertical sounding significance,32,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,475,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,476,007004,Pressure,20000.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,477,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,478,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,479,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,480,010008,Geopotential,112112,,m2 s-2,numeric,0,-10000,20
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,481,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,482,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,483,012225,Non-standard temperature,224.45,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,484,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,485,012227,Non-standard dewpoint temperature,220.75,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,486,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,487,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,488,011001,Wind direction,320,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,489,011002,Wind speed,12.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,490,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,491,008001,Vertical sounding significance,32,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,492,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,493,007004,Pressure,15000.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,494,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,495,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,496,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,497,010008,Geopotential,130438,,m2 s-2,numeric,0,-10000,20
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,498,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,499,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,500,012225,Non-standard temperature,221.85,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,501,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,502,012227,Non-standard dewpoint temperature,217.55,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,503,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,504,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,505,011001,Wind direction,310,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,506,011002,Wind speed,11.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,507,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,508,008001,Vertical sounding significance,32,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,509,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,510,007004,Pressure,10000.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,511,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,512,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,513,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,514,010008,Geopotential,156212,,m2 s-2,numeric,0,-10000,20
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,515,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,516,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,517,012225,Non-standard temperature,222.45,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,518,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,519,012227,Non-standard dewpoint temperature,216.45,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,520,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,521,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,522,011001,Wind direction,310,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,523,011002,Wind speed,9.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,524,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,525,008001,Vertical sounding significance,16,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,526,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,527,007004,Pressure,29000.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,528,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,529,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,530,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,531,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,532,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,533,012225,Non-standard temperature,223.65,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,534,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,535,012227,Non-standard dewpoint temperature,220.55,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,536,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,537,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,538,011001,Wind direction,310,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,539,011002,Wind speed,23.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,540,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,541,008001,Vertical sounding significance,4,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,542,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,543,007004,Pressure,9910.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,544,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,545,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,546,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,547,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,548,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,549,012225,Non-standard temperature,222.65,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,550,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,551,012227,Non-standard dewpoint temperature,216.65,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,552,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,553,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,554,008001,Vertical sounding significance,4,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,555,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,556,007004,Pressure,7450.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,557,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,558,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,559,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,560,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,561,033193,QMAT     ON29 QUALITY MARK FOR TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,562,012225,Non-standard temperature,220.65,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,563,033194,QMDD     ON29 QUALITY MARK FOR DEWPOINT DEPRESSION,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,564,012227,Non-standard dewpoint temperature,213.65,,K,numeric,1,0,16
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,565,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,566,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,567,008001,Vertical sounding significance,2,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,568,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,569,007004,Pressure,9910.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,570,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,571,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,572,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,573,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,574,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,575,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,576,011001,Wind direction,310,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,577,011002,Wind speed,8.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,578,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,579,008001,Vertical sounding significance,2,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,580,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,581,007004,Pressure,8500.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,582,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,583,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,584,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,585,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,586,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,587,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,588,011001,Wind direction,270,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,589,011002,Wind speed,4.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,590,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,591,008001,Vertical sounding significance,2,,Flag table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,592,033207,QMPR     ON29 QUALITY MARK FOR PRESSURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,593,007004,Pressure,7870.0,,Pa,numeric,-1,0,14
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,594,033192,QMGP     ON29 QUALITY MARK FOR GEOPOTENTIAL,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,595,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,596,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,597,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,598,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,599,033195,QMWN     ON29 QUALITY MARK FOR WIND,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,600,011001,Wind direction,285,,degree true,numeric,0,0,9
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,601,011002,Wind speed,8.0,,m/s,numeric,1,0,12
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,602,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,603,031000,Short delayed descriptor replication factor,1,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,604,033218,QMST     ON29 QUALITY MARK FOR SEA SURFACE TEMPERATURE,,,CODE TABLE,code,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,605,022043,Sea/water temperature,,,K,numeric,2,0,15
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,606,002013,Solar and infrared radiation correction,5,,Code table,numeric,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,607,002014,Tracking technique/status of system used,3,,Code table,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,608,004210,UALNHR   RADIOSONDE LAUNCH HOUR,11,,HOUR,numeric,0,0,5
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,609,004211,UALNMN   RADIOSONDE LAUNCH MINUTE,30,,MINUTE,numeric,0,0,6
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,610,031001,Delayed descriptor replication factor,0,,Numeric,numeric,0,0,8
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,611,031001,Delayed descriptor replication factor,83,,Numeric,numeric,0,0,8
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,612,058008,RRSTG    RAW REPORT STRING,b'TTBB 021',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,613,058008,RRSTG    RAW REPORT STRING,b'23 31004',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,614,058008,RRSTG    RAW REPORT STRING,b' 00935 0',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,615,058008,RRSTG    RAW REPORT STRING,b'3129 119',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,616,058008,RRSTG    RAW REPORT STRING,b'21 03921',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,617,058008,RRSTG    RAW REPORT STRING,b' 22729 1',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,618,058008,RRSTG    RAW REPORT STRING,b'6712 336',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,619,058008,RRSTG    RAW REPORT STRING,b'03 26113',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,620,058008,RRSTG    RAW REPORT STRING,b' 44539 2',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,621,058008,RRSTG    RAW REPORT STRING,b'9723 554',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,622,058008,RRSTG    RAW REPORT STRING,b'22 41924',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,623,058008,RRSTG    RAW REPORT STRING,b' 66269 4',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,624,058008,RRSTG    RAW REPORT STRING,b'9930 771',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,625,058008,RRSTG    RAW REPORT STRING,b'84 50138',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,626,058008,RRSTG    RAW REPORT STRING,b' 88107 5',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,627,058008,RRSTG    RAW REPORT STRING,b'1550 212',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,628,058008,RRSTG    RAW REPORT STRING,b'12 00935',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,629,058008,RRSTG    RAW REPORT STRING,b' 30506 1',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,630,058008,RRSTG    RAW REPORT STRING,b'1921 280',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,631,058008,RRSTG    RAW REPORT STRING,b'08 22853',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,632,058008,RRSTG    RAW REPORT STRING,b' 30016 3',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,633,058008,RRSTG    RAW REPORT STRING,b'3672 300',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,634,058008,RRSTG    RAW REPORT STRING,b'17 44524',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,635,058008,RRSTG    RAW REPORT STRING,b' 30522 5',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,636,058008,RRSTG    RAW REPORT STRING,b'5338 315',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,637,058008,RRSTG    RAW REPORT STRING,b'23 66231',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,638,058008,RRSTG    RAW REPORT STRING,b' 29519 7',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,639,058008,RRSTG    RAW REPORT STRING,b'7198 320',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,640,058008,RRSTG    RAW REPORT STRING,b'12 88184',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,641,058008,RRSTG    RAW REPORT STRING,b' 30512 9',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,642,058008,RRSTG    RAW REPORT STRING,b'9135 310',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,643,058008,RRSTG    RAW REPORT STRING,b'08 11125',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,644,058008,RRSTG    RAW REPORT STRING,b' 28509 2',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,645,058008,RRSTG    RAW REPORT STRING,b'2116 310',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,646,058008,RRSTG    RAW REPORT STRING,b'09 33107',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,647,058008,RRSTG    RAW REPORT STRING,b' 29510 3',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,648,058008,RRSTG    RAW REPORT STRING,b'1313 527',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,649,058008,RRSTG    RAW REPORT STRING,b'03 81130',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,650,058008,RRSTG    RAW REPORT STRING,b' 41414 8',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,651,058008,RRSTG    RAW REPORT STRING,b'94//    ',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,652,058008,RRSTG    RAW REPORT STRING,b'TTAA 021',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,653,058008,RRSTG    RAW REPORT STRING,b'21 31004',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,654,058008,RRSTG    RAW REPORT STRING,b' 99935 0',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,655,058008,RRSTG    RAW REPORT STRING,b'3129 305',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,656,058008,RRSTG    RAW REPORT STRING,b'06 00130',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,657,058008,RRSTG    RAW REPORT STRING,b' ///// /',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,658,058008,RRSTG    RAW REPORT STRING,b'//// 927',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,659,058008,RRSTG    RAW REPORT STRING,b'60 03723',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,660,058008,RRSTG    RAW REPORT STRING,b' ///// 8',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,661,058008,RRSTG    RAW REPORT STRING,b'5420 087',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,662,058008,RRSTG    RAW REPORT STRING,b'12 30016',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,663,058008,RRSTG    RAW REPORT STRING,b' 70900 1',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,664,058008,RRSTG    RAW REPORT STRING,b'8910 300',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,665,058008,RRSTG    RAW REPORT STRING,b'17 50534',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,666,058008,RRSTG    RAW REPORT STRING,b' 33717 3',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,667,058008,RRSTG    RAW REPORT STRING,b'1025 406',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,668,058008,RRSTG    RAW REPORT STRING,b'86 42924',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,669,058008,RRSTG    RAW REPORT STRING,b' 31523 3',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,670,058008,RRSTG    RAW REPORT STRING,b'0878 489',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,671,058008,RRSTG    RAW REPORT STRING,b'29 31023',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,672,058008,RRSTG    RAW REPORT STRING,b' 25997 5',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,673,058008,RRSTG    RAW REPORT STRING,b'0132 305',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,674,058008,RRSTG    RAW REPORT STRING,b'20 20144',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,675,058008,RRSTG    RAW REPORT STRING,b' 48737 3',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,676,058008,RRSTG    RAW REPORT STRING,b'2012 153',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,677,058008,RRSTG    RAW REPORT STRING,b'31 51343',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,678,058008,RRSTG    RAW REPORT STRING,b' 31011 1',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,679,058008,RRSTG    RAW REPORT STRING,b'0594 507',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,680,058008,RRSTG    RAW REPORT STRING,b'56 31009',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,681,058008,RRSTG    RAW REPORT STRING,b' 88290 4',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,682,058008,RRSTG    RAW REPORT STRING,b'9531 310',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,683,058008,RRSTG    RAW REPORT STRING,b'23 77999',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,684,058008,RRSTG    RAW REPORT STRING,b'TTDD 021',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,685,058008,RRSTG    RAW REPORT STRING,b'2/ 31004',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,686,058008,RRSTG    RAW REPORT STRING,b' 11991 5',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,687,058008,RRSTG    RAW REPORT STRING,b'0556 227',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,688,058008,RRSTG    RAW REPORT STRING,b'45 52557',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,689,058008,RRSTG    RAW REPORT STRING,b' 21212 1',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,690,058008,RRSTG    RAW REPORT STRING,b'1991 310',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,691,058008,RRSTG    RAW REPORT STRING,b'08 22850',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,692,058008,RRSTG    RAW REPORT STRING,b' 27004 3',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,693,058008,RRSTG    RAW REPORT STRING,b'3787 285',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,694,058008,RRSTG    RAW REPORT STRING,b'08      ',,CCITT IA5,numeric,0,0,64
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,695,031001,Delayed descriptor replication factor,1,,Numeric,numeric,0,0,8
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,696,020012,Cloud type,39,,Code table,numeric,0,0,6
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,697,033197,QMCA     ON29 QUALITY MARK FOR CLOUD AMOUNT,1,,CODE TABLE,code,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,698,020011,Cloud amount,8,,Code table,numeric,0,0,4
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,699,020013,Height of base of cloud,450.0,,m,numeric,-1,-40,11
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,700,031000,Short delayed descriptor replication factor,0,,Numeric,numeric,0,0,1
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,701,001001,WMO block number,31,,Numeric,numeric,0,0,7
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,702,001002,WMO station number,4,,Numeric,numeric,0,0,10
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,703,001003,WMO Region number/geographical area,2,,Code table,numeric,0,0,3
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,704,031001,Delayed descriptor replication factor,1,,Numeric,numeric,0,0,8
+31004_19991002_1200_12,Aldan,gdex_data\raw\1999\gdas.adpupa.t12z.19991002.bufr,31004,1,1999-10-02T12:00:00,705,063255,BITPAD,0,,NONE,numeric,0,0,1

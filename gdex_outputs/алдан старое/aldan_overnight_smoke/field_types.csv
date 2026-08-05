@@ -1,0 +1,10 @@
+column;fxy;alt_fxy;name;name_ru;unit;kind;scale;reference;nbits
+VSIG;8001;;Vertical sounding significance;;Flag table;numeric;0;0;7
+PRES;7004;;Pressure;Давление;Pa;numeric;-1;0;14
+GEOPOT;10008;;Geopotential;;m2 s-2;numeric;0;-10000;20
+FLVL;10009;7007;Geopotential height;Геопотенциальная высота;gpm;numeric;0;-1000;17
+AIR;12101;12225,01202;Temperature/air temperature;;K;numeric;2;0;16
+DEW-;12103;12227,01202;Dewpoint temperature;;K;numeric;2;0;16
+REL;13003;;Relative humidity;Относительная влажность;%;numeric;0;0;7
+WIND;11001;;Wind direction;Направление ветра;degree true;numeric;0;0;9
+WIND.1;11002;;Wind speed;Скорость ветра;m/s;numeric;1;0;12

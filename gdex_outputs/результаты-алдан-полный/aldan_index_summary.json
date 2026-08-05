@@ -1,0 +1,8 @@
+{
+  "mode": "seed_metrics_plus_gap_scan",
+  "index_rows": 18202,
+  "gap_hits": 0,
+  "gap_days": 121,
+  "in_bufr_not_old": 0,
+  "index_csv": "gdex_outputs\\результаты-алдан-полный\\aldan_bufr_index.csv"
+}
