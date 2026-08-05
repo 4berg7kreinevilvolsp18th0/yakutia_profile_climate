@@ -34,3 +34,5 @@ WORKPC_SETUP.md
 /transfer
 gdex_outputs/gdex_outputs.rar
 gdex_outputs/результаты-алдан/Aldan_1999_11_23_testirovanie.xlsx
+scripts/overnight_aldan.ps1
+scripts/start_overnight_aldan.ps1
