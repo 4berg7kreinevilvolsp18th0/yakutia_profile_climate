@@ -41,3 +41,9 @@ scripts/start_overnight_aldan.ps1
 gdex_outputs/результаты-алдан-полный/~$алдан-полный_profile_climate_20260804_091207.xlsx
 gdex_outputs/результаты-алдан/~$aldan_profile_climate_20260803_013831_heights_fixed.xlsx
 >>>>>>> 44c949475e8bd7a3419b9c385512ebbc9dc3b06d
+scripts/_check_dec1999_gaps.py
+scripts/fast_extract_station.py
+scripts/overnight_aldan.bat
+scripts/overnight_aldan.ps1
+scripts/scan_1999_decode_qc.py
+scripts/start_overnight_aldan.ps1
