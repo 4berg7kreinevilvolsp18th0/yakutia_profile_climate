@@ -399,8 +399,8 @@ def main() -> None:
             st.markdown(f"**{day_key[8:]}** · n={len(day_obs)}")
             for obs in day_obs:
                 key = _obs_state_key(state_scope, obs["profile_id"])
-            if key not in st.session_state:
-                st.session_state[key] = True
+                if key not in st.session_state:
+                    st.session_state[key] = True
                 label = (
                     f"CY{obs.get('cycle', '??')} · "
                     f"Ts={obs.get('t_surface_c')}°C · "
@@ -409,8 +409,16 @@ def main() -> None:
                 if obs.get("missing_levels"):
                     label += " · нет уровней"
                 if obs.get("inversion_detected"):
-                label += " · inv"
-            if st.checkbox(label, key=key):
+                    label += " · inv"
+                # #region agent log
+                try:
+                    import json as _json, time as _time
+                    with open("debug-b4c222.log", "a", encoding="utf-8") as _f:
+                        _f.write(_json.dumps({"sessionId": "b4c222", "runId": "post-fix", "hypothesisId": "A", "location": "profile_dashboard.py:obs_list", "message": "obs checkbox label built", "data": {"profile_id": obs.get("profile_id"), "inv": bool(obs.get("inversion_detected")), "label_has_inv": " · inv" in label}, "timestamp": int(_time.time() * 1000)}, ensure_ascii=False) + "\n")
+                except Exception:
+                    pass
+                # #endregion
+                if st.checkbox(label, key=key):
                     enabled.add(obs["profile_id"])
 
     st.sidebar.caption(f"Включено: {len(enabled)} / видимых {len(visible)}")
@@ -456,13 +464,13 @@ def main() -> None:
                 apply_plot_qc=apply_plot_qc,
             )
             if prepared is None:
-            continue
+                continue
             t_vals, y_vals = prepared
             day_has_enabled = True
             color = OBS_PALETTE[color_idx % len(OBS_PALETTE)]
             color_idx += 1
             name = f"{day_key[8:]}·{obs.get('cycle', '??')}"
-        fig.add_trace(go.Scatter(
+            fig.add_trace(go.Scatter(
                 x=t_vals,
                 y=y_vals,
                 mode="lines+markers" if not apply_plot_qc else "lines",
@@ -475,7 +483,7 @@ def main() -> None:
                 marker=dict(size=3),
                 opacity=0.88,
                 connectgaps=False,
-            hovertemplate=(
+                hovertemplate=(
                     f"{obs.get('datetime_utc', day_key)}<br>"
                     f"CY{obs.get('cycle', '??')}<br>"
                     f"T=%{{x:.1f}} °C<br>"
@@ -506,7 +514,7 @@ def main() -> None:
                         f"{y_hover}<extra></extra>"
                     ),
                     showlegend=False,
-        ))
+                ))
 
     if mean is not None:
         fig.add_trace(go.Scatter(
