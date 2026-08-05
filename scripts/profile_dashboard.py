@@ -177,6 +177,19 @@ def _first_valid_temp(temps: np.ndarray) -> float | None:
     return None
 
 
+def _inversion_label_suffix(obs: dict) -> str:
+    if not obs.get("inversion_detected"):
+        return ""
+    h = obs.get("inversion_top_height_m")
+    p = obs.get("inversion_top_pressure_hpa")
+    bits = [" · inv"]
+    if h is not None:
+        bits.append(f" {float(h):.0f} м")
+    if p is not None:
+        bits.append(f" / {float(p):.0f} гПа")
+    return "".join(bits)
+
+
 def _finite_or_none(value: float) -> float | None:
     if value == float("inf") or value != value:  # noqa: PLR0124
         return None
@@ -288,6 +301,11 @@ def main() -> None:
         "Показать суточные средние",
         value=False,
         help="Серые линии day_mean для дней с ≥1 включённым наблюдением.",
+    )
+    show_inv_top = st.sidebar.checkbox(
+        "Отметить верх инверсии",
+        value=True,
+        help="Маркер на графике и высота/давление верха в списке и таблице.",
     )
 
     y_axis_label = st.sidebar.radio(
@@ -408,8 +426,7 @@ def main() -> None:
                 )
                 if obs.get("missing_levels"):
                     label += " · нет уровней"
-                if obs.get("inversion_detected"):
-                    label += " · inv"
+                label += _inversion_label_suffix(obs)
                 if st.checkbox(label, key=key):
                     enabled.add(obs["profile_id"])
 
@@ -434,7 +451,16 @@ def main() -> None:
         "С инверсией",
         sum(1 for o in visible if o["profile_id"] in enabled and o.get("inversion_detected")),
     )
-    if mean is not None:
+    inv_heights = [
+        float(o["inversion_top_height_m"])
+        for o in visible
+        if o["profile_id"] in enabled
+        and o.get("inversion_detected")
+        and o.get("inversion_top_height_m") is not None
+    ]
+    if inv_heights:
+        m4.metric("Ср. H_inv, м", f"{sum(inv_heights) / len(inv_heights):.0f}")
+    elif mean is not None:
         ts = _first_valid_temp(mean[1])
         m4.metric("Ts среднего, °C", f"{ts:.1f}" if ts is not None else "—")
     else:
@@ -482,6 +508,39 @@ def main() -> None:
                     f"{y_hover}<extra></extra>"
                 ),
             ))
+            if show_inv_top and obs.get("inversion_detected"):
+                inv_t = obs.get("inversion_top_temp_c")
+                inv_y = (
+                    obs.get("inversion_top_pressure_hpa")
+                    if y_axis == "pressure"
+                    else obs.get("inversion_top_height_m")
+                )
+                if inv_t is not None and inv_y is not None:
+                    h_m = obs.get("inversion_top_height_m")
+                    p_hpa = obs.get("inversion_top_pressure_hpa")
+                    d_t = obs.get("inversion_delta_t_c")
+                    inv_hover = (
+                        f"Верх инверсии {obs.get('datetime_utc', day_key)}<br>"
+                        f"T=%{{x:.1f}} °C<br>"
+                        + (f"H={h_m:.0f} м<br>" if h_m is not None else "")
+                        + (f"P={p_hpa:.0f} гПа<br>" if p_hpa is not None else "")
+                        + (f"ΔT={d_t:.1f} °C<br>" if d_t is not None else "")
+                        + "<extra></extra>"
+                    )
+                    fig.add_trace(go.Scatter(
+                        x=[float(inv_t)],
+                        y=[float(inv_y)],
+                        mode="markers",
+                        name=f"{name} inv",
+                        marker=dict(
+                            size=11,
+                            symbol="diamond",
+                            color=color,
+                            line=dict(width=1.2, color="#222222"),
+                        ),
+                        showlegend=False,
+                        hovertemplate=inv_hover,
+                    ))
 
         day = day_lookup.get(day_key)
         if show_day_means and day_has_enabled and day and day.get("day_mean"):
@@ -590,6 +649,9 @@ def main() -> None:
                 "Мало уровней?": "да" if few else "",
                 "Ts, °C": obs.get("t_surface_c"),
                 "Инверсия": "да" if obs.get("inversion_detected") else "нет",
+                "H_inv, м": obs.get("inversion_top_height_m"),
+                "P_inv, гПа": obs.get("inversion_top_pressure_hpa"),
+                "ΔT_inv, °C": obs.get("inversion_delta_t_c"),
             })
         rows.sort(
             key=lambda r: (

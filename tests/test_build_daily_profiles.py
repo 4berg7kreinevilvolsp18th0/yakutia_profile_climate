@@ -41,7 +41,11 @@ def test_raw_mode_keeps_spikes_bad_status_singletons_and_missing_height(tmp_path
     pd.DataFrame([
         {
             "profile_id": "p1", "profile_status": "good",
-            "t_surface_c": -10.0, "inversion_detected": False,
+            "t_surface_c": -10.0, "inversion_detected": True,
+            "inversion_top_height_m": 1020.0,
+            "inversion_top_pressure_hpa": 898.0,
+            "inversion_top_temp_c": 30.0,
+            "inversion_delta_t_c": 40.0,
         },
         {
             "profile_id": "p2", "profile_status": "bad_pressure",
@@ -70,6 +74,9 @@ def test_raw_mode_keeps_spikes_bad_status_singletons_and_missing_height(tmp_path
     assert set(by_id) == {"p1", "p2", "p3"}
     assert by_id["p1"]["temperature_c"] == [-10.0, 30.0, -14.0, -16.0]
     assert by_id["p1"]["pressure_hpa"] == [900.0, 898.0, 850.0, 800.0]
+    assert by_id["p1"]["inversion_detected"] is True
+    assert by_id["p1"]["inversion_top_height_m"] == 1020.0
+    assert by_id["p1"]["inversion_top_pressure_hpa"] == 898.0
     # нет H → барометрия от станции Алдан (679 м) при P≈P_sfc
     assert by_id["p2"]["heights_m"] == [679.0]
     assert by_id["p2"]["heights_baro_m"] == [679.0]

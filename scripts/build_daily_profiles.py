@@ -44,6 +44,36 @@ def _day_key(dt: str) -> str:
     return parsed.date().isoformat()
 
 
+def _finite_metric(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return None
+    if f != f:
+        return None
+    return f
+
+
+def _metric_inversion_fields(metric: Any) -> dict[str, float | None]:
+    h = _finite_metric(getattr(metric, "inversion_top_height_m", None))
+    p = _finite_metric(getattr(metric, "inversion_top_pressure_hpa", None))
+    t = _finite_metric(getattr(metric, "inversion_top_temp_c", None))
+    d = _finite_metric(getattr(metric, "inversion_delta_t_c", None))
+    return {
+        "inversion_top_height_m": None if h is None else round(h, 1),
+        "inversion_top_pressure_hpa": None if p is None else round(p, 1),
+        "inversion_top_temp_c": None if t is None else round(t, 2),
+        "inversion_delta_t_c": None if d is None else round(d, 2),
+    }
+
+
 def resolve_xlsx(path: Path | None, search_dir: Path) -> Path | None:
     """Явный --xlsx или последний aldan_profile_climate_*.xlsx / profile_climate.xlsx."""
     if path is not None:
@@ -243,12 +273,19 @@ def build_daily_profiles(
 
         t_surface = None
         inversion = False
+        status = ""
+        inv_top_h = inv_top_p = inv_top_t = inv_delta = None
         if metric is not None:
             t_s = getattr(metric, "t_surface_c", None)
             if t_s is not None and not (isinstance(t_s, float) and np.isnan(t_s)):
                 t_surface = round(float(t_s), 3)
             inversion = bool(getattr(metric, "inversion_detected", False))
             status = str(getattr(metric, "profile_status", "") or "")
+            inv_fields = _metric_inversion_fields(metric)
+            inv_top_h = inv_fields["inversion_top_height_m"]
+            inv_top_p = inv_fields["inversion_top_pressure_hpa"]
+            inv_top_t = inv_fields["inversion_top_temp_c"]
+            inv_delta = inv_fields["inversion_delta_t_c"]
         if t_surface is None and temps:
             t_surface = temps[0]
 
@@ -264,6 +301,10 @@ def build_daily_profiles(
             "n_levels": len(levels),
             "t_surface_c": t_surface,
             "inversion_detected": inversion,
+            "inversion_top_height_m": inv_top_h,
+            "inversion_top_pressure_hpa": inv_top_p,
+            "inversion_top_temp_c": inv_top_t,
+            "inversion_delta_t_c": inv_delta,
             "profile_status": status or "",
         })
 
@@ -281,6 +322,7 @@ def build_daily_profiles(
             if t_surface is not None and pd.isna(t_surface):
                 t_surface = None
             inversion = getattr(metric, "inversion_detected", False)
+            inv_fields = _metric_inversion_fields(metric)
             by_day[day].append({
                 "profile_id": profile_id,
                 "datetime_utc": dt,
@@ -291,6 +333,10 @@ def build_daily_profiles(
                 "n_levels": 0,
                 "t_surface_c": None if t_surface is None else round(float(t_surface), 3),
                 "inversion_detected": False if pd.isna(inversion) else bool(inversion),
+                "inversion_top_height_m": inv_fields["inversion_top_height_m"],
+                "inversion_top_pressure_hpa": inv_fields["inversion_top_pressure_hpa"],
+                "inversion_top_temp_c": inv_fields["inversion_top_temp_c"],
+                "inversion_delta_t_c": inv_fields["inversion_delta_t_c"],
                 "profile_status": str(getattr(metric, "profile_status", "") or ""),
                 "missing_levels": True,
             })
