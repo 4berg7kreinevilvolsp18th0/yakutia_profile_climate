@@ -59,6 +59,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--fresh", action="store_true", help="Игнорировать уже извлечённые файлы")
     p.add_argument("--limit-files", type=int)
     p.add_argument("--output", default="")
+    p.add_argument(
+        "--actual",
+        action="store_true",
+        help="Писать две актуальные таблицы в gdex_outputs/актуальное",
+    )
     p.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
     return p
 
@@ -104,23 +109,31 @@ def main(argv: list[str] | None = None) -> int:
     start = _parse_date(args.start_date)
     end = _parse_date(args.end_date)
     cycles = [c.strip().zfill(2)[-2:] for c in args.cycles.split(",") if c.strip()]
-    output_dir = Path(args.output or f"gdex_outputs/результаты-{station_slug}")
+    output_dir = Path(
+        args.output
+        or ("gdex_outputs/актуальное" if args.actual else f"gdex_outputs/результаты-{station_slug}")
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     metrics_path = output_dir / "profile_metrics.csv"
-    decoded_path = output_dir / "decoded_levels.csv"
+    decoded_path = output_dir / (
+        "decoded_all_levels.csv" if args.actual else "decoded_levels.csv"
+    )
     elements_path = output_dir / "debufr_elements.csv"
 
     if args.fresh:
         for name in (
             "profiles_long.csv",
+            "profiles_working.csv",
             "profile_metrics.csv",
             "decoded_levels.csv",
+            "decoded_all_levels.csv",
             "debufr_elements.csv",
             "monthly_summary.csv",
             "station_summary.csv",
             "summary.json",
             "field_types.csv",
             "profile_climate.xlsx",
+            "aldan_actual.xlsx",
         ):
             (output_dir / name).unlink(missing_ok=True)
         for old_xlsx in output_dir.glob("*_profile_climate_*.xlsx"):

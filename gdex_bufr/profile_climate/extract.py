@@ -6,9 +6,18 @@ from datetime import datetime
 from typing import Any
 
 from gdex_bufr.bufr_tables import BufrTablesRegistry, get_registry
-from gdex_bufr.meteo_parser_bridge import RadiosondeProfile, VerticalLevel
+from gdex_bufr.meteo_parser_bridge import (
+    RadiosondeProfile,
+    VerticalLevel,
+    estimate_geopotential_height_m,
+    geopotential_to_height_m,
+)
 from gdex_bufr.profile_climate.field_types import level_type_annotations
-from gdex_bufr.profile_climate.height_fill import STATION_ELEVATION_M, station_elevation_m
+from gdex_bufr.profile_climate.height_fill import (
+    STATION_ELEVATION_M,
+    fill_profile_level_heights,
+    station_elevation_m,
+)
 from gdex_bufr.profile_climate.metrics import compute_profile_metrics
 from gdex_bufr.xlsx_export import _level_row
 
@@ -119,9 +128,15 @@ def _level_climate_fields(level: VerticalLevel) -> dict[str, Any]:
     """Поля уровня в стиле оригинального дешифровщика + алиасы для климатических метрик."""
     height = level.geopotential_height_m
     if height is None and level.geopotential_m2s2 is not None:
-        from gdex_bufr.meteo_parser_bridge import geopotential_to_height_m
-
         height = round(geopotential_to_height_m(level.geopotential_m2s2), 1)
+    direct_height = (
+        level.height_010009_m
+        if level.height_010009_m is not None
+        else level.height_007007_m
+    )
+    height_phi = level.height_phi_m
+    if height_phi is None and level.geopotential_m2s2 is not None:
+        height_phi = round(geopotential_to_height_m(level.geopotential_m2s2), 1)
     return {
         "SEQ": level.seq,
         "VSIG": level.vertical_significance,
@@ -131,6 +146,10 @@ def _level_climate_fields(level: VerticalLevel) -> dict[str, Any]:
         "pressure_hpa": level.pressure_hpa,
         "GEOPOT": level.geopotential_m2s2,
         "geopotential_m2s2": level.geopotential_m2s2,
+        "height_010009_m": level.height_010009_m,
+        "height_007007_m": level.height_007007_m,
+        "height_bufr_m": direct_height,
+        "height_phi_m": height_phi,
         "FLVL": height,
         "geopotential_height_m": height,
         "height_m": height,
@@ -177,10 +196,105 @@ def extract_decoded_levels(
     *,
     registry: BufrTablesRegistry | None = None,
     type_ann: dict[str, Any] | None = None,
+    pressure_top_hpa: float = 500.0,
 ) -> list[dict[str, Any]]:
-    """Все уровни профиля + type-аннотации (FXY/unit/kind) как в debufr."""
+    """Все BUFR-уровни, включая нижние секции, с MSL/AGL и QC."""
     annotations = type_ann if type_ann is not None else level_type_annotations(registry)
-    return [{**_level_row(profile, level), **annotations} for level in profile.levels]
+    station_z = (
+        profile.station_elevation_m
+        if profile.station_elevation_m is not None
+        else station_elevation_m(profile.station_id)
+    )
+    surface = _pick_station_surface(
+        profile.levels,
+        station_id=profile.station_id,
+        bufr_station_elevation_m=profile.station_elevation_m,
+    )
+    p_surface = surface.pressure_hpa if surface is not None else None
+    rows: list[dict[str, Any]] = []
+    for level in profile.levels:
+        row = {**_level_row(profile, level), **annotations}
+        direct_height = (
+            level.height_010009_m
+            if level.height_010009_m is not None
+            else level.height_007007_m
+        )
+        height_phi = level.height_phi_m
+        if height_phi is None and level.geopotential_m2s2 is not None:
+            height_phi = round(geopotential_to_height_m(level.geopotential_m2s2), 1)
+        decoded_height = level.geopotential_height_m
+        below_by_pressure = (
+            level.pressure_hpa is not None
+            and p_surface is not None
+            and float(level.pressure_hpa) > float(p_surface) + 2.0
+        )
+        if direct_height is not None:
+            height_msl = direct_height
+            height_msl_source = "direct_bufr"
+        elif height_phi is not None:
+            height_msl = height_phi
+            height_msl_source = "phi"
+        elif (
+            below_by_pressure
+            and level.pressure_hpa is not None
+            and p_surface is not None
+            and station_z is not None
+        ):
+            height_msl = round(
+                float(station_z)
+                + estimate_geopotential_height_m(
+                    float(level.pressure_hpa),
+                    surface_pressure_hpa=float(p_surface),
+                ),
+                1,
+            )
+            height_msl_source = "baro_below_station"
+        elif decoded_height is not None:
+            height_msl = decoded_height
+            height_msl_source = "enriched"
+        else:
+            height_msl = None
+            height_msl_source = None
+        if (
+            height_msl is None
+            and (level.vertical_significance or "").upper() == "SFC"
+            and station_z is not None
+            and level is surface
+        ):
+            height_msl = float(station_z)
+            height_msl_source = "station_007001"
+        below_by_height = (
+            height_msl is not None
+            and station_z is not None
+            and float(height_msl) < float(station_z) - 100.0
+        )
+        below_station = below_by_pressure or below_by_height
+        in_working = (
+            not below_station
+            and level.pressure_hpa is not None
+            and level.air_temperature_c is not None
+            and pressure_top_hpa <= float(level.pressure_hpa) <= 1000.0
+        )
+        row.update({
+            "height_010009_m": level.height_010009_m,
+            "height_007007_m": level.height_007007_m,
+            "height_bufr_m": direct_height,
+            "height_phi_m": height_phi,
+            "height_decoded_m": decoded_height,
+            "height_msl_m": height_msl,
+            "height_msl_source": height_msl_source,
+            "height_agl_m": (
+                None
+                if height_msl is None or station_z is None
+                else round(float(height_msl) - float(station_z), 1)
+            ),
+            "station_elevation_m": station_z,
+            "below_station": below_station,
+            "in_working_profile": in_working,
+            "qc_flag": "below_station" if below_station else "",
+        })
+        rows.append(row)
+    return rows
 
 
 def extract_debufr_elements(
@@ -234,7 +348,25 @@ def process_profile(
     profile_id = make_profile_id(station_id, datetime_utc or "unknown", cycle)
     meta = profile.metadata or {}
 
+    station_z = (
+        profile.station_elevation_m
+        if profile.station_elevation_m is not None
+        else station_elevation_m(station_id)
+    )
+    surface = _pick_station_surface(
+        profile.levels,
+        station_id=station_id,
+        bufr_station_elevation_m=profile.station_elevation_m,
+    )
+    surface_pressure = surface.pressure_hpa if surface is not None else None
     levels = extract_temperature_levels(profile, pressure_top_hpa=pressure_top_hpa)
+    levels = fill_profile_level_heights(
+        levels,
+        surface_pressure_hpa=surface_pressure,
+        station_id=station_id,
+        station_elevation_override_m=station_z,
+    )
+    # Инверсия должна видеть уже окончательную высоту уровня.
     metrics = compute_profile_metrics(
         levels,
         pressure_top_hpa=pressure_top_hpa,
@@ -242,23 +374,7 @@ def process_profile(
         min_inversion_delta_c=min_inversion_delta_c,
         n_levels_total=len(profile.levels),
     )
-    from gdex_bufr.profile_climate.height_fill import fill_profile_level_heights
-
-    levels = fill_profile_level_heights(
-        levels,
-        surface_pressure_hpa=metrics.get("p_surface_hpa"),
-        station_id=station_id,
-    )
-    # если в BUFR есть 0-07-001 — пишем в метрики и подменяем SFC height при отсутствии
-    if profile.station_elevation_m is not None:
-        metrics["station_elevation_m"] = profile.station_elevation_m
-        for row in levels:
-            if (row.get("VSIG") or "").upper() == "SFC" and row.get("height_m") is None:
-                row["height_m"] = profile.station_elevation_m
-                row["geopotential_height_m"] = profile.station_elevation_m
-                row["FLVL"] = profile.station_elevation_m
-                row["height_obs_m"] = profile.station_elevation_m
-                row["height_source"] = "station_007001"
+    metrics["station_elevation_m"] = station_z
 
     profile_meta = {
         "station_id": station_id,
@@ -290,7 +406,12 @@ def process_profile(
     }
 
     decoded_rows: list[dict[str, Any]] = []
-    for row in extract_decoded_levels(profile, registry=reg, type_ann=type_ann):
+    for row in extract_decoded_levels(
+        profile,
+        registry=reg,
+        type_ann=type_ann,
+        pressure_top_hpa=pressure_top_hpa,
+    ):
         decoded_rows.append({
             "profile_id": profile_id,
             "station_name": station_name or "",

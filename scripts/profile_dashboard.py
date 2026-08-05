@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from datetime import date, datetime
@@ -45,7 +46,22 @@ from gdex_bufr.profile_climate.obs_qc import (  # noqa: E402
     suggest_outliers_spike,
 )
 
-DEFAULT_DATA = ROOT / "gdex_outputs" / "результаты-алдан" / "daily_profiles.json"
+ACTUAL_DATA = ROOT / "gdex_outputs" / "актуальное" / "daily_profiles.json"
+
+
+def _data_path_from_cli() -> Path:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--data")
+    args, _ = parser.parse_known_args()
+    return (
+        Path(args.data)
+        if args.data
+        else ACTUAL_DATA
+    )
+
+
+DEFAULT_DATA = _data_path_from_cli()
+LEGACY_DATA = ROOT / "gdex_outputs" / "результаты-алдан" / "daily_profiles.json"
 REQUIRED_SCHEMA = "observations_v1"
 
 OBS_PALETTE = [
@@ -224,6 +240,9 @@ def main() -> None:
 
     data_path = st.sidebar.text_input("daily_profiles.json", str(DEFAULT_DATA))
     data_file = Path(data_path)
+    if not data_file.exists() and data_file == ACTUAL_DATA and LEGACY_DATA.exists():
+        data_file = LEGACY_DATA
+        st.sidebar.caption(f"Fallback: {LEGACY_DATA}")
     if not data_file.exists():
         st.error(
             "Нет файла данных. Сначала выполните:\n\n"

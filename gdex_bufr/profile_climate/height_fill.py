@@ -118,22 +118,45 @@ def fill_profile_level_heights(
     *,
     surface_pressure_hpa: float | None,
     station_id: str | None = None,
+    station_elevation_override_m: float | None = None,
 ) -> list[dict[str, Any]]:
     """Добавляет height_obs_m, height_interp_m, height_baro_m и итоговый height_m."""
     if not levels:
         return levels
 
-    elev = station_elevation_m(station_id)
+    elev = _finite(station_elevation_override_m)
+    if elev is None:
+        elev = station_elevation_m(station_id)
     pressures = [_finite(lv.get("pressure_hpa")) for lv in levels]
     obs_heights: list[float | None] = []
+    obs_sources: list[str | None] = []
     for lv in levels:
-        obs_heights.append(
-            observed_or_geopot_height_m(
+        direct = _finite(lv.get("height_010009_m"))
+        if direct is None:
+            direct = _finite(lv.get("height_007007_m"))
+        phi = _finite(lv.get("geopotential_m2s2"))
+        height = None
+        source = None
+        if direct is not None:
+            height, source = direct, "level"
+        elif phi is not None:
+            height = round(geopotential_to_height_m(phi), 1)
+            source = "phi"
+        else:
+            height = observed_or_geopot_height_m(
                 height_m=_finite(lv.get("height_m")),
                 geopotential_height_m=_finite(lv.get("geopotential_height_m")),
-                geopotential_m2s2=_finite(lv.get("geopotential_m2s2")),
             )
-        )
+            if height is not None:
+                source = "observed_or_geopot"
+        if (
+            height is None
+            and str(lv.get("VSIG") or "").upper() == "SFC"
+            and elev is not None
+        ):
+            height, source = elev, "station_007001"
+        obs_heights.append(height)
+        obs_sources.append(source)
 
     # для интерп. якоря: только «наблюдённые» (включая Φ→z)
     interp_heights = interpolate_heights_on_pressure(
@@ -147,7 +170,9 @@ def fill_profile_level_heights(
         p_sfc = max(valid_p) if valid_p else None
 
     out: list[dict[str, Any]] = []
-    for lv, p, h_obs, h_interp in zip(levels, pressures, obs_heights, interp_heights):
+    for lv, p, h_obs, h_source, h_interp in zip(
+        levels, pressures, obs_heights, obs_sources, interp_heights
+    ):
         row = dict(lv)
         h_baro = None
         if p is not None and p_sfc is not None:
@@ -162,7 +187,7 @@ def fill_profile_level_heights(
         # итоговая рабочая высота: наблюдение → интерп → барометрия
         if h_obs is not None:
             row["height_m"] = h_obs
-            row["height_source"] = "observed_or_geopot"
+            row["height_source"] = h_source
         elif h_interp is not None:
             row["height_m"] = h_interp
             row["height_source"] = "interp"
@@ -172,6 +197,12 @@ def fill_profile_level_heights(
         else:
             row["height_m"] = None
             row["height_source"] = None
+        row["height_msl_m"] = row["height_m"]
+        row["height_agl_m"] = (
+            None
+            if row["height_m"] is None or elev is None
+            else round(float(row["height_m"]) - float(elev), 1)
+        )
         out.append(row)
     return out
 
@@ -190,12 +221,16 @@ def fill_long_dataframe_heights(long_df, metrics_df=None, *, station_id_default:
             metrics_map[str(row.profile_id)] = {
                 "station_id": str(getattr(row, "station_id", "") or ""),
                 "p_surface_hpa": _finite(getattr(row, "p_surface_hpa", None)),
+                "station_elevation_m": _finite(
+                    getattr(row, "station_elevation_m", None)
+                ),
             }
 
     n = len(df)
     height_interp = np.full(n, np.nan)
     height_baro = np.full(n, np.nan)
     height_final = np.full(n, np.nan)
+    elevation_by_row = np.full(n, np.nan)
     height_source = np.array([None] * n, dtype=object)
 
     # наблюдаемая / Φ→z (аналитика MetPy, векторно — без вызова MetPy на каждую строку)
@@ -240,7 +275,11 @@ def fill_long_dataframe_heights(long_df, metrics_df=None, *, station_id_default:
         pid = pid_sorted[a]
         meta = metrics_map.get(pid, {})
         station_id = meta.get("station_id") or sid_all[idx[0]] or station_id_default
-        elev = station_elevation_m(station_id)
+        elev = meta.get("station_elevation_m")
+        if elev is None:
+            elev = station_elevation_m(station_id)
+        if elev is not None:
+            elevation_by_row[idx] = float(elev)
         p = p_all[idx]
         h_obs = height_obs[idx]
         p_sfc = meta.get("p_surface_hpa")
@@ -278,5 +317,7 @@ def fill_long_dataframe_heights(long_df, metrics_df=None, *, station_id_default:
     df["height_interp_m"] = height_interp
     df["height_baro_m"] = height_baro
     df["height_m"] = height_final
+    df["height_msl_m"] = height_final
+    df["height_agl_m"] = height_final - elevation_by_row
     df["height_source"] = height_source
     return df

@@ -365,22 +365,45 @@ def _decode_adpupa_flat_levels(
                 return _normalize_temperature(current[did])
         return None
 
-    def _record_height() -> tuple[float | None, float | None]:
+    def _record_height() -> tuple[
+        float | None,
+        float | None,
+        float | None,
+        float | None,
+        float | None,
+    ]:
         geopotential = current.get(10008)
-        if not _is_missing(geopotential):
-            geopotential_f = float(geopotential)
-            # MetPy geopotential_to_height: z = Φ·Re / (g0·Re − Φ)
-            return round(geopotential_to_height_m(geopotential_f), 1), geopotential_f
-
+        geopotential_f = None if _is_missing(geopotential) else float(geopotential)
+        height_phi_m = (
+            None
+            if geopotential_f is None
+            else round(geopotential_to_height_m(geopotential_f), 1)
+        )
         geopotential_height = current.get(10009)
-        if not _is_missing(geopotential_height):
-            return float(geopotential_height), None
-
+        height_010009_m = (
+            None if _is_missing(geopotential_height) else float(geopotential_height)
+        )
         height_coordinate = current.get(7007)
-        if not _is_missing(height_coordinate):
-            return float(height_coordinate), None
+        height_007007_m = (
+            None if _is_missing(height_coordinate) else float(height_coordinate)
+        )
 
-        return None, None
+        # Прямые BUFR-высоты имеют приоритет; Φ→z хранится отдельно.
+        height_m = next(
+            (
+                value
+                for value in (height_010009_m, height_007007_m, height_phi_m)
+                if value is not None
+            ),
+            None,
+        )
+        return (
+            height_m,
+            geopotential_f,
+            height_010009_m,
+            height_007007_m,
+            height_phi_m,
+        )
 
     def _flush_record() -> None:
         nonlocal current, seq
@@ -394,12 +417,21 @@ def _decode_adpupa_flat_levels(
             return
 
         vsig_code = current.get(8001)
-        height_m, geopotential_m2s2 = _record_height()
+        (
+            height_m,
+            geopotential_m2s2,
+            height_010009_m,
+            height_007007_m,
+            height_phi_m,
+        ) = _record_height()
         seq += 1
         levels.append(
             VerticalLevel(
                 pressure_hpa=pressure,
                 geopotential_height_m=height_m,
+                height_010009_m=height_010009_m,
+                height_007007_m=height_007007_m,
+                height_phi_m=height_phi_m,
                 geopotential_m2s2=geopotential_m2s2,
                 air_temperature_c=_first_record_temperature(ADPUPA_TEMP_DIDS),
                 dew_point_temperature_c=_first_record_temperature(ADPUPA_DEWPOINT_DIDS),
@@ -711,6 +743,7 @@ def _decode_subset(
                 VerticalLevel(
                     pressure_hpa=pressure,
                     geopotential_height_m=heights[idx] if idx < len(heights) else None,
+                    height_010009_m=heights[idx] if idx < len(heights) else None,
                     air_temperature_c=temp,
                     dew_point_temperature_c=dewpoint,
                     wind_direction_deg=wind_dir,

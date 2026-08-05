@@ -12,6 +12,9 @@ from typing import Any
 class VerticalLevel:
     pressure_hpa: float | None = None
     geopotential_height_m: float | None = None
+    height_010009_m: float | None = None
+    height_007007_m: float | None = None
+    height_phi_m: float | None = None
     air_temperature_c: float | None = None
     dew_point_temperature_c: float | None = None
     wind_direction_deg: float | None = None
@@ -146,6 +149,9 @@ def enrich_vertical_level(
     return VerticalLevel(
         pressure_hpa=level.pressure_hpa,
         geopotential_height_m=height,
+        height_010009_m=level.height_010009_m,
+        height_007007_m=level.height_007007_m,
+        height_phi_m=level.height_phi_m,
         air_temperature_c=level.air_temperature_c,
         dew_point_temperature_c=level.dew_point_temperature_c,
         wind_direction_deg=level.wind_direction_deg,

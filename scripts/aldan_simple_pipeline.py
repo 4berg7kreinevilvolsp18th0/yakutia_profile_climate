@@ -76,6 +76,8 @@ LONG_FIELDS = [
     "height_interp_m",
     "height_baro_m",
     "height_m",
+    "height_msl_m",
+    "height_agl_m",
     "height_source",
     "qc_flag",
 ]
@@ -281,9 +283,9 @@ def select_levels(
     rows: list[dict[str, Any]] = []
     for index, level in enumerate(ordered):
         phi = finite(level.geopotential_m2s2)
-        # Адаптер кладёт в geopotential_height_m также уже рассчитанное Φ→z.
-        # Поэтому прямой BUFR height (010009/007007) отделяем по отсутствию Φ.
-        raw_height = finite(level.geopotential_height_m) if phi is None else None
+        raw_height = finite(level.height_010009_m)
+        if raw_height is None:
+            raw_height = finite(level.height_007007_m)
         phi_height = None
         if phi is not None:
             converted = geopotential_to_height_m(phi)
@@ -401,6 +403,8 @@ def fill_heights(
                 "height_interp_m": interp,
                 "height_baro_m": baro,
                 "height_m": round(float(final_height), 1),
+                "height_msl_m": round(float(final_height), 1),
+                "height_agl_m": round(float(final_height) - station_z, 1),
                 "height_source": final_source,
             }
         )

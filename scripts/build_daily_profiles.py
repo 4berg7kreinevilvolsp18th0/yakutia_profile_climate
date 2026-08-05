@@ -33,7 +33,8 @@ PLOT_MIN_LEVELS = 3
 SCHEMA = "observations_v1"
 LEVEL_MODES = ("raw", "clean")
 
-DEFAULT_DIR = Path("gdex_outputs") / "результаты-алдан"
+DEFAULT_DIR = Path("gdex_outputs") / "актуальное"
+LEGACY_DIR = Path("gdex_outputs") / "результаты-алдан"
 DEFAULT_LONG_CSV = DEFAULT_DIR / "profiles_long.csv"
 DEFAULT_METRICS_CSV = DEFAULT_DIR / "profile_metrics.csv"
 DEFAULT_OUTPUT = DEFAULT_DIR / "daily_profiles.json"
@@ -80,6 +81,9 @@ def resolve_xlsx(path: Path | None, search_dir: Path) -> Path | None:
         return path if path.exists() else None
     if not search_dir.exists():
         return None
+    actual = search_dir / "aldan_actual.xlsx"
+    if actual.exists():
+        return actual
     stamped = sorted(
         (
             p
@@ -108,7 +112,19 @@ def load_long_and_metrics(
             f"csv:{long_csv}|{metrics_csv}",
         )
 
+    if long_csv == DEFAULT_LONG_CSV and metrics_csv == DEFAULT_METRICS_CSV:
+        legacy_long = LEGACY_DIR / "profiles_long.csv"
+        legacy_metrics = LEGACY_DIR / "profile_metrics.csv"
+        if legacy_long.exists() and legacy_metrics.exists():
+            return (
+                pd.read_csv(legacy_long, low_memory=False),
+                pd.read_csv(legacy_metrics, low_memory=False),
+                f"legacy_csv:{legacy_long}|{legacy_metrics}",
+            )
+
     xlsx_path = resolve_xlsx(xlsx, long_csv.parent if long_csv.parent.exists() else DEFAULT_DIR)
+    if xlsx_path is None and long_csv == DEFAULT_LONG_CSV:
+        xlsx_path = resolve_xlsx(None, LEGACY_DIR)
     if xlsx_path is None:
         raise FileNotFoundError(
             "Нет CSV (profiles_long / profile_metrics) и нет Excel. "
@@ -116,7 +132,9 @@ def load_long_and_metrics(
             "Положите xlsx в ту же папку или укажите --xlsx PATH."
         )
 
-    long_df = pd.read_excel(xlsx_path, sheet_name="profiles_long")
+    sheet_names = set(pd.ExcelFile(xlsx_path).sheet_names)
+    long_sheet = "profiles_working" if "profiles_working" in sheet_names else "profiles_long"
+    long_df = pd.read_excel(xlsx_path, sheet_name=long_sheet)
     metrics_df = pd.read_excel(xlsx_path, sheet_name="profile_metrics")
     return long_df, metrics_df, f"xlsx:{xlsx_path}"
 

@@ -39,9 +39,15 @@ PROFILES_LONG_COLUMNS = [
     "pressure_hpa",
     "GEOPOT",
     "geopotential_m2s2",
+    "height_010009_m",
+    "height_007007_m",
+    "height_bufr_m",
+    "height_phi_m",
     "FLVL",
     "geopotential_height_m",
     "height_m",
+    "height_msl_m",
+    "height_agl_m",
     "height_obs_m",
     "height_interp_m",
     "height_baro_m",
@@ -87,10 +93,13 @@ PROFILE_METRICS_COLUMNS = [
     "t_top_c",
     "delta_t_top_surface_c",
     "inversion_detected",
+    "inversion_candidate",
+    "inversion_quality",
     "inversion_top_pressure_hpa",
     "inversion_top_height_m",
     "inversion_top_temp_c",
     "inversion_delta_t_c",
+    "inversion_confirm_drop_c",
     "profile_status",
     "source_file",
 ]
@@ -124,6 +133,18 @@ DECODED_LEVEL_BASE_COLUMNS = [
     "replication_index",
     "pressure_hpa",
     "geopotential_height_m",
+    "height_010009_m",
+    "height_007007_m",
+    "height_bufr_m",
+    "height_phi_m",
+    "height_decoded_m",
+    "height_msl_m",
+    "height_msl_source",
+    "height_agl_m",
+    "station_elevation_m",
+    "below_station",
+    "in_working_profile",
+    "qc_flag",
     "geopotential_m2s2",
     "air_temperature_c",
     "dew_point_temperature_c",
@@ -226,12 +247,20 @@ def write_profiles_long_csv(rows: list[dict[str, Any]], output_dir: Path) -> Pat
     return _write_csv(output_dir / "profiles_long.csv", rows, PROFILES_LONG_COLUMNS)
 
 
+def write_profiles_working_csv(rows: list[dict[str, Any]], output_dir: Path) -> Path:
+    return _write_csv(output_dir / "profiles_working.csv", rows, PROFILES_LONG_COLUMNS)
+
+
 def write_profile_metrics_csv(rows: list[dict[str, Any]], output_dir: Path) -> Path:
     return _write_csv(output_dir / "profile_metrics.csv", rows, PROFILE_METRICS_COLUMNS)
 
 
 def write_decoded_levels_csv(rows: list[dict[str, Any]], output_dir: Path) -> Path:
     return _write_csv(output_dir / "decoded_levels.csv", rows, DECODED_LEVEL_COLUMNS)
+
+
+def write_decoded_all_levels_csv(rows: list[dict[str, Any]], output_dir: Path) -> Path:
+    return _write_csv(output_dir / "decoded_all_levels.csv", rows, DECODED_LEVEL_COLUMNS)
 
 
 def write_debufr_elements_csv(rows: list[dict[str, Any]], output_dir: Path) -> Path:
@@ -346,16 +375,30 @@ def write_xlsx_exports(
         return None
     from gdex_bufr.profile_climate.field_types import FIELD_TYPE_COLUMNS, build_field_types_rows
 
+    is_actual = output_dir.name.casefold() == "актуальное"
     slug = output_dir.name.replace("результаты-", "") if "результаты-" in output_dir.name else output_dir.name
-    path = output_dir / f"{slug}_profile_climate_{time.strftime('%Y%m%d_%H%M%S')}.xlsx"
+    path = (
+        output_dir / "aldan_actual.xlsx"
+        if is_actual
+        else output_dir / f"{slug}_profile_climate_{time.strftime('%Y%m%d_%H%M%S')}.xlsx"
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     types_rows = field_type_rows if field_type_rows is not None else build_field_types_rows()
+    if decoded_rows is None and is_actual:
+        decoded_csv = output_dir / "decoded_all_levels.csv"
+        if decoded_csv.exists():
+            decoded_rows = pd.read_csv(decoded_csv, low_memory=False).to_dict("records")
     with pd.ExcelWriter(path, engine="openpyxl") as writer:
-        pd.DataFrame(long_rows, columns=PROFILES_LONG_COLUMNS).to_excel(writer, sheet_name="profiles_long", index=False)
+        working_sheet = "profiles_working" if is_actual else "profiles_long"
+        pd.DataFrame(long_rows, columns=PROFILES_LONG_COLUMNS).to_excel(
+            writer, sheet_name=working_sheet, index=False
+        )
         pd.DataFrame(metrics_rows, columns=PROFILE_METRICS_COLUMNS).to_excel(writer, sheet_name="profile_metrics", index=False)
         if decoded_rows is not None:
             pd.DataFrame(decoded_rows, columns=DECODED_LEVEL_COLUMNS).to_excel(
-                writer, sheet_name="decoded_levels", index=False
+                writer,
+                sheet_name="decoded_all_levels" if is_actual else "decoded_levels",
+                index=False,
             )
         if element_rows is not None:
             pd.DataFrame(element_rows, columns=DEBUFR_ELEMENT_COLUMNS).to_excel(
@@ -380,6 +423,7 @@ def export_checkpoint(
     output_dir = Path(output_dir)
     paths = {
         "profiles_long": str(write_profiles_long_csv(long_rows, output_dir)),
+        "profiles_working": str(write_profiles_working_csv(long_rows, output_dir)),
         "profile_metrics": str(write_profile_metrics_csv(metrics_rows, output_dir)),
         "monthly_summary": str(write_monthly_summary(metrics_rows, output_dir)),
         "station_summary": str(write_station_summary(metrics_rows, output_dir)),
@@ -388,6 +432,9 @@ def export_checkpoint(
     }
     if decoded_rows is not None:
         paths["decoded_levels"] = str(write_decoded_levels_csv(decoded_rows, output_dir))
+        paths["decoded_all_levels"] = str(
+            write_decoded_all_levels_csv(decoded_rows, output_dir)
+        )
     if element_rows is not None:
         paths["debufr_elements"] = str(write_debufr_elements_csv(element_rows, output_dir))
     return paths
@@ -405,6 +452,7 @@ def export_all(
     output_dir = Path(output_dir)
     paths = {
         "profiles_long": str(write_profiles_long_csv(long_rows, output_dir)),
+        "profiles_working": str(write_profiles_working_csv(long_rows, output_dir)),
         "profile_metrics": str(write_profile_metrics_csv(metrics_rows, output_dir)),
         "monthly_summary": str(write_monthly_summary(metrics_rows, output_dir)),
         "station_summary": str(write_station_summary(metrics_rows, output_dir)),
@@ -413,6 +461,9 @@ def export_all(
     }
     if decoded_rows is not None:
         paths["decoded_levels"] = str(write_decoded_levels_csv(decoded_rows, output_dir))
+        paths["decoded_all_levels"] = str(
+            write_decoded_all_levels_csv(decoded_rows, output_dir)
+        )
     if element_rows is not None:
         paths["debufr_elements"] = str(write_debufr_elements_csv(element_rows, output_dir))
     xlsx_path = write_xlsx_exports(

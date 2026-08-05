@@ -1,0 +1,10 @@
+{
+  "config": {},
+  "profiles_total": 1,
+  "levels_total": 9,
+  "profiles_good": 1,
+  "profiles_with_inversion": 1,
+  "stations": {
+    "31004:Aldan": 1
+  }
+}

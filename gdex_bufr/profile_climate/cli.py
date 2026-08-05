@@ -65,14 +65,17 @@ def _load_csv_rows(path: Path) -> list[dict]:
         return []
     rows: list[dict] = []
     float_fields = {
-        "pressure_hpa", "temperature_c", "height_m",
+        "pressure_hpa", "temperature_c", "height_m", "height_msl_m",
+        "height_agl_m", "height_bufr_m", "height_phi_m",
+        "station_elevation_m",
         "n_levels_total", "n_levels_to_500", "p_surface_hpa", "t_surface_c",
         "p_top_hpa", "t_top_c", "delta_t_top_surface_c",
         "inversion_top_pressure_hpa", "inversion_top_height_m",
         "inversion_top_temp_c", "inversion_delta_t_c",
+        "inversion_confirm_drop_c",
     }
     int_fields = {"year", "month", "level_index"}
-    bool_fields = {"inversion_detected"}
+    bool_fields = {"inversion_detected", "inversion_candidate"}
 
     with path.open(encoding="utf-8", newline="") as handle:
         for row in csv.DictReader(handle):
@@ -289,12 +292,13 @@ def cmd_monthly_profile_plots(
     end = _parse_date(args.end_date) or pc_cfg.end_date
     pressure_top = float(args.pressure_top or pc_cfg.pressure_top_hpa)
 
-    input_path = Path(args.input or "gdex_outputs/результаты-алдан/profiles_long.csv")
-    metrics_path = Path(args.metrics or "gdex_outputs/результаты-алдан/profile_metrics.csv")
+    input_path = Path(args.input or "gdex_outputs/актуальное/profiles_working.csv")
+    metrics_path = Path(args.metrics or "gdex_outputs/актуальное/profile_metrics.csv")
     plot_set = getattr(args, "plot_set", None) or "актуальное"
-    output_root = resolve_monthly_plots_root(
-        Path(args.output or "gdex_outputs/monthly_temperature_profiles"),
-        plot_set,
+    output_root = (
+        resolve_monthly_plots_root(Path(args.output), plot_set)
+        if args.output
+        else Path("gdex_outputs/актуальное/plots")
     )
     output_root.mkdir(parents=True, exist_ok=True)
 
