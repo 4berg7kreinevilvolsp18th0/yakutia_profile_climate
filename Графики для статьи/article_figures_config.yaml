@@ -1,0 +1,32 @@
+analysis:
+  station_id: "31004"
+  station_name: "Алдан"
+  station_elevation_m: 679
+  cycles: ["00", "12"]
+  pressure_top_hpa: 500
+  pressure_bottom_hpa: 1000
+  min_levels_to_500: 5
+  strict_surface_qc: true
+  max_surface_pressure_hpa: 960
+  use_surface_height_qc: false
+  max_surface_height_deviation_m: 250
+  trend_start_year: 2005
+  trend_end_year: 2025
+  moving_average_window: 5
+  pressure_grid_hpa: [500, 525, 550, 575, 600, 625, 650, 675, 700, 725, 750, 775, 800, 825, 850, 875, 900, 925]
+  standard_pressure_levels_hpa: [925, 850, 700, 500]
+  inversion:
+    min_inversion_delta_c: 0.2
+    confirm_drop_levels: 2
+    confirm_depth_hpa: 30
+    min_drop_delta_c: 0.2
+
+style:
+  language: ru
+  journal_mode: true
+  show_title: false
+  font_family: DejaVu Sans
+  base_font_size: 9.5
+  dpi: 600
+  completeness_cmap: cividis
+  output_formats: [png, svg]

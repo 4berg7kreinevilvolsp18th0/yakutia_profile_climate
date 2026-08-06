@@ -1,0 +1,123 @@
+{
+  "input": "/mnt/data/profiles_long.csv",
+  "rows": 183102,
+  "profiles": 18189,
+  "eligible_article_profiles": 17980,
+  "confirmed_inversions": 3498,
+  "trend": {
+    "sen_slope_pp_per_year": -0.3005992950754732,
+    "sen_slope_low": -0.5524861878453038,
+    "sen_slope_high": -0.03696016069635064,
+    "kendall_tau": -0.3484496797414458,
+    "p_value": 0.027427367767267972
+  },
+  "analysis_config": {
+    "station_id": "31004",
+    "station_name": "Алдан",
+    "station_elevation_m": 679,
+    "cycles": [
+      "00",
+      "12"
+    ],
+    "pressure_top_hpa": 500,
+    "pressure_bottom_hpa": 1000,
+    "min_levels_to_500": 5,
+    "exact_top_tolerance_hpa": 0.6,
+    "strict_surface_qc": true,
+    "max_surface_pressure_hpa": 960,
+    "use_surface_height_qc": false,
+    "max_surface_height_deviation_m": 250,
+    "trend_start_year": 2005,
+    "trend_end_year": 2025,
+    "moving_average_window": 5,
+    "pressure_grid_hpa": [
+      500.0,
+      525.0,
+      550.0,
+      575.0,
+      600.0,
+      625.0,
+      650.0,
+      675.0,
+      700.0,
+      725.0,
+      750.0,
+      775.0,
+      800.0,
+      825.0,
+      850.0,
+      875.0,
+      900.0,
+      925.0
+    ],
+    "standard_pressure_levels_hpa": [
+      925.0,
+      850.0,
+      700.0,
+      500.0
+    ],
+    "inversion": {
+      "min_inversion_delta_c": 0.2,
+      "confirm_drop_levels": 2,
+      "confirm_depth_hpa": 30,
+      "min_drop_delta_c": 0.2
+    }
+  },
+  "figure_style": {
+    "language": "ru",
+    "journal_mode": true,
+    "show_title": false,
+    "font_family": "DejaVu Sans",
+    "base_font_size": 9.5,
+    "title_font_size": 12.0,
+    "label_font_size": 10.0,
+    "tick_font_size": 8.5,
+    "legend_font_size": 8.5,
+    "line_width": 1.8,
+    "marker_size": 4.5,
+    "grid_alpha": 0.25,
+    "dpi": 600,
+    "completeness_cmap": "cividis",
+    "missing_color": "#E6E8EB",
+    "figure_width_in": 7.2,
+    "figure_height_in": 4.5,
+    "output_formats": [
+      "png",
+      "svg"
+    ]
+  },
+  "figures": {
+    "fig01_completeness_heatmap": [
+      "sample_output/figures/fig01_completeness_heatmap.png",
+      "sample_output/figures/fig01_completeness_heatmap.svg"
+    ],
+    "fig02_seasonal_temperature_profiles": [
+      "sample_output/figures/fig02_seasonal_temperature_profiles.png",
+      "sample_output/figures/fig02_seasonal_temperature_profiles.svg"
+    ],
+    "fig03_monthly_inversion_frequency": [
+      "sample_output/figures/fig03_monthly_inversion_frequency.png",
+      "sample_output/figures/fig03_monthly_inversion_frequency.svg"
+    ],
+    "fig04_annual_inversion_variability": [
+      "sample_output/figures/fig04_annual_inversion_variability.png",
+      "sample_output/figures/fig04_annual_inversion_variability.svg"
+    ],
+    "extra01_monthly_inversion_intensity": [
+      "sample_output/figures/extra01_monthly_inversion_intensity.png",
+      "sample_output/figures/extra01_monthly_inversion_intensity.svg"
+    ],
+    "extra02_monthly_inversion_top_height": [
+      "sample_output/figures/extra02_monthly_inversion_top_height.png",
+      "sample_output/figures/extra02_monthly_inversion_top_height.svg"
+    ],
+    "extra03_profile_qc_summary": [
+      "sample_output/figures/extra03_profile_qc_summary.png",
+      "sample_output/figures/extra03_profile_qc_summary.svg"
+    ],
+    "extra04_pressure_level_time_series": [
+      "sample_output/figures/extra04_pressure_level_time_series.png",
+      "sample_output/figures/extra04_pressure_level_time_series.svg"
+    ]
+  }
+}
