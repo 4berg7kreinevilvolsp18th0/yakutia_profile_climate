@@ -146,64 +146,93 @@ def _keep_monotonic(
     return np.asarray(keep_t, dtype=float), np.asarray(keep_y, dtype=float)
 
 
+def _pressure_ordered_series(
+    obs: dict[str, Any],
+    y_axis: str,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+    """Одна физическая последовательность уровней: земля → верх по убыванию P.
+
+    Возвращает (T, P, Y), где Y — давление или высота в том же порядке.
+    Так перевод осей гПа↔м не переставляет температуры и не «создаёт» точки.
+    """
+    temps = _as_nan_array(obs.get("temperature_c"))
+    pressures = _as_nan_array(obs.get("pressure_hpa"))
+    if temps is None or pressures is None:
+        return None
+    if y_axis == "pressure":
+        y_values = pressures
+    else:
+        y_values = _as_nan_array(obs.get("heights_m"))
+        if y_values is None:
+            return None
+
+    n = min(len(temps), len(pressures), len(y_values))
+    temps = temps[:n]
+    pressures = pressures[:n]
+    y_values = y_values[:n]
+    valid = ~np.isnan(temps) & ~np.isnan(pressures) & ~np.isnan(y_values)
+    if not valid.any():
+        return None
+    temps = temps[valid]
+    pressures = pressures[valid]
+    y_values = y_values[valid]
+    # Стабильный порядок по давлению (как на оси гПа).
+    order = np.argsort(-pressures, kind="mergesort")
+    return temps[order], pressures[order], y_values[order]
+
+
+def _drop_non_increasing_height(
+    temps: np.ndarray,
+    pressures: np.ndarray,
+    heights: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray] | None:
+    """В порядке убывания P оставляем только растущую высоту (без петель на оси м)."""
+    keep_t = [float(temps[0])]
+    keep_h = [float(heights[0])]
+    last_h = keep_h[0]
+    for i in range(1, len(heights)):
+        hi = float(heights[i])
+        if hi > last_h:
+            keep_t.append(float(temps[i]))
+            keep_h.append(hi)
+            last_h = hi
+    if len(keep_t) < MIN_PLOT_POINTS:
+        return None
+    return np.asarray(keep_t, dtype=float), np.asarray(keep_h, dtype=float)
+
+
 def prepare_plot_arrays(
     obs: dict[str, Any],
     y_axis: str,
 ) -> tuple[np.ndarray, np.ndarray] | None:
-    """T и Y для графика: без спиралей (строго монотонный Y).
+    """T и Y для графика: тот же порядок уровней, что и по давлению.
 
-    Давление: сортировка по убыванию P.
-    Высота: сортировка по возрастанию H (не по давлению — иначе при кривом
-    геопотенциале линия на оси метров снова ломается).
+    Давление: строго убывающий P.
+    Высота: те же уровни по убыванию P, отбрасываем провалы H (спирали).
     Возвращает (temperature_c, y_values) или None.
     """
-    t = _as_nan_array(obs.get("temperature_c"))
-    if t is None:
+    series = _pressure_ordered_series(obs, y_axis)
+    if series is None:
+        return None
+    temps, pressures, y_values = series
+    if len(temps) < MIN_PLOT_POINTS:
         return None
 
     if y_axis == "pressure":
-        y = _as_nan_array(obs.get("pressure_hpa"))
-        decreasing = True
-    else:
-        y = _as_nan_array(obs.get("heights_m"))
-        decreasing = False
-    if y is None:
-        return None
-
-    n = min(len(t), len(y))
-    t = t[:n]
-    y = y[:n]
-    valid = ~np.isnan(t) & ~np.isnan(y)
-    if valid.sum() < MIN_PLOT_POINTS:
-        return None
-    t = t[valid]
-    y = y[valid]
-    # Сортируем по оси: давление сверху вниз, высота снизу вверх.
-    order = np.argsort(-y if decreasing else y)
-    return _keep_monotonic(t[order], y[order], decreasing=decreasing)
+        return _keep_monotonic(temps, pressures, decreasing=True)
+    return _drop_non_increasing_height(temps, pressures, y_values)
 
 
 def raw_plot_arrays(
     obs: dict[str, Any],
     y_axis: str,
 ) -> tuple[np.ndarray, np.ndarray] | None:
-    """T и Y без QC-отбраковки, но с сортировкой по оси Y."""
-    temps = _as_float_array(obs.get("temperature_c"))
-    y_values = _as_float_array(
-        obs.get("pressure_hpa") if y_axis == "pressure" else obs.get("heights_m")
-    )
-    if temps is None or y_values is None:
+    """T и Y без QC: порядок всегда по убыванию давления (перевод осей 1:1)."""
+    series = _pressure_ordered_series(obs, y_axis)
+    if series is None:
         return None
-    n = min(len(temps), len(y_values))
-    temps = temps[:n]
-    y_values = y_values[:n]
-    valid = ~np.isnan(temps) & ~np.isnan(y_values)
-    if valid.sum() < 1:
-        return None
-    temps = temps[valid]
-    y_values = y_values[valid]
-    order = np.argsort(-y_values if y_axis == "pressure" else y_values)
-    return temps[order], y_values[order]
+    temps, _pressures, y_values = series
+    return temps, y_values
 
 
 def remove_temperature_spikes_by_pressure(

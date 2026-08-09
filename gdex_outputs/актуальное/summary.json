@@ -1,10 +1,24 @@
 {
-  "config": {},
-  "profiles_total": 1,
-  "levels_total": 9,
-  "profiles_good": 1,
-  "profiles_with_inversion": 1,
+  "config": {
+    "station_id": "31004",
+    "station_slug": "aldan",
+    "station_name": "Aldan",
+    "start_date": "1999-10-01",
+    "end_date": "2026-07-30",
+    "pressure_top_hpa": 500.0,
+    "cycles": [
+      "00",
+      "06",
+      "12",
+      "18"
+    ],
+    "mode": "fast_process_pool_stream"
+  },
+  "profiles_total": 18215,
+  "levels_total": 183179,
+  "profiles_good": 17998,
+  "profiles_with_inversion": 3538,
   "stations": {
-    "31004:Aldan": 1
+    "31004:Aldan": 18215
   }
 }
