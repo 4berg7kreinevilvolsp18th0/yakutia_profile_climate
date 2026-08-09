@@ -6,6 +6,9 @@
 
 Подробная инструкция: [PROFILE_CLIMATE_README.md](PROFILE_CLIMATE_README.md)
 
+Гайд по архитектуре и высотам (для объяснений): [docs/HEIGHT_ARCHITECTURE_GUIDE.md](docs/HEIGHT_ARCHITECTURE_GUIDE.md)  
+Методы/формулы (статья): [docs/METHODS_HEIGHT_INVERSION.md](docs/METHODS_HEIGHT_INVERSION.md)
+
 ## Быстрый старт
 
 ```bash
