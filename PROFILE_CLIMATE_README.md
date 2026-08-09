@@ -152,9 +152,11 @@ python -m gdex_bufr monthly-profile-plots \
 Выбор месяца, ручное отключение выбросов, пересчёт среднего:
 
 ```bash
-python scripts/build_daily_profiles.py
-python -m streamlit run scripts/profile_dashboard.py
+py -3 scripts/build_daily_profiles.py
+py -3 -m streamlit run scripts/profile_dashboard.py
 ```
+
+> На Windows команда `python` часто указывает на старый Python 2.7 — используйте `py -3`.
 
 На графике:
 - ось Y переключается между **давлением** и **высотой**;
@@ -167,7 +169,7 @@ python -m streamlit run scripts/profile_dashboard.py
 Для воспроизведения прежнего предварительно очищенного JSON:
 
 ```bash
-python scripts/build_daily_profiles.py --level-mode clean
+py -3 scripts/build_daily_profiles.py --level-mode clean
 ```
 
 Настройки в [`profile_climate_config.yaml`](profile_climate_config.yaml):
@@ -182,10 +184,6 @@ python scripts/build_daily_profiles.py --level-mode clean
 ```text
 gdex_outputs/monthly_temperature_profiles/актуальное/aldan/1999/aldan_1999_01_temperature_profiles_to_500hpa.png
 ```
-python -m gdex_bufr.run_fast_extract --actual --fresh --station aldan
-python scripts/build_daily_profiles.py
-python -m gdex_bufr monthly-profile-plots
-python -m streamlit run scripts/profile_dashboard.py
 
 ## Интерпретация `profile_metrics.csv`
 
