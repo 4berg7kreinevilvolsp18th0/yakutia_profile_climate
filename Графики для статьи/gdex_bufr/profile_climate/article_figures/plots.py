@@ -16,6 +16,10 @@ MONTHS_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct
 SEASONS_RU = {"DJF": "Зима", "MAM": "Весна", "JJA": "Лето", "SON": "Осень"}
 SEASONS_EN = {"DJF": "Winter", "MAM": "Spring", "JJA": "Summer", "SON": "Autumn"}
 
+DEFAULT_ANNOTATE_BELOW_PERCENT = 80.0
+COMPLETENESS_VMIN = 0
+COMPLETENESS_VMAX = 100
+
 
 @contextmanager
 def article_rc(style: FigureStyle):
@@ -50,7 +54,7 @@ def plot_completeness_heatmap(
     matrix: pd.DataFrame,
     style: FigureStyle,
     *,
-    annotate_below: float | None = 80.0,
+    annotate_below: float | None = DEFAULT_ANNOTATE_BELOW_PERCENT,
     title: str | None = None,
 ):
     with article_rc(style):
@@ -59,7 +63,14 @@ def plot_completeness_heatmap(
         masked = np.ma.masked_invalid(values)
         cmap = mpl.colormaps[style.completeness_cmap].copy()
         cmap.set_bad(style.missing_color)
-        image = ax.imshow(masked, aspect="auto", interpolation="nearest", vmin=0, vmax=100, cmap=cmap)
+        image = ax.imshow(
+            masked,
+            aspect="auto",
+            interpolation="nearest",
+            vmin=COMPLETENESS_VMIN,
+            vmax=COMPLETENESS_VMAX,
+            cmap=cmap,
+        )
         ax.set_xticks(np.arange(12), labels=_months(style))
         ax.set_yticks(np.arange(len(matrix.index)), labels=[str(x) for x in matrix.index])
         ax.set_xlabel("Месяц" if style.language == "ru" else "Month")

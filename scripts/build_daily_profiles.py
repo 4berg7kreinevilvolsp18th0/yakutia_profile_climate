@@ -5,7 +5,7 @@ import argparse
 import json
 import sys
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +32,15 @@ PRESSURE_TOP_HPA = 500.0
 PLOT_MIN_LEVELS = 3
 SCHEMA = "observations_v1"
 LEVEL_MODES = ("raw", "clean")
+
+# Необязательные возможности сборки: дашборд включает элементы UI только при их наличии,
+# поэтому схема остаётся observations_v1 и старые JSON продолжают открываться.
+FEATURES = (
+    "inversion_quality",      # inversion_quality / inversion_candidate / confirm_drop
+    "height_variants",        # heights_interp_m / heights_baro_m на каждом наблюдении
+    "height_source_counts",   # состав источников высоты внутри зонда
+    "surface_context",        # p_surface_hpa / station_elevation_m
+)
 
 DEFAULT_DIR = Path("gdex_outputs") / "актуальное"
 LEGACY_DIR = Path("gdex_outputs") / "результаты-алдан"
@@ -62,16 +71,39 @@ def _finite_metric(value: Any) -> float | None:
     return f
 
 
-def _metric_inversion_fields(metric: Any) -> dict[str, float | None]:
+def _metric_flag(metric: Any, name: str) -> bool:
+    value = getattr(metric, name, False)
+    try:
+        if pd.isna(value):
+            return False
+    except (TypeError, ValueError):
+        pass
+    if isinstance(value, str):
+        return value.strip().lower() in {"true", "1", "yes", "да"}
+    return bool(value)
+
+
+def _metric_inversion_fields(metric: Any) -> dict[str, Any]:
+    """Поля инверсии из метрик, включая семантику v2 (quality / candidate)."""
     h = _finite_metric(getattr(metric, "inversion_top_height_m", None))
     p = _finite_metric(getattr(metric, "inversion_top_pressure_hpa", None))
     t = _finite_metric(getattr(metric, "inversion_top_temp_c", None))
     d = _finite_metric(getattr(metric, "inversion_delta_t_c", None))
+    drop = _finite_metric(getattr(metric, "inversion_confirm_drop_c", None))
+    quality = getattr(metric, "inversion_quality", None)
+    try:
+        if quality is None or pd.isna(quality):
+            quality = ""
+    except (TypeError, ValueError):
+        pass
     return {
         "inversion_top_height_m": None if h is None else round(h, 1),
         "inversion_top_pressure_hpa": None if p is None else round(p, 1),
         "inversion_top_temp_c": None if t is None else round(t, 2),
         "inversion_delta_t_c": None if d is None else round(d, 2),
+        "inversion_confirm_drop_c": None if drop is None else round(drop, 2),
+        "inversion_quality": str(quality or ""),
+        "inversion_candidate": _metric_flag(metric, "inversion_candidate"),
     }
 
 
@@ -183,6 +215,82 @@ def _obs_arrays(
     return heights, pressures, temps, heights_interp, heights_baro
 
 
+def _station_elevation(
+    long_df: pd.DataFrame,
+    metrics_df: pd.DataFrame,
+    station_id: str,
+) -> float | None:
+    """Высота станции: из метрик, иначе из long-таблицы, иначе из справочника."""
+    for frame in (metrics_df, long_df):
+        if frame is None or "station_elevation_m" not in frame.columns:
+            continue
+        values = frame["station_elevation_m"].dropna()
+        if len(values):
+            elevation = _finite_metric(values.iloc[0])
+            if elevation is not None:
+                return round(elevation, 1)
+    fallback = STATION_ELEVATION_M.get(str(station_id).zfill(5)[-5:])
+    return None if fallback is None else round(float(fallback), 1)
+
+
+def _height_source_counts(levels: list[dict[str, Any]]) -> dict[str, int]:
+    """Сколько уровней получило высоту каждым методом (level/phi/interp/baro/…)."""
+    counts: dict[str, int] = {}
+    for level in levels:
+        source = level.get("height_source")
+        if source is None or (isinstance(source, float) and source != source):
+            source = "none"
+        key = str(source)
+        counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def _make_observation(
+    *,
+    profile_id: str,
+    datetime_utc: str,
+    cycle: Any,
+    heights_m: list[Any],
+    heights_interp_m: list[Any],
+    heights_baro_m: list[Any],
+    pressure_hpa: list[Any],
+    temperature_c: list[Any],
+    n_levels: int,
+    t_surface_c: float | None,
+    inversion_detected: bool,
+    inv_fields: dict[str, Any],
+    profile_status: str,
+    p_surface_hpa: float | None = None,
+    station_elevation_m: float | None = None,
+    height_source_counts: dict[str, int] | None = None,
+    missing_levels: bool = False,
+) -> dict[str, Any]:
+    """Единая структура наблюдения — общая для профилей с уровнями и без них."""
+    observation: dict[str, Any] = {
+        "profile_id": profile_id,
+        "datetime_utc": datetime_utc,
+        "cycle": str(cycle).zfill(2)[-2:],
+        "heights_m": heights_m,
+        "heights_interp_m": heights_interp_m,
+        "heights_baro_m": heights_baro_m,
+        "pressure_hpa": pressure_hpa,
+        "temperature_c": temperature_c,
+        "n_levels": n_levels,
+        "t_surface_c": t_surface_c,
+        "inversion_detected": inversion_detected,
+        **inv_fields,
+        "profile_status": profile_status,
+        "p_surface_hpa": None if p_surface_hpa is None else round(float(p_surface_hpa), 2),
+        "station_elevation_m": (
+            None if station_elevation_m is None else round(float(station_elevation_m), 1)
+        ),
+        "height_source_counts": height_source_counts or {},
+    }
+    if missing_levels:
+        observation["missing_levels"] = True
+    return observation
+
+
 def _day_mean_on_pressure(
     observations: list[dict[str, Any]],
     *,
@@ -223,6 +331,152 @@ def _day_mean_on_pressure(
     }
 
 
+REJECTED_CLEAN_STATUSES = frozenset({
+    "no_temp", "bad_pressure", "duplicate_levels", "no_surface_level",
+})
+
+
+def _observation_from_group(
+    profile_id: str,
+    group: pd.DataFrame,
+    metric: Any,
+    *,
+    level_mode: str,
+    pressure_top_hpa: float,
+    max_surface_pressure_hpa: float,
+    min_levels: int,
+) -> tuple[str, dict[str, Any]] | None:
+    """Собирает одно наблюдение из строк профиля. None — пропуск."""
+    status = getattr(metric, "profile_status", None) if metric is not None else None
+    if level_mode == "clean" and status in REJECTED_CLEAN_STATUSES:
+        return None
+
+    levels = _series_to_levels(group)
+    if level_mode == "clean":
+        levels = clean_observation_levels(
+            levels,
+            pressure_top_hpa=pressure_top_hpa,
+            max_surface_pressure_hpa=max_surface_pressure_hpa,
+        )
+    if len(levels) < min_levels:
+        return None
+
+    dt = str(group["datetime_utc"].iloc[0])
+    try:
+        day = _day_key(dt)
+    except ValueError:
+        return None
+
+    heights, pressures, temps, heights_interp, heights_baro = _obs_arrays(levels)
+    t_surface = None
+    inversion = False
+    status_text = ""
+    inv_fields = _metric_inversion_fields(None)
+    p_surface = None
+    station_z = None
+    if metric is not None:
+        t_s = getattr(metric, "t_surface_c", None)
+        if t_s is not None and not (isinstance(t_s, float) and np.isnan(t_s)):
+            t_surface = round(float(t_s), 3)
+        inversion = _metric_flag(metric, "inversion_detected")
+        status_text = str(getattr(metric, "profile_status", "") or "")
+        inv_fields = _metric_inversion_fields(metric)
+        p_surface = _finite_metric(getattr(metric, "p_surface_hpa", None))
+        station_z = _finite_metric(getattr(metric, "station_elevation_m", None))
+    if t_surface is None and temps:
+        t_surface = temps[0]
+    if p_surface is None and pressures:
+        p_surface = max(pressures)
+
+    return day, _make_observation(
+        profile_id=profile_id,
+        datetime_utc=dt,
+        cycle=group["cycle"].iloc[0],
+        heights_m=heights,
+        heights_interp_m=heights_interp,
+        heights_baro_m=heights_baro,
+        pressure_hpa=pressures,
+        temperature_c=temps,
+        n_levels=len(levels),
+        t_surface_c=t_surface,
+        inversion_detected=inversion,
+        inv_fields=inv_fields,
+        profile_status=status_text,
+        p_surface_hpa=p_surface,
+        station_elevation_m=station_z,
+        height_source_counts=_height_source_counts(levels),
+    )
+
+
+def _append_metrics_only_profiles(
+    by_day: dict[str, list[dict[str, Any]]],
+    metrics_df: pd.DataFrame,
+    profiles_with_levels: set[str],
+) -> None:
+    """В raw-режиме добавляет профили без уровней (только метрики)."""
+    for metric in metrics_df.itertuples(index=False):
+        profile_id = str(metric.profile_id)
+        if profile_id in profiles_with_levels:
+            continue
+        dt = str(getattr(metric, "datetime_utc", ""))
+        try:
+            day = _day_key(dt)
+        except ValueError:
+            continue
+        t_surface = _finite_metric(getattr(metric, "t_surface_c", None))
+        by_day[day].append(_make_observation(
+            profile_id=profile_id,
+            datetime_utc=dt,
+            cycle=getattr(metric, "cycle", ""),
+            heights_m=[],
+            heights_interp_m=[],
+            heights_baro_m=[],
+            pressure_hpa=[],
+            temperature_c=[],
+            n_levels=0,
+            t_surface_c=None if t_surface is None else round(t_surface, 3),
+            inversion_detected=_metric_flag(metric, "inversion_detected"),
+            inv_fields=_metric_inversion_fields(metric),
+            profile_status=str(getattr(metric, "profile_status", "") or ""),
+            p_surface_hpa=_finite_metric(getattr(metric, "p_surface_hpa", None)),
+            station_elevation_m=_finite_metric(getattr(metric, "station_elevation_m", None)),
+            missing_levels=True,
+        ))
+
+
+def _build_months_payload(
+    by_day: dict[str, list[dict[str, Any]]],
+    *,
+    grid_points: int,
+) -> tuple[dict[str, dict[str, Any]], int]:
+    """Группирует дни по месяцам и считает суточные средние."""
+    months: dict[str, dict[str, Any]] = {}
+    n_observations = 0
+    for day, observations in sorted(by_day.items()):
+        observations.sort(key=lambda o: (o["datetime_utc"], o["cycle"], o["profile_id"]))
+        month_key = day[:7]
+        day_mean = _day_mean_on_pressure(observations, grid_points=grid_points)
+        t_surfaces = [o["t_surface_c"] for o in observations if o.get("t_surface_c") is not None]
+        months.setdefault(month_key, {"days": []})
+        months[month_key]["days"].append({
+            "date": day,
+            "n_profiles": len(observations),
+            "n_good": sum(1 for o in observations if o.get("profile_status") == "good"),
+            "n_missing_levels": sum(1 for o in observations if o.get("missing_levels")),
+            "inversion_detected": any(o.get("inversion_detected") for o in observations),
+            "t_surface_c": (
+                round(float(np.mean(t_surfaces)), 3) if t_surfaces else None
+            ),
+            "observations": observations,
+            "day_mean": day_mean,
+        })
+        n_observations += len(observations)
+
+    for month_key in months:
+        months[month_key]["days"].sort(key=lambda d: d["date"])
+    return months, n_observations
+
+
 def build_daily_profiles(
     long_csv: Path,
     metrics_csv: Path,
@@ -238,6 +492,7 @@ def build_daily_profiles(
         raise ValueError(f"level_mode должен быть одним из {LEVEL_MODES}: {level_mode}")
     min_levels = (1 if level_mode == "raw" else PLOT_MIN_LEVELS) if plot_min_levels is None else plot_min_levels
 
+    # 1) Читаем таблицы и заполняем высоты.
     long_df, metrics_df, source = load_long_and_metrics(long_csv, metrics_csv, xlsx=xlsx)
     print(f"Источник таблиц: {source}")
     print(
@@ -257,139 +512,43 @@ def build_daily_profiles(
         for row in metrics_df.itertuples(index=False)
     }
 
+    # 2) Собираем наблюдения по дням.
     by_day: dict[str, list[dict[str, Any]]] = defaultdict(list)
     profiles_with_levels: set[str] = set()
-
     for profile_id, group in long_df.groupby("profile_id"):
         profile_id = str(profile_id)
         profiles_with_levels.add(profile_id)
-        metric = metrics_map.get(profile_id)
-        status = getattr(metric, "profile_status", None) if metric is not None else None
-        if level_mode == "clean" and status in {
-            "no_temp", "bad_pressure", "duplicate_levels", "no_surface_level",
-        }:
+        built = _observation_from_group(
+            profile_id,
+            group,
+            metrics_map.get(profile_id),
+            level_mode=level_mode,
+            pressure_top_hpa=pressure_top_hpa,
+            max_surface_pressure_hpa=max_surface_pressure_hpa,
+            min_levels=min_levels,
+        )
+        if built is None:
             continue
+        day, obs = built
+        by_day[day].append(obs)
 
-        levels = _series_to_levels(group)
-        if level_mode == "clean":
-            levels = clean_observation_levels(
-                levels,
-                pressure_top_hpa=pressure_top_hpa,
-                max_surface_pressure_hpa=max_surface_pressure_hpa,
-            )
-        if len(levels) < min_levels:
-            continue
-
-        dt = str(group["datetime_utc"].iloc[0])
-        try:
-            day = _day_key(dt)
-        except ValueError:
-            continue
-
-        cycle = str(group["cycle"].iloc[0]).zfill(2)[-2:]
-        heights, pressures, temps, heights_interp, heights_baro = _obs_arrays(levels)
-
-        t_surface = None
-        inversion = False
-        status = ""
-        inv_top_h = inv_top_p = inv_top_t = inv_delta = None
-        if metric is not None:
-            t_s = getattr(metric, "t_surface_c", None)
-            if t_s is not None and not (isinstance(t_s, float) and np.isnan(t_s)):
-                t_surface = round(float(t_s), 3)
-            inversion = bool(getattr(metric, "inversion_detected", False))
-            status = str(getattr(metric, "profile_status", "") or "")
-            inv_fields = _metric_inversion_fields(metric)
-            inv_top_h = inv_fields["inversion_top_height_m"]
-            inv_top_p = inv_fields["inversion_top_pressure_hpa"]
-            inv_top_t = inv_fields["inversion_top_temp_c"]
-            inv_delta = inv_fields["inversion_delta_t_c"]
-        if t_surface is None and temps:
-            t_surface = temps[0]
-
-        by_day[day].append({
-            "profile_id": profile_id,
-            "datetime_utc": dt,
-            "cycle": cycle,
-            "heights_m": heights,
-            "heights_interp_m": heights_interp,
-            "heights_baro_m": heights_baro,
-            "pressure_hpa": pressures,
-            "temperature_c": temps,
-            "n_levels": len(levels),
-            "t_surface_c": t_surface,
-            "inversion_detected": inversion,
-            "inversion_top_height_m": inv_top_h,
-            "inversion_top_pressure_hpa": inv_top_p,
-            "inversion_top_temp_c": inv_top_t,
-            "inversion_delta_t_c": inv_delta,
-            "profile_status": status or "",
-        })
-
+    # 3) В raw добавляем профили без уровней, чтобы ничего не терялось.
     if level_mode == "raw":
-        for metric in metrics_df.itertuples(index=False):
-            profile_id = str(metric.profile_id)
-            if profile_id in profiles_with_levels:
-                continue
-            dt = str(getattr(metric, "datetime_utc", ""))
-            try:
-                day = _day_key(dt)
-            except ValueError:
-                continue
-            t_surface = getattr(metric, "t_surface_c", None)
-            if t_surface is not None and pd.isna(t_surface):
-                t_surface = None
-            inversion = getattr(metric, "inversion_detected", False)
-            inv_fields = _metric_inversion_fields(metric)
-            by_day[day].append({
-                "profile_id": profile_id,
-                "datetime_utc": dt,
-                "cycle": str(getattr(metric, "cycle", "")).zfill(2)[-2:],
-                "heights_m": [],
-                "pressure_hpa": [],
-                "temperature_c": [],
-                "n_levels": 0,
-                "t_surface_c": None if t_surface is None else round(float(t_surface), 3),
-                "inversion_detected": False if pd.isna(inversion) else bool(inversion),
-                "inversion_top_height_m": inv_fields["inversion_top_height_m"],
-                "inversion_top_pressure_hpa": inv_fields["inversion_top_pressure_hpa"],
-                "inversion_top_temp_c": inv_fields["inversion_top_temp_c"],
-                "inversion_delta_t_c": inv_fields["inversion_delta_t_c"],
-                "profile_status": str(getattr(metric, "profile_status", "") or ""),
-                "missing_levels": True,
-            })
+        _append_metrics_only_profiles(by_day, metrics_df, profiles_with_levels)
 
-    months: dict[str, dict[str, Any]] = {}
-    n_observations = 0
-    for day, observations in sorted(by_day.items()):
-        observations.sort(key=lambda o: (o["datetime_utc"], o["cycle"], o["profile_id"]))
-        month_key = day[:7]
-        day_mean = _day_mean_on_pressure(observations, grid_points=grid_points)
-        t_surfaces = [o["t_surface_c"] for o in observations if o.get("t_surface_c") is not None]
-        months.setdefault(month_key, {"days": []})
-        months[month_key]["days"].append({
-            "date": day,
-            "n_profiles": len(observations),
-            "n_good": sum(1 for o in observations if o.get("profile_status") == "good"),
-            "inversion_detected": any(o.get("inversion_detected") for o in observations),
-            "t_surface_c": (
-                round(float(np.mean(t_surfaces)), 3) if t_surfaces else None
-            ),
-            "observations": observations,
-            "day_mean": day_mean,
-        })
-        n_observations += len(observations)
-
-    for month_key in months:
-        months[month_key]["days"].sort(key=lambda d: d["date"])
-
+    # 4) Собираем месяцы и итоговый JSON.
+    months, n_observations = _build_months_payload(by_day, grid_points=grid_points)
     station_name = str(long_df["station_name"].iloc[0]) if len(long_df) else ""
     station_id = str(long_df["station_id"].iloc[0]) if len(long_df) else ""
+    station_z = _station_elevation(long_df, metrics_df, station_id)
 
     return {
         "schema": SCHEMA,
+        "features": list(FEATURES),
+        "built_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "station_id": station_id,
         "station_name": station_name,
+        "station_elevation_m": station_z,
         "source_tables": source,
         "pressure_top_hpa": pressure_top_hpa,
         "max_surface_pressure_hpa": max_surface_pressure_hpa,
@@ -444,6 +603,8 @@ def main() -> int:
     print(json.dumps({
         "output": str(out),
         "schema": payload["schema"],
+        "features": payload.get("features"),
+        "station_elevation_m": payload.get("station_elevation_m"),
         "source_tables": payload.get("source_tables"),
         "n_days": payload["n_days"],
         "n_observations": payload["n_observations"],

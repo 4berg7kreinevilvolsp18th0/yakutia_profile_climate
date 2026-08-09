@@ -35,6 +35,49 @@ from gdex_bufr.profile_climate.article_figures.plots import (
     plot_seasonal_temperature_profiles,
 )
 
+DEFAULT_STATION_ID = "31004"
+DEFAULT_CYCLES = ("00", "12")
+COMPLETENESS_ANNOTATE_BELOW = 80.0
+
+
+def _load_csv_source(uploaded, path_value: str) -> tuple[bytes | None, str]:
+    if uploaded is not None:
+        return uploaded.getvalue(), uploaded.name
+    path = Path(path_value)
+    if path_value and path.exists():
+        return path.read_bytes(), path.name
+    return None, ""
+
+
+def _build_analysis_config(
+    *,
+    station_id: str,
+    cycles: tuple[str, ...],
+    strict_qc: bool,
+    max_surface_pressure: float,
+    use_height_qc: bool,
+    height_tolerance: float,
+    min_delta: float,
+    confirm_levels: int,
+    confirm_depth: float,
+    min_drop: float,
+) -> AnalysisConfig:
+    return AnalysisConfig(
+        station_id=station_id,
+        cycles=cycles,
+        strict_surface_qc=strict_qc,
+        max_surface_pressure_hpa=max_surface_pressure,
+        use_surface_height_qc=use_height_qc,
+        max_surface_height_deviation_m=height_tolerance,
+        inversion=InversionConfig(
+            min_inversion_delta_c=min_delta,
+            confirm_drop_levels=confirm_levels,
+            confirm_depth_hpa=confirm_depth,
+            min_drop_delta_c=min_drop,
+        ),
+    )
+
+
 st.set_page_config(page_title="Графики статьи — Алдан", layout="wide")
 st.title("Графики статьи по температурным профилям Алдана")
 st.caption("Единый интерфейс для QC, климатологии, инверсий и экспорта публикационных рисунков.")
@@ -72,24 +115,26 @@ def fig_bytes(fig, fmt: str, dpi: int) -> bytes:
 uploaded = st.sidebar.file_uploader("profiles_long.csv", type=["csv"])
 path_value = st.sidebar.text_input("Или путь к CSV", value="gdex_outputs/результаты-алдан/profiles_long.csv")
 
-raw = None
-source_name = ""
-if uploaded is not None:
-    raw = uploaded.getvalue()
-    source_name = uploaded.name
-elif path_value and Path(path_value).exists():
-    raw = Path(path_value).read_bytes()
-    source_name = Path(path_value).name
-
+raw, source_name = _load_csv_source(uploaded, path_value)
 if raw is None:
     st.info("Загрузите profiles_long.csv или укажите существующий путь в боковой панели.")
     st.stop()
 
 df_all = cached_load(raw, source_name)
 stations = sorted(df_all["station_id"].dropna().astype(str).unique())
-station_id = st.sidebar.selectbox("WMO станции", stations, index=stations.index("31004") if "31004" in stations else 0)
+station_id = st.sidebar.selectbox(
+    "WMO станции",
+    stations,
+    index=stations.index(DEFAULT_STATION_ID) if DEFAULT_STATION_ID in stations else 0,
+)
 cycles_available = sorted(x for x in df_all["cycle"].unique() if x)
-cycles = tuple(st.sidebar.multiselect("Сроки UTC", cycles_available, default=[x for x in ["00", "12"] if x in cycles_available]))
+cycles = tuple(
+    st.sidebar.multiselect(
+        "Сроки UTC",
+        cycles_available,
+        default=[x for x in DEFAULT_CYCLES if x in cycles_available],
+    )
+)
 if not cycles:
     st.warning("Выберите хотя бы один срок UTC")
     st.stop()
@@ -103,19 +148,17 @@ confirm_levels = st.sidebar.number_input("Шагов падения для по�
 confirm_depth = st.sidebar.number_input("Глубина подтверждения, гПа", 5.0, 150.0, 30.0, 5.0)
 min_drop = st.sidebar.number_input("Минимальное падение за шаг, °C", 0.0, 3.0, 0.2, 0.1)
 
-analysis = AnalysisConfig(
+analysis = _build_analysis_config(
     station_id=station_id,
     cycles=cycles,
-    strict_surface_qc=strict_qc,
-    max_surface_pressure_hpa=float(max_surface_pressure),
-    use_surface_height_qc=bool(use_height_qc),
-    max_surface_height_deviation_m=float(height_tolerance),
-    inversion=InversionConfig(
-        min_inversion_delta_c=float(min_delta),
-        confirm_drop_levels=int(confirm_levels),
-        confirm_depth_hpa=float(confirm_depth),
-        min_drop_delta_c=float(min_drop),
-    ),
+    strict_qc=strict_qc,
+    max_surface_pressure=float(max_surface_pressure),
+    use_height_qc=bool(use_height_qc),
+    height_tolerance=float(height_tolerance),
+    min_delta=float(min_delta),
+    confirm_levels=int(confirm_levels),
+    confirm_depth=float(confirm_depth),
+    min_drop=float(min_drop),
 )
 
 df = df_all[(df_all["station_id"] == station_id) & df_all["cycle"].isin(cycles)].copy()
@@ -161,7 +204,7 @@ with plot_tab:
     if plot_name.startswith("1"):
         table, matrix = compute_completeness(df, cycles=cycles)
         annotate = st.checkbox("Подписывать проблемные ячейки (<80%)", value=True)
-        fig = plot_completeness_heatmap(matrix, style, annotate_below=80 if annotate else None)
+        fig = plot_completeness_heatmap(matrix, style, annotate_below=COMPLETENESS_ANNOTATE_BELOW if annotate else None)
         filename = "completeness_heatmap"
     elif plot_name.startswith("2"):
         table = cached_seasonal(df, qc, analysis)

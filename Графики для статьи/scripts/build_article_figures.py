@@ -12,6 +12,19 @@ from gdex_bufr.profile_climate.article_figures.config import AnalysisConfig, Fig
 from gdex_bufr.profile_climate.article_figures.pipeline import build_all
 
 
+def _apply_style_overrides(style: FigureStyle, args: argparse.Namespace) -> FigureStyle:
+    overrides: dict[str, object] = {}
+    if args.show_title:
+        overrides["show_title"] = True
+    if args.language:
+        overrides["language"] = args.language
+    if not overrides:
+        return style
+    merged = style.__dict__.copy()
+    merged.update(overrides)
+    return FigureStyle(**merged)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Собрать все рисунки и таблицы для статьи по Алдану")
     parser.add_argument("--input", required=True, help="profiles_long.csv")
@@ -25,12 +38,7 @@ def main() -> int:
         analysis, style = load_yaml_config(args.config)
     else:
         analysis, style = AnalysisConfig(), FigureStyle()
-    style_dict = style.__dict__.copy()
-    if args.show_title:
-        style_dict["show_title"] = True
-    if args.language:
-        style_dict["language"] = args.language
-    style = FigureStyle(**style_dict)
+    style = _apply_style_overrides(style, args)
 
     summary = build_all(args.input, args.output, analysis, style)
     print(f"Готово: {summary['profiles']} профилей; результат: {args.output}")

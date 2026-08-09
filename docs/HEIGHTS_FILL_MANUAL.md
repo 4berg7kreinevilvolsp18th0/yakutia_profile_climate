@@ -55,12 +55,12 @@ BUFR-сообщения до колонок в CSV/XLSX/JSON и до оси «в
 | 1 | Декод BUFR | `gdex_bufr/bufr_adapter.py` | `_record_height`, `_flush_record` | `height_010009_m`, `height_007007_m`, `height_phi_m`, `geopotential_m2s2`, `geopotential_height_m` |
 | 2 | Обогащение профиля | `gdex_bufr/meteo_parser_bridge.py` | `enrich_profile_levels` → `enrich_vertical_level` | Дозаполняет `geopotential_height_m` (SFC → Φ → баро) |
 | 3a | Рабочий профиль | `gdex_bufr/profile_climate/extract.py` | `_thermo_levels`, `_pick_station_surface`, `_level_climate_fields` | Уровни до 500 гПа, отсечение секций ниже станции |
-| 3b | Полный дамп | `gdex_bufr/profile_climate/extract.py` | `extract_decoded_levels` | `height_msl_m` + `height_msl_source`, `below_station` |
-| 4 | Дозаполнение дыр | `gdex_bufr/profile_climate/height_fill.py` | `fill_profile_level_heights` | `height_obs_m`, `height_interp_m`, `height_baro_m`, `height_m`, `height_source` |
+| 3b | Полный дамп | `gdex_bufr/profile_climate/extract.py` | `extract_decoded_levels` → `_resolve_height_msl` | `height_msl_m` + `height_msl_source`, `below_station` |
+| 4 | Дозаполнение дыр | `gdex_bufr/profile_climate/height_fill.py` | `fill_profile_level_heights` → `_pick_observed_height`, `_choose_final_height` | `height_obs_m`, `height_interp_m`, `height_baro_m`, `height_m`, `height_source` |
 | 5 | Тот же каскад по таблице | `gdex_bufr/profile_climate/height_fill.py` | `fill_long_dataframe_heights` | То же, но векторно для DataFrame `profiles_long` |
 | 6 | Потребители | `metrics.py`/`inversion.py`, `plots.py`, `obs_qc.py`, `build_daily_profiles.py` | — | `inversion_top_height_m`, ось Y, `heights_m` в JSON |
 
-Порядок вызова в основном прогоне: `process_profile` (extract.py:332) делает 3a → 4 → метрики → 3b.
+Порядок вызова в основном прогоне: `process_profile` (extract.py:363) делает 3a → 4 → метрики → 3b.
 
 ---
 
@@ -104,9 +104,10 @@ def _normalize_pressure(value: Any, registry: BufrTablesRegistry | None = None) 
 
 ### 3.4. Высота станции
 
-Читается 0-07-001 на уровне сообщения (`bufr_adapter.py:691`) и кладётся в
-`RadiosondeProfile.station_elevation_m`. Если её в файле нет — дальше используется справочник
-`STATION_ELEVATION_M` (см. §6.1).
+Читается 0-07-001 на уровне сообщения в `_decode_subset_header` (`bufr_adapter.py:704–716`) и
+кладётся в `RadiosondeProfile.station_elevation_m`, а также в метаданные профиля
+(`station_elevation_m` + `station_height_fxy`). Если её в файле нет — дальше используется
+справочник `STATION_ELEVATION_M` (см. §6.1).
 
 ### 3.5. Не-ADPUPA режим
 
@@ -129,9 +130,10 @@ def _normalize_pressure(value: Any, registry: BufrTablesRegistry | None = None) 
 2) есть P и P_sfc                            → height = z_st + 44330(1 − (P/P_sfc)^0.1903)
 ```
 
-Как выбирается `P_sfc` внутри `enrich_profile_levels` (строки 177–193): если есть уровни с
-VSIG=SFC и известна высота станции, берётся SFC с **минимальным `seq`** (первый по шаблону,
-обычно sig-секция), иначе — просто `max(P)` по профилю.
+Как выбирается `P_sfc` — функция `_resolve_surface_pressure` (`meteo_parser_bridge.py:168`),
+которую вызывает `enrich_profile_levels` (строка 210): если есть уровни с VSIG=SFC и известна
+высота станции, берётся SFC с **минимальным `seq`** (первый по шаблону, обычно sig-секция),
+иначе — просто `max(P)` по профилю.
 
 В метаданные профиля пишутся флаги: `height_from_geopotential`, `height_from_pressure_or_station`,
 `station_elevation_from_bufr` — по ним видно, что именно применялось.
@@ -175,10 +177,11 @@ VSIG=SFC и известна высота станции, берётся SFC с 
 | `height_phi_m` | только Φ→z |
 | `FLVL` = `geopotential_height_m` = `height_m` | рабочая высота после этапов 1–2 |
 
-### 5.4. Полный дамп — `extract_decoded_levels` (строка 194)
+### 5.4. Полный дамп — `extract_decoded_levels` (строка 260)
 
 Здесь считается **своя** высота `height_msl_m` со своей меткой источника — она нужна, чтобы
-показать *все* уровни, включая забракованные:
+показать *все* уровни, включая забракованные. Сам приоритет вынесен в `_resolve_height_msl`
+(строка 210), а два его шага — в `_direct_bufr_height_m` (194) и `_phi_height_m` (201):
 
 | Порядок | Условие | `height_msl_source` |
 |---------|---------|---------------------|
@@ -201,8 +204,8 @@ VSIG=SFC и известна высота станции, берётся SFC с 
 
 ## 6. Этап 4. `fill_profile_level_heights` — главный каскад
 
-Файл: `gdex_bufr/profile_climate/height_fill.py`, строка 116.
-Вызов: `process_profile` (extract.py:363) сразу после `extract_temperature_levels` и **до** метрик,
+Файл: `gdex_bufr/profile_climate/height_fill.py`, строка 163.
+Вызов: `process_profile` (`extract.py:394`) сразу после `extract_temperature_levels` и **до** метрик,
 чтобы инверсия видела уже окончательную высоту.
 
 Сигнатура:
@@ -228,7 +231,7 @@ STATION_ELEVATION_M: dict[str, float] = {
 
 ### 6.2. Шаг 1 — «наблюдённая» высота `height_obs_m`
 
-Для каждого уровня по порядку:
+Функция `_pick_observed_height` (строка 116) для каждого уровня по порядку:
 
 1. `height_010009_m`, иначе `height_007007_m` → источник `level`;
 2. иначе `geopotential_m2s2` → `Φ → z`, источник `phi`;
@@ -263,8 +266,10 @@ z = z_{\mathrm{st}} + 44330\left(1 - \left(\frac{P}{P_{\mathrm{sfc}}}\right)^{0.
 
 ### 6.5. Шаг 4 — итоговая высота
 
-```186:205:gdex_bufr/profile_climate/height_fill.py
-        row["height_baro_m"] = h_baro
+Выбор делает `_choose_final_height` (строка 147), запись колонок — тело цикла:
+
+```209:218:gdex_bufr/profile_climate/height_fill.py
+        final_h, final_source = _choose_final_height(h_obs, h_source, h_interp, h_baro)
 ```
 
 ```
@@ -284,8 +289,8 @@ height_agl_m = height_m − elev    (None, если высота или elev н�
 
 ## 7. Этап 5. `fill_long_dataframe_heights` — векторная версия
 
-Файл: тот же, строка 210. Используется, когда высоты чинят **по готовой таблице**, а не по
-объектам профиля: `scripts/build_daily_profiles.py:253` и `scripts/repair_heights_xlsx.py:55`.
+Файл: тот же, строка 223. Используется, когда высоты чинят **по готовой таблице**, а не по
+объектам профиля: `scripts/build_daily_profiles.py:401` и `scripts/repair_heights_xlsx.py:55`.
 
 Логика та же (obs → interp → baro), но есть отличия, которые важно знать:
 
@@ -295,7 +300,7 @@ height_agl_m = height_m − elev    (None, если высота или elev н�
 | Источник obs | `height_010009_m` → `007007` → Φ → `height_m` | `height_m` → `geopotential_height_m` → Φ |
 | Метка obs-источника | `level` / `phi` / `observed_or_geopot` / `station_007001` | всегда `observed_or_geopot` |
 | Фолбэк «SFC = высота станции» | есть | **нет** (SFC отработал раньше, в extract) |
-| Отсечение брака | нет | `height_obs < −50 м → NaN` (например, Φ<0 у поверхности) |
+| Отсечение брака | нет | `height_obs < −50 м → NaN` (например, Φ<0 у поверхности), строка 269 |
 | Φ→z | через MetPy | аналитическая формула на numpy (без вызова MetPy построчно) |
 | `P_sfc` | аргумент | `p_surface_hpa` из метрик, иначе `max(P)` профиля |
 | `z_st` | аргумент/справочник | `station_elevation_m` из метрик, иначе справочник |
@@ -355,7 +360,7 @@ H = 3000 + \frac{850-700}{900-700}(1000-3000) = 1500\ \text{м}
 
 ## 9. Альтернативная реализация: `scripts/aldan_simple_pipeline.py`
 
-Упрощённый однофайловый конвейер со своей функцией `fill_heights` (строка 350). Логика та же,
+Упрощённый однофайловый конвейер со своей функцией `fill_heights` (строка 347). Логика та же,
 но набор меток отличается и добавлен QC:
 
 | Приоритет | Условие | `height_source` |
@@ -448,7 +453,7 @@ python scripts/repair_heights_xlsx.py --xlsx "gdex_outputs/результаты-
 | Известен ровно один уровень | Интерполяции нет вообще; остальные → `baro` | `interpolate_heights_on_pressure`, ветка `known.sum() == 1` |
 | Уровень выше самого верхнего якоря | Экстраполяции нет → `baro` | `left=nan, right=nan` в `np.interp` |
 | Несколько уровней с одинаковым P | H усредняется перед интерполяцией | `uniq_p / uniq_h` |
-| Φ < 0 у поверхности | В DF-версии отсекается порогом `< −50 м`; в per-profile версии — нет | `height_fill.py:256` |
+| Φ < 0 у поверхности | В DF-версии отсекается порогом `< −50 м`; в per-profile версии — нет | `height_fill.py:269` |
 | Повторная manl-секция ниже станции | Отбрасывается из рабочего профиля, помечается `below_station` | `_thermo_levels`, `extract_decoded_levels` |
 | Давление пришло в Па | Делится на 100 по unit дескриптора | `_normalize_pressure` |
 | Станции нет в `STATION_ELEVATION_M` и нет 0-07-001 | `elev = None` → `height_agl_m = None`, барометрия даёт высоту **над поверхностью** | `station_elevation_m()` |
@@ -487,7 +492,7 @@ python -m pytest tests/test_actual_dual_tables.py tests/test_simple_sounding.py 
   — тогда уровни без якорей останутся с `height_m = None` (графики по давлению продолжат работать).
 - **Разрешить экстраполяцию**: заменить `left/right=np.nan` в `interpolate_heights_on_pressure`
   на краевые значения. Не рекомендуется: за пределами якорей линейная H(P) физически неверна.
-- **Поменять порог отсечения брака**: константа `−50.0` в `height_fill.py:256`.
+- **Поменять порог отсечения брака**: константа `−50.0` в `height_fill.py:269`.
 - **Изменить верх анализа** (сейчас 500 гПа): параметр `pressure_top_hpa` в `process_profile`
   и `profile_climate_config.yaml`.
 

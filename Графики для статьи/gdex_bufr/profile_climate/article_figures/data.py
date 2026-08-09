@@ -165,6 +165,7 @@ def build_profile_qc(df: pd.DataFrame, config: AnalysisConfig) -> pd.DataFrame:
 
     return out.reset_index().sort_values("datetime_utc").reset_index(drop=True)
 
+
 def _month_bounds(year: int, month: int) -> tuple[pd.Timestamp, pd.Timestamp]:
     first = pd.Timestamp(year=year, month=month, day=1)
     last_day = calendar.monthrange(year, month)[1]

@@ -165,44 +165,34 @@ def enrich_vertical_level(
     )
 
 
-def enrich_profile_levels(profile: "RadiosondeProfile") -> "RadiosondeProfile":
-    """Обогащаю профиль BUFR полями, как в decoded-слое meteo_parser."""
-    if not profile.levels:
-        return profile
-
-    station_z = profile.station_elevation_m
-    if station_z is None:
-        station_z = profile.metadata.get("station_elevation_m")
-
-    # P_sfc: давление SFC (предпочтительно), иначе max P
-    sfc_ps = [
-        lv.pressure_hpa
-        for lv in profile.levels
+def _resolve_surface_pressure(
+    levels: list[VerticalLevel],
+    *,
+    station_z: float | None,
+) -> float | None:
+    """P_sfc для барометрической высоты: SFC-уровень или max(P)."""
+    sfc_levels = [
+        lv
+        for lv in levels
         if lv.pressure_hpa is not None and (lv.vertical_significance or "").upper() == "SFC"
     ]
-    if sfc_ps and station_z is not None:
+    if sfc_levels and station_z is not None:
         # если несколько SFC — берём тот, чья будущая H ближе к station_z после назначения
         # (давление первого/ближайшего по шаблону часто вернее max P)
-        sfc_levels = [
-            lv for lv in profile.levels
-            if lv.pressure_hpa is not None and (lv.vertical_significance or "").upper() == "SFC"
-        ]
-        # без высоты на уровне — предпочитаем меньший seq (sig-секция)
-        surface_p = min(sfc_levels, key=lambda lv: lv.seq if lv.seq is not None else 10**9).pressure_hpa
-    else:
-        surface_p = _surface_pressure_hpa(profile.levels)
+        return min(
+            sfc_levels,
+            key=lambda lv: lv.seq if lv.seq is not None else 10**9,
+        ).pressure_hpa
+    return _surface_pressure_hpa(levels)
 
-    enriched_levels = [
-        enrich_vertical_level(
-            level,
-            surface_pressure_hpa=surface_p,
-            station_elevation_m=None if station_z is None else float(station_z),
-        )
-        for level in profile.levels
-    ]
-    profile.levels = enriched_levels
 
-    flags = profile.metadata.setdefault("enrichment", {})
+def _enrichment_flags(
+    enriched_levels: list[VerticalLevel],
+    *,
+    station_z: float | None,
+) -> dict[str, bool]:
+    """Какие поля были дополнены при enrich_profile_levels."""
+    flags: dict[str, bool] = {}
     if station_z is not None:
         flags["station_elevation_from_bufr"] = True
     if any(lv.relative_humidity_percent is not None for lv in enriched_levels):
@@ -214,6 +204,31 @@ def enrich_profile_levels(profile: "RadiosondeProfile") -> "RadiosondeProfile":
         flags["height_from_geopotential"] = True
     if any(lv.geopotential_height_m is not None for lv in enriched_levels):
         flags["height_from_pressure_or_station"] = True
+    return flags
+
+
+def enrich_profile_levels(profile: "RadiosondeProfile") -> "RadiosondeProfile":
+    """Обогащаю профиль BUFR полями, как в decoded-слое meteo_parser."""
+    if not profile.levels:
+        return profile
+
+    station_z = profile.station_elevation_m
+    if station_z is None:
+        station_z = profile.metadata.get("station_elevation_m")
+
+    surface_p = _resolve_surface_pressure(profile.levels, station_z=station_z)
+    enriched_levels = [
+        enrich_vertical_level(
+            level,
+            surface_pressure_hpa=surface_p,
+            station_elevation_m=None if station_z is None else float(station_z),
+        )
+        for level in profile.levels
+    ]
+    profile.levels = enriched_levels
+    profile.metadata.setdefault("enrichment", {}).update(
+        _enrichment_flags(enriched_levels, station_z=station_z)
+    )
     return profile
 
 # функция для оценки статуса данных профиля

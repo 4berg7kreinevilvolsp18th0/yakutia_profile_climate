@@ -22,11 +22,35 @@ SYNOPTIC_CYCLES = ("00", "06", "12", "18")
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
+DEFAULT_BUFR_BASE_URL = "https://data.gdex.ucar.edu/d351000/bufr"
+MIN_PROFILE_LEVELS = 2
+
+
+def _profile_pressure_series(profile: RadiosondeProfile) -> tuple[list[float], list[float], list[float]]:
+    """Давление, температура и точка росы по уровням профиля (только валидные уровни)."""
+    pressures: list[float] = []
+    temps: list[float] = []
+    dewpoints: list[float] = []
+    for lv in profile.levels:
+        if lv.pressure_hpa is None or lv.air_temperature_c is None:
+            continue
+        pressures.append(lv.pressure_hpa)
+        temps.append(lv.air_temperature_c)
+        dewpoints.append(
+            lv.dew_point_temperature_c if lv.dew_point_temperature_c is not None else float("nan")
+        )
+    return pressures, temps, dewpoints
+
+
 def bufr_name_for(cycle: str, obs_date: date) -> str:
     return f"gdas.adpupa.t{cycle}z.{obs_date.strftime('%Y%m%d')}.bufr"
 
 
-def bufr_url_for(cycle: str, obs_date: date, base_url: str = "https://data.gdex.ucar.edu/d351000/bufr") -> str:
+def bufr_url_for(
+    cycle: str,
+    obs_date: date,
+    base_url: str = DEFAULT_BUFR_BASE_URL,
+) -> str:
     year = obs_date.year
     return f"{base_url}/{year}/{bufr_name_for(cycle, obs_date)}"
 
@@ -64,7 +88,7 @@ def download_bufr_files(
     bufr_dir: Path,
     *,
     cycles: tuple[str, ...] = SYNOPTIC_CYCLES,
-    base_url: str = "https://data.gdex.ucar.edu/d351000/bufr",
+    base_url: str = DEFAULT_BUFR_BASE_URL,
     ssl_verify: bool = False,
     timeout_seconds: int = 300,
     max_retries: int = 3,
@@ -159,16 +183,8 @@ def render_station_comparison(
     ref_pressures: list[float] = []
     point_style = _line_plot_kwargs(plot_style.profile)
     for profile in bufr_profiles:
-        pressures, temps, dewpoints = [], [], []
-        for lv in profile.levels:
-            if lv.pressure_hpa is None or lv.air_temperature_c is None:
-                continue
-            pressures.append(lv.pressure_hpa)
-            temps.append(lv.air_temperature_c)
-            dewpoints.append(
-                lv.dew_point_temperature_c if lv.dew_point_temperature_c is not None else float("nan")
-            )
-        if len(pressures) < 2:
+        pressures, temps, dewpoints = _profile_pressure_series(profile)
+        if len(pressures) < MIN_PROFILE_LEVELS:
             continue
         if not ref_pressures:
             ref_pressures = pressures
@@ -183,13 +199,8 @@ def render_station_comparison(
         )
 
     for idx, profile in enumerate(tae_profiles, start=1):
-        pressures, temps, _ = [], [], []
-        for lv in profile.levels:
-            if lv.pressure_hpa is None or lv.air_temperature_c is None:
-                continue
-            pressures.append(lv.pressure_hpa)
-            temps.append(lv.air_temperature_c)
-        if len(pressures) < 2:
+        pressures, temps, _ = _profile_pressure_series(profile)
+        if len(pressures) < MIN_PROFILE_LEVELS:
             continue
         ax.plot(
             temps,
@@ -213,6 +224,16 @@ def render_station_comparison(
     return output_path
 
 
+def _resolve_tables_dir(cfg: AppConfig) -> Path:
+    tables_dir = Path(cfg.bufr_tables.directory)
+    return tables_dir if tables_dir.is_absolute() else Path.cwd() / tables_dir
+
+
+def _resolve_export_dir(cfg: AppConfig) -> Path:
+    export_dir = Path(cfg.bufr_tables.export_dir)
+    return export_dir if export_dir.is_absolute() else Path.cwd() / export_dir
+
+
 def render_station_plots(
     cfg: AppConfig,
     *,
@@ -228,18 +249,11 @@ def render_station_plots(
     longitude_deg: float | None = None,
 ) -> dict:
     """Декодирует станцию за день и строит полный набор графиков."""
-    tables_dir = Path(cfg.bufr_tables.directory)
-    if not tables_dir.is_absolute():
-        tables_dir = Path.cwd() / tables_dir
-    export_dir = Path(cfg.bufr_tables.export_dir)
-    if not export_dir.is_absolute():
-        export_dir = Path.cwd() / export_dir
-
     registry = init_decoder_tables({
-        "directory": str(tables_dir),
+        "directory": str(_resolve_tables_dir(cfg)),
         "wmo_version": cfg.bufr_tables.wmo_version,
         "master_table_version": cfg.bufr_tables.master_table_version,
-        "export_dir": str(export_dir),
+        "export_dir": str(_resolve_export_dir(cfg)),
         "export_on_update": cfg.bufr_tables.export_on_update,
     })
     if not registry.is_ready():

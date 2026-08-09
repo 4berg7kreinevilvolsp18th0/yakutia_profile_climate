@@ -18,6 +18,7 @@ from gdex_bufr.manifest import build_manifest_for_config, manifest_stats, save_m
 from gdex_bufr.meteo_parser_bridge import load_meteo_parser_field_names
 from gdex_bufr.plot_config import load_plot_style
 from gdex_bufr.plots import PLOT_REGISTRY, render_plots
+from gdex_bufr.pybufrkit_check import compare_decode_outputs
 from gdex_bufr.station_plots import render_station_plots
 
 
@@ -25,6 +26,15 @@ def _parse_optional_date(value: str | None) -> date | None:
     if not value:
         return None
     return datetime.strptime(value, "%Y-%m-%d").date()
+
+
+def _parse_plot_types(value: str | None, default: list[str]) -> list[str]:
+    if not value:
+        return default
+    return [part.strip() for part in value.split(",") if part.strip()]
+
+
+DRY_RUN_PREVIEW_LIMIT = 20
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -297,7 +307,7 @@ def cmd_probe_plots(cfg: AppConfig, args: argparse.Namespace) -> int:
     if not profiles:
         print("No profiles decoded", file=sys.stderr)
         return 1
-    plot_types = [p.strip() for p in args.plots.split(",") if p.strip()] if args.plots else cfg.plots.plot_types
+    plot_types = _parse_plot_types(args.plots, cfg.plots.plot_types)
     outputs = render_plots(
         profiles[0],
         cfg.outputs_dir,
@@ -334,7 +344,7 @@ def cmd_check_decode(args: argparse.Namespace) -> int:
 def cmd_batch_plots(cfg: AppConfig, args: argparse.Namespace) -> int:
     plot_style = cfg.plots
     if args.plots:
-        plot_style.plot_types = [p.strip() for p in args.plots.split(",") if p.strip()]
+        plot_style.plot_types = _parse_plot_types(args.plots, plot_style.plot_types)
     if args.workers:
         plot_style.workers = args.workers
     if args.max_profiles_per_file is not None:
@@ -359,10 +369,10 @@ def cmd_batch_plots(cfg: AppConfig, args: argparse.Namespace) -> int:
     }, ensure_ascii=False, indent=2))
 
     if args.dry_run:
-        for path in files[:20]:
+        for path in files[:DRY_RUN_PREVIEW_LIMIT]:
             print(path)
-        if len(files) > 20:
-            print(f"... and {len(files) - 20} more")
+        if len(files) > DRY_RUN_PREVIEW_LIMIT:
+            print(f"... and {len(files) - DRY_RUN_PREVIEW_LIMIT} more")
         return 0
 
     if not files:
@@ -381,7 +391,7 @@ def cmd_station_plots(cfg: AppConfig, args: argparse.Namespace) -> int:
         print("Invalid --date, use YYYY-MM-DD", file=sys.stderr)
         return 2
 
-    plot_types = [p.strip() for p in args.plots.split(",") if p.strip()] if args.plots else None
+    plot_types = _parse_plot_types(args.plots, cfg.plots.plot_types) if args.plots else None
     tae_files = [Path(p) for p in args.tae]
     bufr_dir = Path(args.bufr_dir) if args.bufr_dir else None
     output_dir = Path(args.output_dir) if args.output_dir else None

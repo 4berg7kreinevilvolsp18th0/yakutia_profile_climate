@@ -167,6 +167,19 @@ def profile_passes_quality(
     return True
 
 
+def _status_allows_plot(status: str, levels: list[dict[str, Any]], *, min_levels: int) -> bool:
+    """Можно ли рисовать профиль с этим QC-статусом."""
+    if status in {PROFILE_STATUS_NO_SURFACE, PROFILE_STATUS_NO_TEMP, PROFILE_STATUS_BAD_PRESSURE}:
+        return False
+    if status == PROFILE_STATUS_DUPLICATE_LEVELS:
+        # Дубли по P допустимы только если после очистки уровни уже уникальны.
+        pressures = [round(float(lv["pressure_hpa"]), 1) for lv in levels]
+        return len(pressures) == len(set(pressures)) and len(levels) >= min_levels
+    if status in PLOT_EXCLUDE_STATUSES:
+        return False
+    return status in PLOT_ALLOWED_STATUSES or status == PROFILE_STATUS_GOOD
+
+
 def is_profile_plot_eligible(
     metric: dict[str, Any] | None,
     levels: list[dict[str, Any]],
@@ -174,6 +187,7 @@ def is_profile_plot_eligible(
     plot_only_good: bool = False,
     min_levels: int = 3,
 ) -> bool:
+    """Решает, попадёт ли профиль на месячный PNG."""
     if len(levels) < min_levels:
         return False
     if not profile_passes_quality(levels):
@@ -183,11 +197,4 @@ def is_profile_plot_eligible(
     status = str(metric.get("profile_status") or "")
     if plot_only_good:
         return status == PROFILE_STATUS_GOOD
-    if status in {PROFILE_STATUS_NO_SURFACE, PROFILE_STATUS_NO_TEMP, PROFILE_STATUS_BAD_PRESSURE}:
-        return False
-    if status == PROFILE_STATUS_DUPLICATE_LEVELS:
-        pressures = [round(float(lv["pressure_hpa"]), 1) for lv in levels]
-        return len(pressures) == len(set(pressures)) and len(levels) >= min_levels
-    if status in PLOT_EXCLUDE_STATUSES:
-        return False
-    return status in PLOT_ALLOWED_STATUSES or status == PROFILE_STATUS_GOOD
+    return _status_allows_plot(status, levels, min_levels=min_levels)

@@ -7,5 +7,5 @@ matplotlib>=3.8
 openpyxl>=3.1
 pandas>=2.0
 pytest>=8.0
-streamlit>=1.32
+streamlit>=1.50
 plotly>=5.18

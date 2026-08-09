@@ -410,6 +410,36 @@ def write_xlsx_exports(
     return path
 
 
+def _export_core_tables(
+    long_rows: list[dict[str, Any]],
+    metrics_rows: list[dict[str, Any]],
+    output_dir: Path,
+    *,
+    config_info: dict[str, Any] | None = None,
+    decoded_rows: list[dict[str, Any]] | None = None,
+    element_rows: list[dict[str, Any]] | None = None,
+) -> dict[str, str]:
+    """Пишет основные CSV/JSON. XLSX добавляется отдельно в export_all."""
+    output_dir = Path(output_dir)
+    paths = {
+        "profiles_long": str(write_profiles_long_csv(long_rows, output_dir)),
+        "profiles_working": str(write_profiles_working_csv(long_rows, output_dir)),
+        "profile_metrics": str(write_profile_metrics_csv(metrics_rows, output_dir)),
+        "monthly_summary": str(write_monthly_summary(metrics_rows, output_dir)),
+        "station_summary": str(write_station_summary(metrics_rows, output_dir)),
+        "summary_json": str(
+            write_summary_json(metrics_rows, long_rows, output_dir, config_info=config_info)
+        ),
+        "field_types": str(write_field_types_csv(output_dir)),
+    }
+    if decoded_rows is not None:
+        paths["decoded_levels"] = str(write_decoded_levels_csv(decoded_rows, output_dir))
+        paths["decoded_all_levels"] = str(write_decoded_all_levels_csv(decoded_rows, output_dir))
+    if element_rows is not None:
+        paths["debufr_elements"] = str(write_debufr_elements_csv(element_rows, output_dir))
+    return paths
+
+
 def export_checkpoint(
     long_rows: list[dict[str, Any]],
     metrics_rows: list[dict[str, Any]],
@@ -420,24 +450,14 @@ def export_checkpoint(
     element_rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, str]:
     """Быстрое промежуточное сохранение без XLSX."""
-    output_dir = Path(output_dir)
-    paths = {
-        "profiles_long": str(write_profiles_long_csv(long_rows, output_dir)),
-        "profiles_working": str(write_profiles_working_csv(long_rows, output_dir)),
-        "profile_metrics": str(write_profile_metrics_csv(metrics_rows, output_dir)),
-        "monthly_summary": str(write_monthly_summary(metrics_rows, output_dir)),
-        "station_summary": str(write_station_summary(metrics_rows, output_dir)),
-        "summary_json": str(write_summary_json(metrics_rows, long_rows, output_dir, config_info=config_info)),
-        "field_types": str(write_field_types_csv(output_dir)),
-    }
-    if decoded_rows is not None:
-        paths["decoded_levels"] = str(write_decoded_levels_csv(decoded_rows, output_dir))
-        paths["decoded_all_levels"] = str(
-            write_decoded_all_levels_csv(decoded_rows, output_dir)
-        )
-    if element_rows is not None:
-        paths["debufr_elements"] = str(write_debufr_elements_csv(element_rows, output_dir))
-    return paths
+    return _export_core_tables(
+        long_rows,
+        metrics_rows,
+        output_dir,
+        config_info=config_info,
+        decoded_rows=decoded_rows,
+        element_rows=element_rows,
+    )
 
 
 def export_all(
@@ -449,27 +469,19 @@ def export_all(
     decoded_rows: list[dict[str, Any]] | None = None,
     element_rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, str]:
-    output_dir = Path(output_dir)
-    paths = {
-        "profiles_long": str(write_profiles_long_csv(long_rows, output_dir)),
-        "profiles_working": str(write_profiles_working_csv(long_rows, output_dir)),
-        "profile_metrics": str(write_profile_metrics_csv(metrics_rows, output_dir)),
-        "monthly_summary": str(write_monthly_summary(metrics_rows, output_dir)),
-        "station_summary": str(write_station_summary(metrics_rows, output_dir)),
-        "summary_json": str(write_summary_json(metrics_rows, long_rows, output_dir, config_info=config_info)),
-        "field_types": str(write_field_types_csv(output_dir)),
-    }
-    if decoded_rows is not None:
-        paths["decoded_levels"] = str(write_decoded_levels_csv(decoded_rows, output_dir))
-        paths["decoded_all_levels"] = str(
-            write_decoded_all_levels_csv(decoded_rows, output_dir)
-        )
-    if element_rows is not None:
-        paths["debufr_elements"] = str(write_debufr_elements_csv(element_rows, output_dir))
-    xlsx_path = write_xlsx_exports(
+    """Полный экспорт: CSV/JSON + XLSX."""
+    paths = _export_core_tables(
         long_rows,
         metrics_rows,
         output_dir,
+        config_info=config_info,
+        decoded_rows=decoded_rows,
+        element_rows=element_rows,
+    )
+    xlsx_path = write_xlsx_exports(
+        long_rows,
+        metrics_rows,
+        Path(output_dir),
         decoded_rows=decoded_rows,
         element_rows=element_rows,
     )

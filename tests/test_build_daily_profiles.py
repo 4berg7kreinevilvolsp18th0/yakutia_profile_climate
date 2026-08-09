@@ -42,10 +42,13 @@ def test_raw_mode_keeps_spikes_bad_status_singletons_and_missing_height(tmp_path
         {
             "profile_id": "p1", "profile_status": "good",
             "t_surface_c": -10.0, "inversion_detected": True,
+            "inversion_candidate": True, "inversion_quality": "confirmed",
+            "inversion_confirm_drop_c": -2.5,
             "inversion_top_height_m": 1020.0,
             "inversion_top_pressure_hpa": 898.0,
             "inversion_top_temp_c": 30.0,
             "inversion_delta_t_c": 40.0,
+            "p_surface_hpa": 900.0, "station_elevation_m": 679.0,
         },
         {
             "profile_id": "p2", "profile_status": "bad_pressure",
@@ -82,6 +85,65 @@ def test_raw_mode_keeps_spikes_bad_status_singletons_and_missing_height(tmp_path
     assert by_id["p2"]["heights_baro_m"] == [679.0]
     assert by_id["p3"]["n_levels"] == 0
     assert by_id["p3"]["missing_levels"] is True
+
+
+def test_observation_carries_inversion_quality_and_height_context(tmp_path):
+    long_csv = tmp_path / "profiles_long.csv"
+    metrics_csv = tmp_path / "profile_metrics.csv"
+    pd.DataFrame([
+        {
+            "profile_id": "p1", "station_id": "31004", "station_name": "Aldan",
+            "datetime_utc": "2020-01-01T00:00:00", "cycle": "00",
+            "pressure_hpa": pressure, "temperature_c": temp, "height_m": height,
+        }
+        for pressure, temp, height in [
+            (900.0, -10.0, 1000.0),
+            (850.0, -14.0, None),
+            (800.0, -16.0, 2000.0),
+        ]
+    ]).to_csv(long_csv, index=False)
+    pd.DataFrame([
+        {
+            "profile_id": "p1", "profile_status": "good",
+            "t_surface_c": -10.0, "inversion_detected": False,
+            "inversion_candidate": True, "inversion_quality": "rejected_no_lapse",
+            "p_surface_hpa": 900.0, "station_elevation_m": 679.0,
+        },
+        {
+            "profile_id": "p9", "profile_status": "no_temp",
+            "datetime_utc": "2020-01-05T12:00:00", "cycle": "12",
+            "t_surface_c": None, "inversion_detected": False,
+            "inversion_quality": "none",
+        },
+    ]).to_csv(metrics_csv, index=False)
+
+    payload = _load_builder().build_daily_profiles(long_csv, metrics_csv)
+    observations = {
+        obs["profile_id"]: obs
+        for month in payload["months"].values()
+        for day in month["days"]
+        for obs in day["observations"]
+    }
+
+    assert payload["schema"] == "observations_v1"
+    assert "inversion_quality" in payload["features"]
+    assert payload["station_elevation_m"] == 679.0
+
+    with_levels = observations["p1"]
+    assert with_levels["inversion_quality"] == "rejected_no_lapse"
+    assert with_levels["inversion_candidate"] is True
+    assert with_levels["inversion_detected"] is False
+    assert with_levels["p_surface_hpa"] == 900.0
+    assert with_levels["station_elevation_m"] == 679.0
+    # средний уровень без H заполнен интерполяцией, крайние — наблюдением
+    assert with_levels["height_source_counts"]["interp"] == 1
+    assert with_levels["height_source_counts"]["observed_or_geopot"] == 2
+
+    # структура наблюдения одинакова с уровнями и без них
+    without_levels = observations["p9"]
+    assert set(with_levels) | {"missing_levels"} == set(without_levels)
+    assert without_levels["heights_interp_m"] == []
+    assert without_levels["inversion_quality"] == "none"
 
 
 def test_clean_mode_keeps_legacy_status_filter(tmp_path):

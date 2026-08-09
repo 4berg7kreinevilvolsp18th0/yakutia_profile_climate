@@ -43,6 +43,10 @@ def save_figure(fig, output_base: Path, style: FigureStyle) -> list[Path]:
     return paths
 
 
+def _write_table_csv(table: pd.DataFrame, path: Path) -> None:
+    table.to_csv(path, index=False, encoding="utf-8-sig")
+
+
 def build_all(
     input_csv: str | Path,
     output_dir: str | Path,
@@ -81,7 +85,7 @@ def build_all(
         "pressure_level_annual_series": pressure_series,
     }
     for name, table in tables.items():
-        table.to_csv(tables_dir / f"{name}.csv", index=False, encoding="utf-8-sig")
+        _write_table_csv(table, tables_dir / f"{name}.csv")
 
     figures = {
         "fig01_completeness_heatmap": plot_completeness_heatmap(completeness_matrix, style),

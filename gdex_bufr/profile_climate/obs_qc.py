@@ -114,6 +114,38 @@ def _enforce_increasing_height_with_falling_pressure(
     return kept
 
 
+MIN_PLOT_POINTS = 2
+
+
+def _as_nan_array(values: Sequence[Any] | None) -> np.ndarray | None:
+    """Список значений → float-массив с NaN вместо None."""
+    if not values:
+        return None
+    return np.asarray([np.nan if v is None else float(v) for v in values], dtype=float)
+
+
+def _keep_monotonic(
+    temps: np.ndarray,
+    y_values: np.ndarray,
+    *,
+    decreasing: bool,
+) -> tuple[np.ndarray, np.ndarray] | None:
+    """Оставляет точки со строго монотонной осью Y (без петель на графике)."""
+    if len(temps) < MIN_PLOT_POINTS:
+        return None
+    keep_t = [float(temps[0])]
+    keep_y = [float(y_values[0])]
+    for i in range(1, len(y_values)):
+        yi = float(y_values[i])
+        better = yi < keep_y[-1] if decreasing else yi > keep_y[-1]
+        if better:
+            keep_y.append(yi)
+            keep_t.append(float(temps[i]))
+    if len(keep_t) < MIN_PLOT_POINTS:
+        return None
+    return np.asarray(keep_t, dtype=float), np.asarray(keep_y, dtype=float)
+
+
 def prepare_plot_arrays(
     obs: dict[str, Any],
     y_axis: str,
@@ -125,66 +157,30 @@ def prepare_plot_arrays(
     геопотенциале линия на оси метров снова ломается).
     Возвращает (temperature_c, y_values) или None.
     """
-    temps = obs.get("temperature_c")
-    if not temps:
+    t = _as_nan_array(obs.get("temperature_c"))
+    if t is None:
         return None
-    t = np.asarray([np.nan if v is None else float(v) for v in temps], dtype=float)
-
-    pressures = obs.get("pressure_hpa")
-    heights = obs.get("heights_m")
-    p = None
-    if pressures:
-        p = np.asarray([np.nan if v is None else float(v) for v in pressures], dtype=float)
-    h = None
-    if heights:
-        h = np.asarray([np.nan if v is None else float(v) for v in heights], dtype=float)
 
     if y_axis == "pressure":
-        if p is None:
-            return None
-        n = min(len(t), len(p))
-        t = t[:n]
-        p = p[:n]
-        valid = ~np.isnan(t) & ~np.isnan(p)
-        if valid.sum() < 2:
-            return None
-        t = t[valid]
-        p = p[valid]
-        order = np.argsort(-p)
-        t = t[order]
-        p = p[order]
-        keep_t = [float(t[0])]
-        keep_y = [float(p[0])]
-        for i in range(1, len(p)):
-            pi = float(p[i])
-            if pi < keep_y[-1]:
-                keep_y.append(pi)
-                keep_t.append(float(t[i]))
+        y = _as_nan_array(obs.get("pressure_hpa"))
+        decreasing = True
     else:
-        if h is None:
-            return None
-        n = min(len(t), len(h))
-        t = t[:n]
-        h = h[:n]
-        valid = ~np.isnan(t) & ~np.isnan(h)
-        if valid.sum() < 2:
-            return None
-        t = t[valid]
-        h = h[valid]
-        order = np.argsort(h)
-        t = t[order]
-        h = h[order]
-        keep_t = [float(t[0])]
-        keep_y = [float(h[0])]
-        for i in range(1, len(h)):
-            hi = float(h[i])
-            if hi > keep_y[-1]:
-                keep_y.append(hi)
-                keep_t.append(float(t[i]))
-
-    if len(keep_t) < 2:
+        y = _as_nan_array(obs.get("heights_m"))
+        decreasing = False
+    if y is None:
         return None
-    return np.asarray(keep_t, dtype=float), np.asarray(keep_y, dtype=float)
+
+    n = min(len(t), len(y))
+    t = t[:n]
+    y = y[:n]
+    valid = ~np.isnan(t) & ~np.isnan(y)
+    if valid.sum() < MIN_PLOT_POINTS:
+        return None
+    t = t[valid]
+    y = y[valid]
+    # Сортируем по оси: давление сверху вниз, высота снизу вверх.
+    order = np.argsort(-y if decreasing else y)
+    return _keep_monotonic(t[order], y[order], decreasing=decreasing)
 
 
 def raw_plot_arrays(

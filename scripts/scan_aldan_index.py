@@ -244,50 +244,49 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-
-    from gdex_bufr.config import load_config
-    from gdex_bufr.meteo_parser_bridge import ensure_meteo_parser_import
-
-    cfg = load_config(args.config)
-    ensure_meteo_parser_import(cfg.meteo_parser_path)
-    sys.path.insert(0, str(ROOT))
-
+def _resolve_paths(cfg, args: argparse.Namespace) -> tuple[date, date, list[str], Path, Path, Path, Path]:
     start = datetime.strptime(args.start_date, "%Y-%m-%d").date()
     end = datetime.strptime(args.end_date, "%Y-%m-%d").date()
     cycles = [c.strip() for c in args.cycles.split(",") if c.strip()]
     raw_root = Path(cfg.data_dir)
     if not raw_root.is_absolute():
         raw_root = (ROOT / raw_root).resolve()
-
-    if args.file_list:
-        files = _list_from_file_list(Path(args.file_list))
-    else:
-        files = _list_bufr(raw_root, start, end, cycles)
-    if args.limit_files:
-        files = files[: args.limit_files]
-    logger.info("Скан Aldan %s: файлов=%s workers=%s", args.station_id, len(files), args.workers)
-
     tables = Path(cfg.bufr_tables.directory)
     if not tables.is_absolute():
         tables = (ROOT / tables).resolve()
     export = Path(cfg.bufr_tables.export_dir)
     if not export.is_absolute():
         export = (ROOT / export).resolve()
-
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    index_path = out_dir / "aldan_bufr_index.csv"
+    return start, end, cycles, raw_root, tables, export, out_dir
 
+
+def _collect_files(args: argparse.Namespace, raw_root: Path, start: date, end: date, cycles: list[str]) -> list[Path]:
+    if args.file_list:
+        files = _list_from_file_list(Path(args.file_list))
+    else:
+        files = _list_bufr(raw_root, start, end, cycles)
+    if args.limit_files:
+        files = files[: args.limit_files]
+    return files
+
+
+def _scan_files(
+    files: list[Path],
+    *,
+    station_id: str,
+    tables: Path,
+    export: Path,
+    workers: int,
+) -> list[dict[str, str]]:
     all_hits: list[dict[str, str]] = []
     done = 0
-    with ProcessPoolExecutor(max_workers=args.workers) as pool:
+    with ProcessPoolExecutor(max_workers=workers) as pool:
         futures = {
             pool.submit(
                 _scan_one,
-                (str(path), args.station_id, str(tables), str(export), str(ROOT)),
+                (str(path), station_id, str(tables), str(export), str(ROOT)),
             ): path
             for path in files
         }
@@ -302,7 +301,36 @@ def main(argv: list[str] | None = None) -> int:
             done += 1
             if done % 200 == 0 or done == len(files):
                 logger.info("[%s/%s] hits_so_far=%s last=%s", done, len(files), len(all_hits), path.name)
+    return all_hits
 
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+    from gdex_bufr.config import load_config
+    from gdex_bufr.meteo_parser_bridge import ensure_meteo_parser_import
+
+    cfg = load_config(args.config)
+    ensure_meteo_parser_import(cfg.meteo_parser_path)
+    sys.path.insert(0, str(ROOT))
+
+    # 1) пути и список BUFR
+    start, end, cycles, raw_root, tables, export, out_dir = _resolve_paths(cfg, args)
+    files = _collect_files(args, raw_root, start, end, cycles)
+    logger.info("Скан Aldan %s: файлов=%s workers=%s", args.station_id, len(files), args.workers)
+
+    # 2) параллельный скан
+    all_hits = _scan_files(
+        files,
+        station_id=args.station_id,
+        tables=tables,
+        export=export,
+        workers=args.workers,
+    )
+
+    # 3) индекс + сверка со старым metrics
+    index_path = out_dir / "aldan_bufr_index.csv"
     clean = [r for r in all_hits if not str(r.get("delayed", "")).startswith("ERROR")]
     clean.sort(key=lambda r: (r.get("obs_datetime") or "", r.get("source_file") or ""))
     _write_csv(index_path, clean, INDEX_COLUMNS)

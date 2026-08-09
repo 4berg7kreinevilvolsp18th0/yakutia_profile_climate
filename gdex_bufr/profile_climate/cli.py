@@ -24,6 +24,24 @@ from gdex_bufr.profile_climate.plots import render_all_monthly_plots
 
 logger = logging.getLogger(__name__)
 
+CHECKPOINT_EVERY = 500
+DEFAULT_DECODE_WORKERS = 4
+ACTUAL_PLOT_SET_NAMES = frozenset({"актуальное", "основное", "actual", "main"})
+
+_CSV_FLOAT_FIELDS = frozenset({
+    "pressure_hpa", "temperature_c", "height_m", "height_msl_m",
+    "height_agl_m", "height_bufr_m", "height_phi_m",
+    "station_elevation_m",
+    "n_levels_total", "n_levels_to_500", "p_surface_hpa", "t_surface_c",
+    "p_top_hpa", "t_top_c", "delta_t_top_surface_c",
+    "inversion_top_pressure_hpa", "inversion_top_height_m",
+    "inversion_top_temp_c", "inversion_delta_t_c",
+    "inversion_confirm_drop_c",
+})
+_CSV_INT_FIELDS = frozenset({"year", "month", "level_index"})
+_CSV_BOOL_FIELDS = frozenset({"inversion_detected", "inversion_candidate"})
+_TRUTHY_BOOL = frozenset({"true", "1", "yes"})
+
 _thread_local = threading.local()
 
 
@@ -58,40 +76,32 @@ def _resolve_station(pc_cfg: ProfileClimateConfig, station_arg: str | None) -> t
     return station_arg, station_arg, station_arg
 
 
+def _coerce_csv_row(row: dict) -> dict:
+    parsed = dict(row)
+    for key in _CSV_FLOAT_FIELDS:
+        if parsed.get(key) not in (None, ""):
+            parsed[key] = float(parsed[key])
+    for key in _CSV_INT_FIELDS:
+        if parsed.get(key) not in (None, ""):
+            parsed[key] = int(parsed[key])
+    for key in _CSV_BOOL_FIELDS:
+        value = parsed.get(key)
+        if isinstance(value, str):
+            parsed[key] = value.lower() in _TRUTHY_BOOL
+    return parsed
+
+
 def _load_csv_rows(path: Path) -> list[dict]:
     import csv
 
     if not path.exists():
         return []
-    rows: list[dict] = []
-    float_fields = {
-        "pressure_hpa", "temperature_c", "height_m", "height_msl_m",
-        "height_agl_m", "height_bufr_m", "height_phi_m",
-        "station_elevation_m",
-        "n_levels_total", "n_levels_to_500", "p_surface_hpa", "t_surface_c",
-        "p_top_hpa", "t_top_c", "delta_t_top_surface_c",
-        "inversion_top_pressure_hpa", "inversion_top_height_m",
-        "inversion_top_temp_c", "inversion_delta_t_c",
-        "inversion_confirm_drop_c",
-    }
-    int_fields = {"year", "month", "level_index"}
-    bool_fields = {"inversion_detected", "inversion_candidate"}
-
     with path.open(encoding="utf-8", newline="") as handle:
-        for row in csv.DictReader(handle):
-            parsed = dict(row)
-            for key in float_fields:
-                if parsed.get(key) not in (None, ""):
-                    parsed[key] = float(parsed[key])
-            for key in int_fields:
-                if parsed.get(key) not in (None, ""):
-                    parsed[key] = int(parsed[key])
-            for key in bool_fields:
-                value = parsed.get(key)
-                if isinstance(value, str):
-                    parsed[key] = value.lower() in {"true", "1", "yes"}
-            rows.append(parsed)
-    return rows
+        return [_coerce_csv_row(row) for row in csv.DictReader(handle)]
+
+
+def _rows_for_station(rows: list[dict], station_id: str) -> list[dict]:
+    return [r for r in rows if normalize_station_id(r.get("station_id")) == station_id]
 
 
 def _filter_by_cycles(rows: list[dict], cycles: list[str]) -> list[dict]:
@@ -176,7 +186,7 @@ def cmd_station_profiles(
     pressure_top = float(args.pressure_top or pc_cfg.pressure_top_hpa)
     cycles = _parse_cycles(args.cycles, pc_cfg.cycles)
     output_dir = Path(args.output or "gdex_outputs/profile_climate")
-    workers = max(1, int(getattr(args, "workers", None) or 4))
+    workers = max(1, int(getattr(args, "workers", None) or DEFAULT_DECODE_WORKERS))
 
     files = list_bufr_files(
         app_cfg,
@@ -197,7 +207,6 @@ def cmd_station_profiles(
         "pressure_top_hpa": pressure_top,
         "cycles": cycles,
     }
-    checkpoint_every = 500
     total_files = len(files)
     long_rows: list[dict] = []
     metrics_rows: list[dict] = []
@@ -235,7 +244,7 @@ def cmd_station_profiles(
             decoded_rows.extend(file_decoded)
             element_rows.extend(file_elements)
             processed_files += 1
-            if processed_files % checkpoint_every == 0 or processed_files == total_files:
+            if processed_files % CHECKPOINT_EVERY == 0 or processed_files == total_files:
                 export_checkpoint(
                     long_rows,
                     metrics_rows,
@@ -275,7 +284,7 @@ def resolve_monthly_plots_root(output: Path | str, plot_set: str = "актуал
     """актуальное → base/актуальное; иначе → base/сравнение/<plot_set>."""
     base = Path(output)
     name = (plot_set or "актуальное").strip().replace("\\", "/").strip("/")
-    if name in {"актуальное", "основное", "actual", "main"}:
+    if name in ACTUAL_PLOT_SET_NAMES:
         return base / "актуальное"
     # допускаем уже полный путь сравнение/foo
     if name.startswith("сравнение/"):
@@ -302,8 +311,8 @@ def cmd_monthly_profile_plots(
     )
     output_root.mkdir(parents=True, exist_ok=True)
 
-    long_rows = [r for r in _load_csv_rows(input_path) if normalize_station_id(r.get("station_id")) == station_id]
-    metrics_rows = [r for r in _load_csv_rows(metrics_path) if normalize_station_id(r.get("station_id")) == station_id]
+    long_rows = _rows_for_station(_load_csv_rows(input_path), station_id)
+    metrics_rows = _rows_for_station(_load_csv_rows(metrics_path), station_id)
 
     if not long_rows:
         print(f"Нет данных в {input_path} для станции {station_id}", file=sys.stderr)

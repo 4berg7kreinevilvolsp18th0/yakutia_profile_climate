@@ -28,6 +28,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from gdex_bufr.bufr_adapter import decode_bufr_file  # noqa: E402
+from gdex_bufr.profile_climate.extract import normalize_station_id  # noqa: E402
 from gdex_bufr.meteo_parser_bridge import (  # noqa: E402
     RadiosondeProfile,
     VerticalLevel,
@@ -133,10 +134,6 @@ def finite(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if math.isfinite(number) else None
-
-
-def normalize_station_id(value: str | None) -> str:
-    return str(value or "").zfill(5)[-5:]
 
 
 def normalized_level_type(value: str | None) -> str | None:
@@ -442,6 +439,8 @@ def detect_inversion(
     confirm_depth_hpa: float = 30.0,
     min_drop_c: float = 0.2,
 ) -> InversionResult:
+    # Локальная копия намеренно: контракт InversionResult + сортировка внутри
+    # отличаются от profile_climate.inversion (нельзя заменить без смены CSV).
     if len(levels) < 2:
         return InversionResult()
     ordered = sorted(levels, key=lambda row: float(row["pressure_hpa"]), reverse=True)
@@ -765,8 +764,8 @@ def run_dashboard(output: Path) -> None:
     )
     if axis_mode == "Давление":
         figure.update_yaxes(autorange="reversed")
-    st.plotly_chart(figure, use_container_width=True)
-    st.dataframe(chosen.drop(columns=["datetime"]), use_container_width=True)
+    st.plotly_chart(figure, width="stretch")
+    st.dataframe(chosen.drop(columns=["datetime"]), width="stretch")
 
 
 def launch_dashboard(output: Path) -> int:

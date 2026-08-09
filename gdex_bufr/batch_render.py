@@ -20,9 +20,47 @@ from gdex_bufr.xlsx_export import append_profiles_xlsx
 
 logger = logging.getLogger(__name__)
 
+RENDER_STATE_DB = "render_state.sqlite"
+FIELDS_DICT_CSV = "bufr_fields_dictionary.csv"
+DECODED_PROFILES_XLSX = "decoded_profiles.xlsx"
+MIN_PLOT_LEVELS = 2
+DRY_RUN_PREVIEW_LIMIT = 20
+
 FILENAME_RE = re.compile(
     r"gdas\.(?P<obs_type>[a-z]+)\.t(?P<cycle>\d{2})z\.(?P<obs_date>\d{8})\.bufr$"
 )
+
+
+def _bufr_tables_config(cfg: AppConfig) -> dict[str, str | bool]:
+    return {
+        "directory": str(cfg.bufr_tables.directory),
+        "wmo_version": cfg.bufr_tables.wmo_version,
+        "master_table_version": cfg.bufr_tables.master_table_version,
+        "export_dir": str(cfg.bufr_tables.export_dir),
+        "export_on_update": cfg.bufr_tables.export_on_update,
+    }
+
+
+def _parse_obs_date(obs_date_str: str) -> date | None:
+    if len(obs_date_str) != 8:
+        return None
+    return date(int(obs_date_str[:4]), int(obs_date_str[4:6]), int(obs_date_str[6:8]))
+
+
+def _obs_date_in_range(
+    obs_date_str: str,
+    *,
+    start_date: date | None,
+    end_date: date | None,
+) -> bool:
+    obs_d = _parse_obs_date(obs_date_str)
+    if obs_d is None:
+        return True
+    if start_date and obs_d < start_date:
+        return False
+    if end_date and obs_d > end_date:
+        return False
+    return True
 
 
 def _parse_bufr_meta(path: Path) -> dict[str, str]:
@@ -138,14 +176,8 @@ def list_bufr_files(
 
     def _append_if_in_range(path: Path) -> None:
         meta = _parse_bufr_meta(path)
-        obs_date_str = meta.get("obs_date", "")
-        if len(obs_date_str) == 8:
-            obs_d = date(int(obs_date_str[:4]), int(obs_date_str[4:6]), int(obs_date_str[6:8]))
-            if start_date and obs_d < start_date:
-                return
-            if end_date and obs_d > end_date:
-                return
-        files.append(path)
+        if _obs_date_in_range(meta.get("obs_date", ""), start_date=start_date, end_date=end_date):
+            files.append(path)
 
     if cycle_set is not None and year_from is not None and year_to is not None:
         for year in range(year_from, year_to + 1):
@@ -176,15 +208,8 @@ class BatchRenderer:
     def __init__(self, cfg: AppConfig, plot_style: PlotStyle) -> None:
         self.cfg = cfg
         self.plot_style = plot_style
-        self.registry = init_decoder_tables({
-            "directory": str(cfg.bufr_tables.directory),
-            "wmo_version": cfg.bufr_tables.wmo_version,
-            "master_table_version": cfg.bufr_tables.master_table_version,
-            "export_dir": str(cfg.bufr_tables.export_dir),
-            "export_on_update": cfg.bufr_tables.export_on_update,
-        })
-        render_db = cfg.outputs_dir / "render_state.sqlite"
-        self.state = BatchRenderState(render_db)
+        self.registry = init_decoder_tables(_bufr_tables_config(cfg))
+        self.state = BatchRenderState(cfg.outputs_dir / RENDER_STATE_DB)
         self._csv_lock = threading.Lock()
         self._stats_lock = threading.Lock()
         self._processed = 0
@@ -194,10 +219,10 @@ class BatchRenderer:
         self._errors = 0
 
     def _xlsx_path(self) -> Path:
-        return self.cfg.outputs_dir / "decoded_profiles.xlsx"
+        return self.cfg.outputs_dir / DECODED_PROFILES_XLSX
 
     def _fields_dict_path(self) -> Path:
-        return self.cfg.outputs_dir / "bufr_fields_dictionary.csv"
+        return self.cfg.outputs_dir / FIELDS_DICT_CSV
 
     def _append_xlsx(self, profiles: list[RadiosondeProfile]) -> None:
         if not self.plot_style.export_xlsx or not profiles:
@@ -299,7 +324,7 @@ class BatchRenderer:
                     plot_types,
                     all_profiles=profiles,
                     style=self.plot_style,
-                    min_levels=2,
+                    min_levels=MIN_PLOT_LEVELS,
                 )
                 plots_written += len(outputs)
             except Exception as exc:

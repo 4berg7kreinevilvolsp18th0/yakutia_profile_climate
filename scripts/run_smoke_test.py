@@ -1,8 +1,13 @@
 """Smoke-тест пайплайна profile_climate на синтетических профилях Алдана."""
 from __future__ import annotations
 
+import sys
 from datetime import datetime
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from gdex_bufr.meteo_parser_bridge import RadiosondeProfile, VerticalLevel
 from gdex_bufr.profile_climate.export import export_all

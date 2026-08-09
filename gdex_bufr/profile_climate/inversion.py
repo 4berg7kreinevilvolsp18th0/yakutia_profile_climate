@@ -56,6 +56,56 @@ def _candidate_result(
     )
 
 
+def _has_consecutive_cooling(
+    levels_above: list[dict[str, Any]],
+    *,
+    top_temp: float,
+    confirm_drop_levels: int,
+    min_drop_delta_c: float,
+) -> bool:
+    """Есть ли подряд несколько шагов охлаждения выше верха инверсии."""
+    if len(levels_above) < confirm_drop_levels:
+        return False
+    prev_temp = top_temp
+    for level in levels_above[:confirm_drop_levels]:
+        temp = level.get("temperature_c")
+        if temp is None:
+            return False
+        # Падение должно быть не слабее порога.
+        if (temp - prev_temp) > -min_drop_delta_c:
+            return False
+        prev_temp = temp
+    return True
+
+
+def _pressure_window_drop(
+    levels_above: list[dict[str, Any]],
+    *,
+    top_temp: float,
+    top_pressure_hpa: float,
+    confirm_depth_hpa: float,
+) -> float | None:
+    """Суммарное изменение T в слое толщиной ≥ confirm_depth_hpa.
+
+    Возвращает None, если окно слишком короткое.
+    """
+    window: list[dict[str, Any]] = []
+    for level in levels_above:
+        p = level.get("pressure_hpa")
+        if p is None or level.get("temperature_c") is None:
+            break
+        window.append(level)
+        if top_pressure_hpa - float(p) >= confirm_depth_hpa:
+            break
+
+    if not window:
+        return None
+    last_p = window[-1].get("pressure_hpa")
+    if last_p is None or top_pressure_hpa - float(last_p) < confirm_depth_hpa:
+        return None
+    return float(window[-1]["temperature_c"]) - float(top_temp)
+
+
 def _confirm_sustained_lapse(
     levels_above: list[dict[str, Any]],
     *,
@@ -69,43 +119,62 @@ def _confirm_sustained_lapse(
 
     Возвращает (ok, суммарное падение T в окне подтверждения).
     """
-    if len(levels_above) < confirm_drop_levels:
+    if not _has_consecutive_cooling(
+        levels_above,
+        top_temp=top_temp,
+        confirm_drop_levels=confirm_drop_levels,
+        min_drop_delta_c=min_drop_delta_c,
+    ):
         return False, None
 
-    # Подряд: confirm_drop_levels шагов ΔT ≤ -min_drop_delta_c
-    prev_temp = top_temp
-    for level in levels_above[:confirm_drop_levels]:
-        temp = level.get("temperature_c")
-        if temp is None:
-            return False, None
-        if (temp - prev_temp) > -min_drop_delta_c:
-            return False, None
-        prev_temp = temp
-
-    # Слой: окно по давлению ≥ confirm_depth_hpa, суммарно T падает
     if top_pressure_hpa is None:
         return False, None
 
-    window: list[dict[str, Any]] = []
-    for level in levels_above:
-        p = level.get("pressure_hpa")
-        if p is None or level.get("temperature_c") is None:
-            break
-        window.append(level)
-        if top_pressure_hpa - float(p) >= confirm_depth_hpa:
-            break
-
-    if not window:
+    confirm_drop = _pressure_window_drop(
+        levels_above,
+        top_temp=top_temp,
+        top_pressure_hpa=float(top_pressure_hpa),
+        confirm_depth_hpa=confirm_depth_hpa,
+    )
+    if confirm_drop is None:
         return False, None
-    last_p = window[-1].get("pressure_hpa")
-    if last_p is None or top_pressure_hpa - float(last_p) < confirm_depth_hpa:
-        return False, None
-
-    last_temp = window[-1]["temperature_c"]
-    confirm_drop = float(last_temp) - float(top_temp)
     if confirm_drop >= 0:
         return False, confirm_drop
     return True, confirm_drop
+
+
+def _find_inversion_top(
+    levels: list[dict[str, Any]],
+    *,
+    min_inversion_delta_c: float,
+) -> tuple[dict[str, Any], int] | None:
+    """Ищет верх инверсии: непрерывный рост T от поверхности вверх."""
+    surface = levels[0]
+    if surface.get("temperature_c") is None:
+        return None
+
+    inversion_top = surface
+    top_index = 0
+    growing = False
+
+    for idx, level in enumerate(levels[1:], start=1):
+        temp = level.get("temperature_c")
+        prev_temp = inversion_top.get("temperature_c")
+        if temp is None or prev_temp is None:
+            break
+        if temp - prev_temp > min_inversion_delta_c:
+            growing = True
+            inversion_top = level
+            top_index = idx
+        else:
+            # Рост закончился (или так и не начался).
+            break
+
+    if not growing:
+        return None
+    if inversion_top.get("temperature_c") is None:
+        return None
+    return inversion_top, top_index
 
 
 def detect_surface_inversion(
@@ -126,43 +195,18 @@ def detect_surface_inversion(
     if len(levels) < 2:
         return InversionResult()
 
-    surface = levels[0]
-    surface_temp = surface.get("temperature_c")
+    surface_temp = levels[0].get("temperature_c")
     if surface_temp is None:
         return InversionResult()
 
-    inversion_top = surface
-    top_index = 0
-    growing = False
-
-    for idx, level in enumerate(levels[1:], start=1):
-        temp = level.get("temperature_c")
-        if temp is None:
-            break
-        prev_temp = inversion_top.get("temperature_c")
-        if prev_temp is None:
-            break
-        delta = temp - prev_temp
-        if delta > min_inversion_delta_c:
-            growing = True
-            inversion_top = level
-            top_index = idx
-        elif growing:
-            break
-        else:
-            break
-
-    if not growing:
+    found = _find_inversion_top(levels, min_inversion_delta_c=min_inversion_delta_c)
+    if found is None:
         return InversionResult()
 
-    top_temp = inversion_top.get("temperature_c")
-    if top_temp is None:
-        return InversionResult()
-
-    levels_above = levels[top_index + 1 :]
+    inversion_top, top_index = found
     ok, confirm_drop = _confirm_sustained_lapse(
-        levels_above,
-        top_temp=float(top_temp),
+        levels[top_index + 1 :],
+        top_temp=float(inversion_top["temperature_c"]),
         top_pressure_hpa=inversion_top.get("pressure_hpa"),
         confirm_drop_levels=confirm_drop_levels,
         confirm_depth_hpa=confirm_depth_hpa,

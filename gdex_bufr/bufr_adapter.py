@@ -590,6 +590,26 @@ def decode_bufr_file(
         )
 
 
+def _message_subset_indices(
+    message: Any,
+    n_subsets: int,
+    *,
+    station_id: str | None,
+) -> list[int]:
+    """Какие subset декодировать: все или только совпадающие с WMO station_id."""
+    if station_id is None:
+        return list(range(n_subsets))
+
+    block_map = _query_values(message, DESC_WMO_BLOCK)
+    station_map = _query_values(message, DESC_WMO_STATION)
+    station_maps = {DESC_WMO_BLOCK: block_map, DESC_WMO_STATION: station_map}
+    return [
+        idx
+        for idx in range(n_subsets)
+        if _subset_station_id(station_maps, idx) == station_id
+    ]
+
+
 def _decode_bufr_file_impl(
     path: Path,
     *,
@@ -603,33 +623,23 @@ def _decode_bufr_file_impl(
     decoder = decoder or _make_decoder(registry)
     raw = path.read_bytes()
     profiles: list[RadiosondeProfile] = []
-    # Итерация по сообщениям BUFR (генерация сообщений из байтового потока)
+    extra_descriptors = FULL_DECODE_EXTRA_DESCRIPTORS if decode_mode == "full" else ()
+
     for message in _iter_messages(decoder, raw):
         if not _is_observation_message(message):
             continue
         from pybufrkit.mdquery import MetadataExprParser, MetadataQuerent
 
         n_subsets = int(MetadataQuerent(MetadataExprParser()).query(message, "%n_subsets") or 0)
+        subset_indices = _message_subset_indices(message, n_subsets, station_id=station_id)
+        if not subset_indices:
+            continue
+
         header_meta = _message_header_metadata(message)
-        extra_descriptors = FULL_DECODE_EXTRA_DESCRIPTORS if decode_mode == "full" else ()
-
-        if station_id is not None:
-            block_map = _query_values(message, DESC_WMO_BLOCK)
-            station_map = _query_values(message, DESC_WMO_STATION)
-            subset_indices = [
-                idx
-                for idx in range(n_subsets)
-                if _subset_station_id({DESC_WMO_BLOCK: block_map, DESC_WMO_STATION: station_map}, idx)
-                == station_id
-            ]
-            if not subset_indices:
-                continue
-        else:
-            subset_indices = list(range(n_subsets))
-
         for subset_idx in subset_indices:
             if max_profiles is not None and len(profiles) >= max_profiles:
                 return profiles
+
             query_cache = _build_query_cache(
                 message,
                 subset_index=subset_idx,
@@ -653,29 +663,28 @@ def _decode_bufr_file_impl(
             # несколько сроков/subset одной WMO (дополнения, 00+12 в одном сообщении).
     return profiles
 
-# Декодирую subset (подмножество данных)
-def _decode_subset(
-    path: Path,
+
+def _decode_subset_header(
     message: Any,
     subset_index: int,
-    *,
-    registry: BufrTablesRegistry,
-    decode_mode: str,
-    header_meta: dict[str, Any],
-    query_cache: dict[str, dict[int, list[Any]]] | None = None,
-) -> RadiosondeProfile:
-    lat_map = _values_for_message(message, DESC_LAT, query_cache)
-    lon_map = _values_for_message(message, DESC_LON, query_cache)
-    block_map = _values_for_message(message, DESC_WMO_BLOCK, query_cache)
-    station_map = _values_for_message(message, DESC_WMO_STATION, query_cache)
-
-    lat = _subset_value(lat_map, subset_index)
-    lon = _subset_value(lon_map, subset_index)
-    block = _subset_value(block_map, subset_index)
-    station_num = _subset_value(station_map, subset_index)
-    station_id = None
-    if block is not None and station_num is not None:
-        station_id = f"{int(block):02d}{int(station_num):03d}"
+    query_cache: dict[str, dict[int, list[Any]]] | None,
+) -> tuple[
+    float | None,
+    float | None,
+    str | None,
+    str | None,
+    float | None,
+]:
+    """Шапка subset: координаты, WMO, срок, высота станции."""
+    lat = _subset_value(_values_for_message(message, DESC_LAT, query_cache), subset_index)
+    lon = _subset_value(_values_for_message(message, DESC_LON, query_cache), subset_index)
+    station_id = _subset_station_id(
+        {
+            DESC_WMO_BLOCK: _values_for_message(message, DESC_WMO_BLOCK, query_cache),
+            DESC_WMO_STATION: _values_for_message(message, DESC_WMO_STATION, query_cache),
+        },
+        subset_index,
+    )
 
     year = _subset_value(_values_for_message(message, DESC_YEAR, query_cache), subset_index)
     month = _subset_value(_values_for_message(message, DESC_MONTH, query_cache), subset_index)
@@ -686,7 +695,10 @@ def _decode_subset(
     report_dt = None
     if all(v is not None for v in (year, month, day, hour)):
         minute_val = 0 if minute is None else int(minute)
-        report_dt = f"{int(year):04d}-{int(month):02d}-{int(day):02d}T{int(hour):02d}:{minute_val:02d}:00"
+        report_dt = (
+            f"{int(year):04d}-{int(month):02d}-{int(day):02d}"
+            f"T{int(hour):02d}:{minute_val:02d}:00"
+        )
 
     station_height_raw = _subset_value(
         _values_for_message(message, DESC_STATION_HEIGHT, query_cache),
@@ -699,6 +711,19 @@ def _decode_subset(
         except (TypeError, ValueError):
             station_elevation_m = None
 
+    lat_deg = None if lat is None else float(lat)
+    lon_deg = None if lon is None else float(lon)
+    return lat_deg, lon_deg, station_id, report_dt, station_elevation_m
+
+
+def _decode_subset_raw_series(
+    message: Any,
+    subset_index: int,
+    *,
+    registry: BufrTablesRegistry,
+    query_cache: dict[str, dict[int, list[Any]]] | None,
+) -> tuple[list[float | None], list[float | None], list[float | None], list[float], list[float], list[float], list[float]]:
+    """Параллельные ряды дескрипторов до сборки уровней (full mode и метаданные)."""
     pressures = [
         _normalize_pressure(v, registry)
         for v in _subset_series(_values_for_message(message, DESC_PRESSURE, query_cache), subset_index)
@@ -720,43 +745,41 @@ def _decode_subset(
             query_cache=query_cache,
         )
     ]
-    wind_dirs = [float(v) for v in _subset_series(_values_for_message(message, DESC_WDIR, query_cache), subset_index)]
-    wind_speeds = [float(v) for v in _subset_series(_values_for_message(message, DESC_WSPD, query_cache), subset_index)]
-    heights = [float(v) for v in _subset_series(_values_for_message(message, DESC_HEIGHT, query_cache), subset_index)]
-    rh_series = [float(v) for v in _subset_series(_values_for_message(message, DESC_RH, query_cache), subset_index)]
+    wind_dirs = [
+        float(v) for v in _subset_series(_values_for_message(message, DESC_WDIR, query_cache), subset_index)
+    ]
+    wind_speeds = [
+        float(v) for v in _subset_series(_values_for_message(message, DESC_WSPD, query_cache), subset_index)
+    ]
+    heights = [
+        float(v) for v in _subset_series(_values_for_message(message, DESC_HEIGHT, query_cache), subset_index)
+    ]
+    rh_series = [
+        float(v) for v in _subset_series(_values_for_message(message, DESC_RH, query_cache), subset_index)
+    ]
+    return pressures, temps, dewpoints, wind_dirs, wind_speeds, heights, rh_series
 
+
+def _decode_subset_levels(
+    message: Any,
+    subset_index: int,
+    *,
+    path: Path,
+    registry: BufrTablesRegistry,
+    decode_mode: str,
+    station_id: str | None,
+    station_elevation_m: float | None,
+    pressures: list[float | None],
+    temps: list[float | None],
+    dewpoints: list[float | None],
+    wind_dirs: list[float],
+    wind_speeds: list[float],
+    heights: list[float],
+    rh_series: list[float],
+) -> tuple[list[VerticalLevel], dict[str, Any]]:
+    """Уровни профиля: ADPUPA flat scan или выравнивание рядов (full)."""
     if decode_mode == "adpupa":
         levels = _decode_adpupa_flat_levels(message, subset_index, registry=registry)
-    else:
-        lengths = [len(pressures), len(temps), len(dewpoints), len(wind_dirs), len(wind_speeds), len(heights), len(rh_series)]
-        max_len = max(lengths) if lengths else 0
-        levels = []
-        for idx in range(max_len):
-            pressure = pressures[idx] if idx < len(pressures) else None
-            temp = temps[idx] if idx < len(temps) else None
-            dewpoint = dewpoints[idx] if idx < len(dewpoints) else None
-            wind_dir = wind_dirs[idx] if idx < len(wind_dirs) else None
-            wind_speed = wind_speeds[idx] if idx < len(wind_speeds) else None
-            if pressure is None and temp is None and dewpoint is None and wind_speed is None:
-                continue
-            levels.append(
-                VerticalLevel(
-                    pressure_hpa=pressure,
-                    geopotential_height_m=heights[idx] if idx < len(heights) else None,
-                    height_010009_m=heights[idx] if idx < len(heights) else None,
-                    air_temperature_c=temp,
-                    dew_point_temperature_c=dewpoint,
-                    wind_direction_deg=wind_dir,
-                    wind_speed=wind_speed,
-                    relative_humidity_percent=rh_series[idx] if idx < len(rh_series) else None,
-                    replication_index=idx,
-                )
-            )
-        levels = [lv for lv in levels if lv.pressure_hpa is not None]
-        levels.sort(key=lambda lv: -(lv.pressure_hpa or 0.0))
-
-    enrichment_meta: dict[str, Any] = {}
-    if decode_mode == "adpupa":
         enriched = enrich_profile_levels(
             RadiosondeProfile(
                 source_file=str(path),
@@ -771,9 +794,63 @@ def _decode_subset(
                 ),
             )
         )
-        levels = enriched.levels
-        enrichment_meta = dict(enriched.metadata.get("enrichment", {}))
+        return enriched.levels, dict(enriched.metadata.get("enrichment", {}))
 
+    lengths = [
+        len(pressures),
+        len(temps),
+        len(dewpoints),
+        len(wind_dirs),
+        len(wind_speeds),
+        len(heights),
+        len(rh_series),
+    ]
+    max_len = max(lengths) if lengths else 0
+    levels = []
+    for idx in range(max_len):
+        pressure = pressures[idx] if idx < len(pressures) else None
+        temp = temps[idx] if idx < len(temps) else None
+        dewpoint = dewpoints[idx] if idx < len(dewpoints) else None
+        wind_dir = wind_dirs[idx] if idx < len(wind_dirs) else None
+        wind_speed = wind_speeds[idx] if idx < len(wind_speeds) else None
+        if pressure is None and temp is None and dewpoint is None and wind_speed is None:
+            continue
+        levels.append(
+            VerticalLevel(
+                pressure_hpa=pressure,
+                geopotential_height_m=heights[idx] if idx < len(heights) else None,
+                height_010009_m=heights[idx] if idx < len(heights) else None,
+                air_temperature_c=temp,
+                dew_point_temperature_c=dewpoint,
+                wind_direction_deg=wind_dir,
+                wind_speed=wind_speed,
+                relative_humidity_percent=rh_series[idx] if idx < len(rh_series) else None,
+                replication_index=idx,
+            )
+        )
+    levels = [lv for lv in levels if lv.pressure_hpa is not None]
+    levels.sort(key=lambda lv: -(lv.pressure_hpa or 0.0))
+    return levels, {}
+
+
+def _decode_subset_metadata(
+    *,
+    path: Path,
+    message: Any,
+    subset_index: int,
+    registry: BufrTablesRegistry,
+    decode_mode: str,
+    header_meta: dict[str, Any],
+    query_cache: dict[str, dict[int, list[Any]]] | None,
+    station_id: str | None,
+    station_elevation_m: float | None,
+    levels: list[VerticalLevel],
+    pressures: list[float | None],
+    temps: list[float | None],
+    wind_speeds: list[float],
+    enrichment_meta: dict[str, Any],
+) -> dict[str, Any]:
+    """Метаданные subset: coded fields, debufr dump, QC-статус."""
     coded_metadata: dict[str, Any] = {}
     for fxy in PROFILE_CODED_DESCRIPTORS:
         decoded = _decode_coded_field(message, subset_index, fxy, registry, query_cache=query_cache)
@@ -811,6 +888,7 @@ def _decode_subset(
     if station_elevation_m is not None:
         metadata["station_elevation_m"] = station_elevation_m
         metadata["station_height_fxy"] = DESC_STATION_HEIGHT
+
     debufr_elements = _collect_debufr_elements(message, subset_index, registry)
     if debufr_elements:
         metadata["debufr_elements"] = debufr_elements
@@ -841,13 +919,70 @@ def _decode_subset(
             label = lv.vertical_significance or "?"
             vsig_counts[label] = vsig_counts.get(label, 0) + 1
         metadata["adpupa_vsig_counts"] = vsig_counts
+    return metadata
+
+
+# Декодирую subset (подмножество данных)
+def _decode_subset(
+    path: Path,
+    message: Any,
+    subset_index: int,
+    *,
+    registry: BufrTablesRegistry,
+    decode_mode: str,
+    header_meta: dict[str, Any],
+    query_cache: dict[str, dict[int, list[Any]]] | None = None,
+) -> RadiosondeProfile:
+    lat_deg, lon_deg, station_id, report_dt, station_elevation_m = _decode_subset_header(
+        message,
+        subset_index,
+        query_cache,
+    )
+    pressures, temps, dewpoints, wind_dirs, wind_speeds, heights, rh_series = _decode_subset_raw_series(
+        message,
+        subset_index,
+        registry=registry,
+        query_cache=query_cache,
+    )
+    levels, enrichment_meta = _decode_subset_levels(
+        message,
+        subset_index,
+        path=path,
+        registry=registry,
+        decode_mode=decode_mode,
+        station_id=station_id,
+        station_elevation_m=station_elevation_m,
+        pressures=pressures,
+        temps=temps,
+        dewpoints=dewpoints,
+        wind_dirs=wind_dirs,
+        wind_speeds=wind_speeds,
+        heights=heights,
+        rh_series=rh_series,
+    )
+    metadata = _decode_subset_metadata(
+        path=path,
+        message=message,
+        subset_index=subset_index,
+        registry=registry,
+        decode_mode=decode_mode,
+        header_meta=header_meta,
+        query_cache=query_cache,
+        station_id=station_id,
+        station_elevation_m=station_elevation_m,
+        levels=levels,
+        pressures=pressures,
+        temps=temps,
+        wind_speeds=wind_speeds,
+        enrichment_meta=enrichment_meta,
+    )
 
     return RadiosondeProfile(
         source_file=str(path),
         subset_index=subset_index,
         station_id=station_id,
-        latitude_deg=None if lat is None else float(lat),
-        longitude_deg=None if lon is None else float(lon),
+        latitude_deg=lat_deg,
+        longitude_deg=lon_deg,
         report_datetime_utc=report_dt,
         station_elevation_m=station_elevation_m,
         levels=levels,

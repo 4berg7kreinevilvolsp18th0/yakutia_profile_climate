@@ -191,6 +191,72 @@ def extract_temperature_levels(
     return rows
 
 
+def _direct_bufr_height_m(level: VerticalLevel) -> float | None:
+    """Высота из прямых BUFR-дескрипторов (010009 / 007007)."""
+    if level.height_010009_m is not None:
+        return level.height_010009_m
+    return level.height_007007_m
+
+
+def _phi_height_m(level: VerticalLevel) -> float | None:
+    """Высота из геопотенциала Φ (м²/с² → м)."""
+    if level.height_phi_m is not None:
+        return level.height_phi_m
+    if level.geopotential_m2s2 is not None:
+        return round(geopotential_to_height_m(level.geopotential_m2s2), 1)
+    return None
+
+
+def _resolve_height_msl(
+    level: VerticalLevel,
+    *,
+    surface: VerticalLevel | None,
+    station_z: float | None,
+    p_surface: float | None,
+    below_by_pressure: bool,
+) -> tuple[float | None, str | None]:
+    """Выбирает высоту MSL по приоритету источников.
+
+    Порядок: прямая BUFR → Φ → барометрия ниже станции → enriched → высота станции.
+    """
+    direct = _direct_bufr_height_m(level)
+    if direct is not None:
+        return direct, "direct_bufr"
+
+    height_phi = _phi_height_m(level)
+    if height_phi is not None:
+        return height_phi, "phi"
+
+    if (
+        below_by_pressure
+        and level.pressure_hpa is not None
+        and p_surface is not None
+        and station_z is not None
+    ):
+        height_msl = round(
+            float(station_z)
+            + estimate_geopotential_height_m(
+                float(level.pressure_hpa),
+                surface_pressure_hpa=float(p_surface),
+            ),
+            1,
+        )
+        return height_msl, "baro_below_station"
+
+    if level.geopotential_height_m is not None:
+        return level.geopotential_height_m, "enriched"
+
+    # Для самой поверхности станции берём справочную высоту.
+    if (
+        (level.vertical_significance or "").upper() == "SFC"
+        and station_z is not None
+        and level is surface
+    ):
+        return float(station_z), "station_007001"
+
+    return None, None
+
+
 def extract_decoded_levels(
     profile: RadiosondeProfile,
     *,
@@ -214,55 +280,20 @@ def extract_decoded_levels(
     rows: list[dict[str, Any]] = []
     for level in profile.levels:
         row = {**_level_row(profile, level), **annotations}
-        direct_height = (
-            level.height_010009_m
-            if level.height_010009_m is not None
-            else level.height_007007_m
-        )
-        height_phi = level.height_phi_m
-        if height_phi is None and level.geopotential_m2s2 is not None:
-            height_phi = round(geopotential_to_height_m(level.geopotential_m2s2), 1)
-        decoded_height = level.geopotential_height_m
+        direct_height = _direct_bufr_height_m(level)
+        height_phi = _phi_height_m(level)
         below_by_pressure = (
             level.pressure_hpa is not None
             and p_surface is not None
             and float(level.pressure_hpa) > float(p_surface) + 2.0
         )
-        if direct_height is not None:
-            height_msl = direct_height
-            height_msl_source = "direct_bufr"
-        elif height_phi is not None:
-            height_msl = height_phi
-            height_msl_source = "phi"
-        elif (
-            below_by_pressure
-            and level.pressure_hpa is not None
-            and p_surface is not None
-            and station_z is not None
-        ):
-            height_msl = round(
-                float(station_z)
-                + estimate_geopotential_height_m(
-                    float(level.pressure_hpa),
-                    surface_pressure_hpa=float(p_surface),
-                ),
-                1,
-            )
-            height_msl_source = "baro_below_station"
-        elif decoded_height is not None:
-            height_msl = decoded_height
-            height_msl_source = "enriched"
-        else:
-            height_msl = None
-            height_msl_source = None
-        if (
-            height_msl is None
-            and (level.vertical_significance or "").upper() == "SFC"
-            and station_z is not None
-            and level is surface
-        ):
-            height_msl = float(station_z)
-            height_msl_source = "station_007001"
+        height_msl, height_msl_source = _resolve_height_msl(
+            level,
+            surface=surface,
+            station_z=station_z,
+            p_surface=p_surface,
+            below_by_pressure=below_by_pressure,
+        )
         below_by_height = (
             height_msl is not None
             and station_z is not None
@@ -280,7 +311,7 @@ def extract_decoded_levels(
             "height_007007_m": level.height_007007_m,
             "height_bufr_m": direct_height,
             "height_phi_m": height_phi,
-            "height_decoded_m": decoded_height,
+            "height_decoded_m": level.geopotential_height_m,
             "height_msl_m": height_msl,
             "height_msl_source": height_msl_source,
             "height_agl_m": (

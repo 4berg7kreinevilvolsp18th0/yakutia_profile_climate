@@ -113,6 +113,53 @@ def interpolate_heights_on_pressure(
     return [None if np.isnan(v) else round(float(v), 1) for v in interp]
 
 
+def _pick_observed_height(
+    level: dict[str, Any],
+    *,
+    station_elevation_m: float | None,
+) -> tuple[float | None, str | None]:
+    """Берёт высоту уровня из наблюдений / Φ / высоты станции.
+
+    Порядок: 010009 → 007007 → Φ→z → height_m/geopot → высота станции для SFC.
+    """
+    direct = _finite(level.get("height_010009_m"))
+    if direct is None:
+        direct = _finite(level.get("height_007007_m"))
+    if direct is not None:
+        return direct, "level"
+
+    phi = _finite(level.get("geopotential_m2s2"))
+    if phi is not None:
+        return round(geopotential_to_height_m(phi), 1), "phi"
+
+    height = observed_or_geopot_height_m(
+        height_m=_finite(level.get("height_m")),
+        geopotential_height_m=_finite(level.get("geopotential_height_m")),
+    )
+    if height is not None:
+        return height, "observed_or_geopot"
+
+    if str(level.get("VSIG") or "").upper() == "SFC" and station_elevation_m is not None:
+        return station_elevation_m, "station_007001"
+    return None, None
+
+
+def _choose_final_height(
+    h_obs: float | None,
+    h_source: str | None,
+    h_interp: float | None,
+    h_baro: float | None,
+) -> tuple[float | None, str | None]:
+    """Итоговая высота: наблюдение → интерполяция → барометрия."""
+    if h_obs is not None:
+        return h_obs, h_source
+    if h_interp is not None:
+        return h_interp, "interp"
+    if h_baro is not None:
+        return h_baro, "baro"
+    return None, None
+
+
 def fill_profile_level_heights(
     levels: list[dict[str, Any]],
     *,
@@ -128,37 +175,15 @@ def fill_profile_level_heights(
     if elev is None:
         elev = station_elevation_m(station_id)
     pressures = [_finite(lv.get("pressure_hpa")) for lv in levels]
+
     obs_heights: list[float | None] = []
     obs_sources: list[str | None] = []
     for lv in levels:
-        direct = _finite(lv.get("height_010009_m"))
-        if direct is None:
-            direct = _finite(lv.get("height_007007_m"))
-        phi = _finite(lv.get("geopotential_m2s2"))
-        height = None
-        source = None
-        if direct is not None:
-            height, source = direct, "level"
-        elif phi is not None:
-            height = round(geopotential_to_height_m(phi), 1)
-            source = "phi"
-        else:
-            height = observed_or_geopot_height_m(
-                height_m=_finite(lv.get("height_m")),
-                geopotential_height_m=_finite(lv.get("geopotential_height_m")),
-            )
-            if height is not None:
-                source = "observed_or_geopot"
-        if (
-            height is None
-            and str(lv.get("VSIG") or "").upper() == "SFC"
-            and elev is not None
-        ):
-            height, source = elev, "station_007001"
+        height, source = _pick_observed_height(lv, station_elevation_m=elev)
         obs_heights.append(height)
         obs_sources.append(source)
 
-    # для интерп. якоря: только «наблюдённые» (включая Φ→z)
+    # Интерполяция только по «наблюдённым» точкам (включая Φ→z).
     interp_heights = interpolate_heights_on_pressure(
         [p if p is not None else np.nan for p in pressures],
         obs_heights,
@@ -181,27 +206,15 @@ def fill_profile_level_heights(
                 surface_pressure_hpa=p_sfc,
                 station_elevation_m=elev,
             )
+        final_h, final_source = _choose_final_height(h_obs, h_source, h_interp, h_baro)
         row["height_obs_m"] = h_obs
         row["height_interp_m"] = h_interp
         row["height_baro_m"] = h_baro
-        # итоговая рабочая высота: наблюдение → интерп → барометрия
-        if h_obs is not None:
-            row["height_m"] = h_obs
-            row["height_source"] = h_source
-        elif h_interp is not None:
-            row["height_m"] = h_interp
-            row["height_source"] = "interp"
-        elif h_baro is not None:
-            row["height_m"] = h_baro
-            row["height_source"] = "baro"
-        else:
-            row["height_m"] = None
-            row["height_source"] = None
-        row["height_msl_m"] = row["height_m"]
+        row["height_m"] = final_h
+        row["height_source"] = final_source
+        row["height_msl_m"] = final_h
         row["height_agl_m"] = (
-            None
-            if row["height_m"] is None or elev is None
-            else round(float(row["height_m"]) - float(elev), 1)
+            None if final_h is None or elev is None else round(float(final_h) - float(elev), 1)
         )
         out.append(row)
     return out

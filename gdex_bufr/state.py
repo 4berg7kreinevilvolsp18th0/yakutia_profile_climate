@@ -81,6 +81,10 @@ class DownloadState:
     def _now() -> str:
         return datetime.now(timezone.utc).isoformat()
 
+    @staticmethod
+    def _today_key() -> str:
+        return datetime.now(timezone.utc).date().isoformat()
+
     def upsert_pending(self, rows: list[dict]) -> None:
         with self._conn() as conn:
             for row in rows:
@@ -204,7 +208,7 @@ class DownloadState:
             )
 
     def add_daily_bytes(self, nbytes: int) -> int:
-        day = datetime.now(timezone.utc).date().isoformat()
+        day = self._today_key()
         with self._conn() as conn:
             conn.execute(
                 """
@@ -218,7 +222,7 @@ class DownloadState:
             return int(row["bytes_downloaded"]) if row else nbytes
 
     def get_daily_bytes(self) -> int:
-        day = datetime.now(timezone.utc).date().isoformat()
+        day = self._today_key()
         with self._conn() as conn:
             cur = conn.execute("SELECT bytes_downloaded FROM daily_stats WHERE day = ?", (day,))
             row = cur.fetchone()

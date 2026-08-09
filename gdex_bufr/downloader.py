@@ -18,6 +18,10 @@ from gdex_bufr.state import DownloadRecord, DownloadState
 
 logger = logging.getLogger(__name__)
 
+DOWNLOAD_CHUNK_BYTES = 512 * 1024
+HTTP_POOL_SIZE = 10
+BYTES_PER_GB = 1024**3
+
 
 def resolve_ssl_verify(cfg: AppConfig) -> bool | str:
     """Возвращаю параметр verify для requests (False, путь к CA-bundle или certifi)."""
@@ -63,7 +67,7 @@ class PoliteDownloader:
         self.cfg = cfg
         self.state = DownloadState(cfg.state_db)
         self.limiter = RateLimiter(cfg.requests_per_minute, cfg.min_delay_seconds, cfg.delay_jitter_seconds)
-        self.daily_budget_bytes = int(cfg.daily_byte_budget_gb * 1024**3) if cfg.daily_byte_budget_gb > 0 else 0
+        self.daily_budget_bytes = int(cfg.daily_byte_budget_gb * BYTES_PER_GB) if cfg.daily_byte_budget_gb > 0 else 0
         self._budget_lock = threading.Lock()
         self._budget_exhausted = threading.Event()
         self._stats_lock = threading.Lock()
@@ -95,10 +99,31 @@ class PoliteDownloader:
     def _make_session(self) -> requests.Session:
         session = requests.Session()
         session.headers.update({"User-Agent": self.cfg.user_agent})
-        adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=10, max_retries=0)
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=HTTP_POOL_SIZE,
+            pool_maxsize=HTTP_POOL_SIZE,
+            max_retries=0,
+        )
         session.mount("https://", adapter)
         session.mount("http://", adapter)
         return session
+
+    def _download_status_from_response(self, response: requests.Response, resume_from: int) -> tuple[str, int]:
+        """Статус одной попытки загрузки по HTTP-коду (без записи тела ответа)."""
+        code = response.status_code
+        if code == 416:
+            return "completed", resume_from
+        if code == 404:
+            return "not_found", resume_from
+        if code == 403:
+            return "forbidden", resume_from
+        if code == 429:
+            logger.debug("Rate limited (429) for %s", response.url)
+            time.sleep(self.cfg.cooldown_on_429_seconds)
+            return "failed", resume_from
+        if code >= 500 or code not in (200, 206):
+            return "failed", resume_from
+        return "ok", resume_from
 
     def _download_once(self, record: DownloadRecord, session: requests.Session) -> tuple[str, int]:
         if self._budget_exhausted.is_set():
@@ -123,26 +148,12 @@ class PoliteDownloader:
             verify=self._ssl_verify,
         )
 
-        if response.status_code == 416:
-            part_path.replace(local_path)
-            return "completed", local_path.stat().st_size
-
-        if response.status_code == 404:
-            return "not_found", resume_from
-
-        if response.status_code == 403:
-            return "forbidden", resume_from
-
-        if response.status_code == 429:
-            logger.debug("Rate limited (429) for %s", record.url)
-            time.sleep(self.cfg.cooldown_on_429_seconds)
-            return "failed", resume_from
-
-        if response.status_code >= 500:
-            return "failed", resume_from
-
-        if response.status_code not in (200, 206):
-            return "failed", resume_from
+        status, resume_from = self._download_status_from_response(response, resume_from)
+        if status != "ok":
+            if status == "completed" and response.status_code == 416:
+                part_path.replace(local_path)
+                return "completed", local_path.stat().st_size
+            return status, resume_from
 
         expected_size = record.expected_size
         content_length = response.headers.get("Content-Length")
@@ -157,7 +168,7 @@ class PoliteDownloader:
 
         downloaded = resume_from
         with part_path.open(mode) as handle:
-            for chunk in response.iter_content(chunk_size=1024 * 512):
+            for chunk in response.iter_content(chunk_size=DOWNLOAD_CHUNK_BYTES):
                 if not chunk:
                     continue
                 if self.daily_budget_bytes > 0:
@@ -202,6 +213,17 @@ class PoliteDownloader:
         when = datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
         return when.isoformat()
 
+    def _mark_terminal_http_error(
+        self,
+        record: DownloadRecord,
+        *,
+        status: str,
+        message: str,
+    ) -> str:
+        self.state.mark_status(record.url, status, error_message=message, retry_after=None)
+        logger.warning("%s, skipped: %s", message, record.url)
+        return status
+
     def _process_record(self, record: DownloadRecord) -> str:
         local_path = Path(record.local_path)
         if self._validate_file(local_path, record.expected_size):
@@ -231,23 +253,13 @@ class PoliteDownloader:
                         final_status = "partial"
                         break
                     if status == "not_found":
-                        self.state.mark_status(
-                            record.url,
-                            "not_found",
-                            error_message="HTTP 404 Not Found",
-                            retry_after=None,
+                        return self._mark_terminal_http_error(
+                            record, status="not_found", message="HTTP 404 Not Found"
                         )
-                        logger.warning("File not on server (404), skipped: %s", record.url)
-                        return "not_found"
                     if status == "forbidden":
-                        self.state.mark_status(
-                            record.url,
-                            "forbidden",
-                            error_message="HTTP 403 Forbidden",
-                            retry_after=None,
+                        return self._mark_terminal_http_error(
+                            record, status="forbidden", message="HTTP 403 Forbidden"
                         )
-                        logger.warning("Access denied (403), skipped: %s", record.url)
-                        return "forbidden"
                     last_error = f"HTTP error ({status})"
                     logger.debug(
                         "Download retry (%s/%s): %s — %s",
@@ -367,12 +379,7 @@ class PoliteDownloader:
                 result = self.download_batch()
                 logger.info("Batch finished: %s", result)
                 summary = result.get("state_summary", {})
-                pending = (
-                    summary.get("pending", 0)
-                    + summary.get("failed", 0)
-                    + summary.get("partial", 0)
-                    + summary.get("downloading", 0)
-                )
+                pending = self._pending_download_count(summary)
                 if pending == 0 and summary.get("downloading", 0) == 0:
                     logger.info("All files downloaded.")
                     break
@@ -387,3 +394,11 @@ class PoliteDownloader:
             except Exception:
                 logger.exception("Daemon batch failed, retry in %ss", self.cfg.daemon_error_sleep_seconds)
                 time.sleep(self.cfg.daemon_error_sleep_seconds)
+
+    def _pending_download_count(self, summary: dict) -> int:
+        return (
+            summary.get("pending", 0)
+            + summary.get("failed", 0)
+            + summary.get("partial", 0)
+            + summary.get("downloading", 0)
+        )
