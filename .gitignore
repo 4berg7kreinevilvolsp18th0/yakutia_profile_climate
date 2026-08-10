@@ -44,3 +44,11 @@ scripts/scan_1999_decode_qc.py
 scripts/start_overnight_aldan.ps1
 gdex_outputs/актуальное/plots/profiles_2000-09.png
 /gdex_outputs/profile_climate
+gdex_outputs/результаты-алдан-прогон_20260806_022516/debufr_elements.csv
+gdex_outputs/результаты-алдан-полный/результаты-алдан-полный.rar
+gdex_outputs/результаты-алдан-полный/decoded_levels.csv
+gdex_outputs/актуальное/~$aldan_actual.xlsx
+gdex_outputs/результаты-алдан/результаты-алдан.rar
+*.rar
+gdex_outputs/актуальное/decoded_levels.csv
+gdex_outputs/результаты-алдан/decoded_levels.csv
