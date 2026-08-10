@@ -49,28 +49,38 @@ DESC_RH = "013003"
 DESC_VSIG = "008001"
 
 # NCEP ADPUPA / WMO 0-08-001 (vertical sounding significance).
-# Короткие метки для климатического пайплайна; 2 = Standard level = MANL.
+# В ADPUPA код обычно приходит как 7-битная маска: 64/32/16/8/4/2.
+# Decimal 4 = SIGT (бит 5), decimal 8 = MAXW (бит 4) — не путать с CodeFigure.
 ADPUPA_VSIG_LABELS: dict[int, str] = {
-    1: "SFC",       # Surface
-    2: "MANL",      # Standard / mandatory level
-    3: "TROP",
-    4: "MAXW",
-    5: "SIGT",      # significant T/RH
-    6: "SIGW",      # significant wind
-    8: "MAXW",
+    1: "SFC",       # CodeFigure 1 / legacy
+    2: "MANL",      # CodeFigure 2 / legacy
+    3: "TROP",      # CodeFigure 3 / legacy
+    4: "SIGT",      # bitmask: significant T/RH (WMO bit 5)
+    5: "SIGT",      # CodeFigure 5
+    6: "SIGW",      # CodeFigure 6 / bitmask significant wind
+    8: "MAXW",      # bitmask: maximum wind (WMO bit 4)
     16: "TROP",
-    32: "MANL",     # встречается в части ADPUPA как отдельный код
+    32: "MANL",
     64: "SFC",
 }
 
-# Битовые флаги WMO (номер бита → метка), схема 1<<(bit-1)
+# WMO bit number (1..6) → label; mask = 1<<(7-bit) в 7-битном поле.
 ADPUPA_VSIG_BIT_LABELS: dict[int, str] = {
-    1: "SFC",
-    2: "MANL",
-    3: "TROP",
-    4: "MAXW",
-    5: "SIGT",
-    6: "SIGW",
+    1: "SFC",    # mask 64
+    2: "MANL",   # mask 32
+    3: "TROP",   # mask 16
+    4: "MAXW",   # mask 8
+    5: "SIGT",   # mask 4
+    6: "SIGW",   # mask 2
+}
+
+ADPUPA_VSIG_MASK_LABELS: dict[int, str] = {
+    64: "SFC",
+    32: "MANL",
+    16: "TROP",
+    8: "MAXW",
+    4: "SIGT",
+    2: "SIGW",
 }
 
 ADPUPA_LEVEL_FIELD_IDS = frozenset({
@@ -273,6 +283,23 @@ def _normalize_pressure(value: Any, registry: BufrTablesRegistry | None = None) 
     return pressure
 
 
+def vsig_legacy_label(vsig_wmo: str | None) -> str | None:
+    """Legacy-агрегация simple-контура: SIGT/TROP → TXPR."""
+    if not vsig_wmo:
+        return None
+    parts: list[str] = []
+    for part in str(vsig_wmo).upper().split("+"):
+        if part in {"SIGT", "TROP", "TXPR"}:
+            label = "TXPR"
+        elif part in {"SFC", "MANL", "MAXW", "SIGW"}:
+            label = part
+        else:
+            label = part
+        if label and label not in parts:
+            parts.append(label)
+    return "+".join(parts) if parts else None
+
+
 def _adpupa_vsig_label(code: Any) -> str | None:
     if _is_missing(code):
         return None
@@ -281,14 +308,22 @@ def _adpupa_vsig_label(code: Any) -> str | None:
     except (TypeError, ValueError):
         return None
 
-    # 1) точное совпадение с известными кодами ADPUPA
+    # 1) точное совпадение (маска или CodeFigure)
     if bits in ADPUPA_VSIG_LABELS:
         return ADPUPA_VSIG_LABELS[bits]
 
-    # 2) WMO flag-биты: bit N → 1<<(N-1) (Surface=1, Standard/MANL=2, …)
+    # 2) составная маска WMO: bit1=64 … bit6=2
     labels: list[str] = []
+    for mask, name in ADPUPA_VSIG_MASK_LABELS.items():
+        if bits & mask:
+            if name not in labels:
+                labels.append(name)
+    if labels:
+        return "+".join(labels)
+
+    # 3) fallback: WMO bit N → 1<<(7-N)
     for bit, name in ADPUPA_VSIG_BIT_LABELS.items():
-        if bits & (1 << (bit - 1)):
+        if bits & (1 << (7 - bit)):
             if name not in labels:
                 labels.append(name)
     if labels:

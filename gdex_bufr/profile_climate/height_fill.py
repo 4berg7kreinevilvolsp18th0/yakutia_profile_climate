@@ -44,12 +44,20 @@ def _finite(value: Any) -> float | None:
 
 def observed_or_geopot_height_m(
     *,
-    height_m: float | None,
+    height_m: float | None = None,
     geopotential_height_m: float | None = None,
     geopotential_m2s2: float | None = None,
+    height_010009_m: float | None = None,
+    height_007007_m: float | None = None,
+    height_phi_m: float | None = None,
 ) -> float | None:
-    """Приоритет: height_m → geopotential_height_m → Φ→z (MetPy)."""
-    for candidate in (height_m, geopotential_height_m):
+    """Чистые якоря: 010009 → 007007 → height_phi_m → Φ→z.
+
+    Аргументы height_m / geopotential_height_m оставлены для совместимости API,
+    но как якоря не используются (риск contamination baro).
+    """
+    _ = (height_m, geopotential_height_m)
+    for candidate in (height_010009_m, height_007007_m, height_phi_m):
         h = _finite(candidate)
         if h is not None:
             return h
@@ -118,9 +126,9 @@ def _pick_observed_height(
     *,
     station_elevation_m: float | None,
 ) -> tuple[float | None, str | None]:
-    """Берёт высоту уровня из наблюдений / Φ / высоты станции.
+    """Берёт высоту уровня только из чистых якорей.
 
-    Порядок: 010009 → 007007 → Φ→z → height_m/geopot → высота станции для SFC.
+    Порядок: 010009 → 007007 → Φ→z (height_phi_m / geopotential_m2s2) → SFC station.
     """
     direct = _finite(level.get("height_010009_m"))
     if direct is None:
@@ -128,16 +136,13 @@ def _pick_observed_height(
     if direct is not None:
         return direct, "level"
 
+    phi_h = _finite(level.get("height_phi_m"))
+    if phi_h is not None:
+        return phi_h, "phi"
+
     phi = _finite(level.get("geopotential_m2s2"))
     if phi is not None:
         return round(geopotential_to_height_m(phi), 1), "phi"
-
-    height = observed_or_geopot_height_m(
-        height_m=_finite(level.get("height_m")),
-        geopotential_height_m=_finite(level.get("geopotential_height_m")),
-    )
-    if height is not None:
-        return height, "observed_or_geopot"
 
     if str(level.get("VSIG") or "").upper() == "SFC" and station_elevation_m is not None:
         return station_elevation_m, "station_007001"
@@ -246,11 +251,19 @@ def fill_long_dataframe_heights(long_df, metrics_df=None, *, station_id_default:
     elevation_by_row = np.full(n, np.nan)
     height_source = np.array([None] * n, dtype=object)
 
-    # наблюдаемая / Φ→z (аналитика MetPy, векторно — без вызова MetPy на каждую строку)
-    h_col = df["height_m"].to_numpy(dtype=float) if "height_m" in df.columns else np.full(n, np.nan)
-    gh_col = (
-        df["geopotential_height_m"].to_numpy(dtype=float)
-        if "geopotential_height_m" in df.columns
+    h010 = (
+        df["height_010009_m"].to_numpy(dtype=float)
+        if "height_010009_m" in df.columns
+        else np.full(n, np.nan)
+    )
+    h007 = (
+        df["height_007007_m"].to_numpy(dtype=float)
+        if "height_007007_m" in df.columns
+        else np.full(n, np.nan)
+    )
+    h_phi_col = (
+        df["height_phi_m"].to_numpy(dtype=float)
+        if "height_phi_m" in df.columns
         else np.full(n, np.nan)
     )
     phi_col = (
@@ -258,15 +271,31 @@ def fill_long_dataframe_heights(long_df, metrics_df=None, *, station_id_default:
         if "geopotential_m2s2" in df.columns
         else np.full(n, np.nan)
     )
-    height_obs = np.where(~np.isnan(h_col), h_col, gh_col)
+    vsig_col = (
+        df["VSIG"].astype(str).str.upper().to_numpy()
+        if "VSIG" in df.columns
+        else np.array([""] * n, dtype=object)
+    )
+
+    height_obs = np.full(n, np.nan)
+    obs_kind = np.array([None] * n, dtype=object)
+    from_level = ~np.isnan(h010) | ~np.isnan(h007)
+    height_obs = np.where(~np.isnan(h010), h010, h007)
+    obs_kind = np.where(from_level, "level", obs_kind)
+    need_phi_h = np.isnan(height_obs) & ~np.isnan(h_phi_col)
+    height_obs = np.where(need_phi_h, h_phi_col, height_obs)
+    obs_kind = np.where(need_phi_h, "phi", obs_kind)
     need_phi = np.isnan(height_obs) & ~np.isnan(phi_col)
     if need_phi.any():
         phi = phi_col[need_phi]
         denom = _G0_M_S2 * _EARTH_RADIUS_M - phi
         z_phi = np.where(np.abs(denom) < 1e-9, np.nan, (phi * _EARTH_RADIUS_M) / denom)
         height_obs[need_phi] = z_phi
+        obs_kind[need_phi] = "phi"
     # явный брак (напр. Φ<0 у поверхности) → дальше interp/baro
-    height_obs = np.where(height_obs < -50.0, np.nan, height_obs)
+    bad = height_obs < -50.0
+    height_obs = np.where(bad, np.nan, height_obs)
+    obs_kind = np.where(bad, None, obs_kind)
 
     p_all = df["pressure_hpa"].to_numpy(dtype=float)
     pid_all = df["profile_id"].astype(str).to_numpy()
@@ -293,8 +322,14 @@ def fill_long_dataframe_heights(long_df, metrics_df=None, *, station_id_default:
             elev = station_elevation_m(station_id)
         if elev is not None:
             elevation_by_row[idx] = float(elev)
+            sfc_mask = vsig_col[idx] == "SFC"
+            need_sfc = sfc_mask & np.isnan(height_obs[idx])
+            if need_sfc.any():
+                height_obs[idx[need_sfc]] = float(elev)
+                obs_kind[idx[need_sfc]] = "station_007001"
         p = p_all[idx]
         h_obs = height_obs[idx]
+        kind = obs_kind[idx]
         p_sfc = meta.get("p_surface_hpa")
         if p_sfc is None:
             finite_p = p[~np.isnan(p)]
@@ -318,7 +353,7 @@ def fill_long_dataframe_heights(long_df, metrics_df=None, *, station_id_default:
                 height_baro[row_i] = hb
             if not np.isnan(h_obs[j]):
                 height_final[row_i] = h_obs[j]
-                height_source[row_i] = "observed_or_geopot"
+                height_source[row_i] = kind[j] or "phi"
             elif hi is not None:
                 height_final[row_i] = hi
                 height_source[row_i] = "interp"

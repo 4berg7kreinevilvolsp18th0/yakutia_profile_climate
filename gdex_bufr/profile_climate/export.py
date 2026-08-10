@@ -33,6 +33,8 @@ PROFILES_LONG_COLUMNS = [
     "level_index",
     "SEQ",
     "VSIG",
+    "VSIG_wmo",
+    "VSIG_legacy",
     "vertical_significance_code",
     "replication_index",
     "PRES",

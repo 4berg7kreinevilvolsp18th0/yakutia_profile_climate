@@ -94,7 +94,8 @@ def test_observation_carries_inversion_quality_and_height_context(tmp_path):
         {
             "profile_id": "p1", "station_id": "31004", "station_name": "Aldan",
             "datetime_utc": "2020-01-01T00:00:00", "cycle": "00",
-            "pressure_hpa": pressure, "temperature_c": temp, "height_m": height,
+            "pressure_hpa": pressure, "temperature_c": temp,
+            "height_010009_m": height,
         }
         for pressure, temp, height in [
             (900.0, -10.0, 1000.0),
@@ -135,9 +136,9 @@ def test_observation_carries_inversion_quality_and_height_context(tmp_path):
     assert with_levels["inversion_detected"] is False
     assert with_levels["p_surface_hpa"] == 900.0
     assert with_levels["station_elevation_m"] == 679.0
-    # средний уровень без H заполнен интерполяцией, крайние — наблюдением
+    # средний уровень без H заполнен интерполяцией, крайние — наблюдением (level)
     assert with_levels["height_source_counts"]["interp"] == 1
-    assert with_levels["height_source_counts"]["observed_or_geopot"] == 2
+    assert with_levels["height_source_counts"]["level"] == 2
 
     # структура наблюдения одинакова с уровнями и без них
     without_levels = observations["p9"]

@@ -5,6 +5,7 @@ import re
 from datetime import datetime
 from typing import Any
 
+from gdex_bufr.bufr_adapter import vsig_legacy_label
 from gdex_bufr.bufr_tables import BufrTablesRegistry, get_registry
 from gdex_bufr.meteo_parser_bridge import (
     RadiosondeProfile,
@@ -137,9 +138,12 @@ def _level_climate_fields(level: VerticalLevel) -> dict[str, Any]:
     height_phi = level.height_phi_m
     if height_phi is None and level.geopotential_m2s2 is not None:
         height_phi = round(geopotential_to_height_m(level.geopotential_m2s2), 1)
+    vsig_wmo = level.vertical_significance
     return {
         "SEQ": level.seq,
-        "VSIG": level.vertical_significance,
+        "VSIG": vsig_wmo,
+        "VSIG_wmo": vsig_wmo,
+        "VSIG_legacy": vsig_legacy_label(vsig_wmo),
         "vertical_significance_code": level.vertical_significance_code,
         "replication_index": level.replication_index,
         "PRES": level.pressure_hpa,

@@ -127,23 +127,24 @@ def enrich_vertical_level(
         rh = _calculate_rh_percent(level.air_temperature_c, level.dew_point_temperature_c)
 
     height = level.geopotential_height_m
+    height_phi = level.height_phi_m
     vsig = (level.vertical_significance or "").upper()
-    # 0) поверхность станции: Height of station (0-07-001)
+    # Только «чистые» источники в geopotential_height_m:
+    # уже имеющаяся прямая высота, SFC ← 0-07-001, Φ→z. Baro — не сюда.
     if height is None and vsig == "SFC" and station_elevation_m is not None:
         height = round(float(station_elevation_m), 1)
-    # 1) Φ → z (MetPy), если высота отсутствует, но есть геопотенциал
-    if height is None and level.geopotential_m2s2 is not None:
-        height = round(geopotential_to_height_m(level.geopotential_m2s2), 1)
-    # 2) иначе оценка от высоты станции + барометрия от P_sfc
-    if height is None and level.pressure_hpa is not None and surface_pressure_hpa is not None:
-        above = estimate_geopotential_height_m(
-            level.pressure_hpa,
-            surface_pressure_hpa=surface_pressure_hpa,
-        )
-        base = 0.0 if station_elevation_m is None else float(station_elevation_m)
-        height = round(base + above, 1)
+    if level.geopotential_m2s2 is not None:
+        z_phi = round(geopotential_to_height_m(level.geopotential_m2s2), 1)
+        if height_phi is None:
+            height_phi = z_phi
+        if height is None:
+            height = z_phi
 
-    if rh == level.relative_humidity_percent and height == level.geopotential_height_m:
+    if (
+        rh == level.relative_humidity_percent
+        and height == level.geopotential_height_m
+        and height_phi == level.height_phi_m
+    ):
         return level
 
     return VerticalLevel(
@@ -151,7 +152,7 @@ def enrich_vertical_level(
         geopotential_height_m=height,
         height_010009_m=level.height_010009_m,
         height_007007_m=level.height_007007_m,
-        height_phi_m=level.height_phi_m,
+        height_phi_m=height_phi,
         air_temperature_c=level.air_temperature_c,
         dew_point_temperature_c=level.dew_point_temperature_c,
         wind_direction_deg=level.wind_direction_deg,

@@ -42,3 +42,19 @@ def test_enrich_sfc_uses_station_height_from_bufr():
         station_elevation_m=680.0,
     )
     assert enriched.geopotential_height_m == pytest.approx(680.0)
+
+
+def test_enrich_does_not_write_baro_into_geopotential_height():
+    level = VerticalLevel(
+        pressure_hpa=916.0,
+        air_temperature_c=-17.0,
+        vertical_significance="SIGT",
+        geopotential_height_m=None,
+    )
+    enriched = enrich_vertical_level(
+        level,
+        surface_pressure_hpa=940.0,
+        station_elevation_m=680.0,
+    )
+    assert enriched.geopotential_height_m is None
+    assert enriched.height_phi_m is None
