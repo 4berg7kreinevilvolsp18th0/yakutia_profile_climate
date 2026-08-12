@@ -219,3 +219,7 @@ def detect_surface_inversion(
         quality=quality,
         confirm_drop_c=confirm_drop,
     )
+
+
+# Явный контрольный алиас: поведение v2 не менять при развитии gap-v3.
+detect_surface_inversion_v2_legacy = detect_surface_inversion

@@ -36,6 +36,12 @@ class ProfileClimateConfig:
     plot_only_good: bool = False
     plot_min_levels: int = 3
     cycles: list[str] = field(default_factory=lambda: ["00", "12"])
+    # gap-v3 (параллельно legacy v2; климатические поля v2 не заменяет)
+    inversion_v3_max_embedded_gap_m: float = 100.0
+    inversion_v3_min_strength_c: float = 0.3
+    inversion_v3_min_depth_m: float | None = None
+    inversion_v3_he_threshold_m: float = 250.0
+    inversion_v3_max_gap_drop_c: float | None = None
 
     def station_by_id(self, station_id: str) -> StationConfig | None:
         normalized = str(station_id).zfill(5)[-5:]
@@ -85,4 +91,19 @@ def load_profile_climate_config(path: str | Path = "profile_climate_config.yaml"
         plot_only_good=bool(section.get("plot_only_good", False)),
         plot_min_levels=int(section.get("plot_min_levels", 3)),
         cycles=[str(c).zfill(2)[-2:] for c in section.get("cycles", ["00", "12"])],
+        inversion_v3_max_embedded_gap_m=float(
+            section.get("inversion_v3_max_embedded_gap_m", 100.0)
+        ),
+        inversion_v3_min_strength_c=float(section.get("inversion_v3_min_strength_c", 0.3)),
+        inversion_v3_min_depth_m=(
+            None
+            if section.get("inversion_v3_min_depth_m", None) in (None, "", "null")
+            else float(section["inversion_v3_min_depth_m"])
+        ),
+        inversion_v3_he_threshold_m=float(section.get("inversion_v3_he_threshold_m", 250.0)),
+        inversion_v3_max_gap_drop_c=(
+            None
+            if section.get("inversion_v3_max_gap_drop_c", None) in (None, "", "null")
+            else float(section["inversion_v3_max_gap_drop_c"])
+        ),
     )

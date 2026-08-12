@@ -164,7 +164,11 @@ def test_dashboard_renders_payload_from_builder(tmp_path):
     metrics = {m.label: m.value for m in app.metric}
     assert metrics["На графике"] == "1 / 1"
     assert metrics["Без уровней"] == "0 / 0"
-    assert metrics["С инверсией"] == "1"
+    inv_metric = next(
+        (v for k, v in metrics.items() if k.startswith("С инверсией")),
+        None,
+    )
+    assert inv_metric == "1"
 
 
 def test_dashboard_reports_broken_json(tmp_path):

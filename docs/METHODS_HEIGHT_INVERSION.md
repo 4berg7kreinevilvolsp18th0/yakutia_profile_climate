@@ -85,8 +85,17 @@ z = z_{\mathrm{st}} + \Delta z
 
 ## 3. Приземная инверсия (алгоритм v2)
 
-Код: `gdex_bufr/profile_climate/inversion.py` → `detect_surface_inversion`.  
+Код: `gdex_bufr/profile_climate/inversion.py` → `detect_surface_inversion`  
+(алиас контроля: `detect_surface_inversion_v2_legacy` — то же поведение).  
 Вызов из метрик профиля: `gdex_bufr/profile_climate/metrics.py`.
+
+**Роль v2:** контрольная реализация одной приземной инверсии с confirm-drop.  
+Поля `inversion_*` в `profile_metrics.csv` **не заменяются** алгоритмом v3 до завершения валидации.
+
+**Параллельно gap-v3:** `gdex_bufr/profile_climate/inversion_layers.py` — все слои G/E/HE  
+с объединением коротких неинверсионных прослоек (`max_embedded_gap_m=100`).  
+Результаты: `inversion_layers_v3.csv`, `profile_inversion_summary_v3.csv`  
+(`scripts/compute_inversion_v3.py`). Дашборд показывает v2 и v3 одновременно.
 
 Уровни предварительно сортируются **от земли к верху** (убывание давления), обрезаются до \(P \ge 500\) гПа.
 
@@ -174,6 +183,16 @@ top = поверхность; growing = false
 
 В v1 верх = последний уровень роста T; достаточно одного шума или мелкого «загона», чтобы `inversion_detected=true`.  
 v2 требует, чтобы **выше верха температура устойчиво падала**, иначе кандидат помечается, но не засчитывается.
+
+### 3.6. Gap-v3 (параллельно, не заменяет v2)
+
+Код: `gdex_bufr/profile_climate/inversion_layers.py` → `detect_inversion_layers_gap_v3`.
+
+- Градиенты \(g=100\cdot\Delta T/\Delta z\) по высоте; положительные runs → merge gap &lt; 100 м.
+- Фильтр \(\Delta T \ge 0.3\) °C; классификация G / E / HE (порог HE = 250 м AGL).
+- Экспорт: `inversion_layers_v3.csv`, `profile_inversion_summary_v3.csv` (`scripts/compute_inversion_v3.py`).
+- Параметры: `inversion_v3_*` в `profile_climate_config.yaml`.
+- Климатические поля `inversion_*` в `profile_metrics` **не перезаписываются** до валидации v3.
 
 ---
 

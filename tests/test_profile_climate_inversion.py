@@ -4,6 +4,7 @@ from gdex_bufr.profile_climate.inversion import (
     QUALITY_NONE,
     QUALITY_REJECTED_NO_LAPSE,
     detect_surface_inversion,
+    detect_surface_inversion_v2_legacy,
 )
 
 
@@ -92,3 +93,26 @@ def test_growth_at_top_without_levels_above_rejected():
     assert result.inversion_detected is False
     assert result.inversion_quality == QUALITY_REJECTED_NO_LAPSE
     assert result.inversion_top_pressure_hpa == 900
+
+
+def test_v2_legacy_alias_matches_detect_surface_inversion():
+    """Контрольный алиас должен давать тот же результат, что и основная функция v2."""
+    cases = [
+        [  # confirmed
+            (1000, -30.0), (950, -28.0), (900, -25.0),
+            (850, -24.0), (820, -26.0), (800, -28.0),
+        ],
+        [  # rejected_no_lapse
+            (1000, -30.0), (950, -28.0), (900, -25.0),
+            (850, -24.0), (820, -26.0), (800, -25.0), (770, -23.0),
+        ],
+        [  # none
+            (1000, -20.0), (900, -22.0), (800, -25.0), (700, -30.0),
+        ],
+    ]
+    for pairs in cases:
+        levels = _levels_from_pairs(pairs)
+        a = detect_surface_inversion(levels, min_inversion_delta_c=0.2)
+        b = detect_surface_inversion_v2_legacy(levels, min_inversion_delta_c=0.2)
+        assert a.as_dict() == b.as_dict()
+        assert detect_surface_inversion_v2_legacy is detect_surface_inversion

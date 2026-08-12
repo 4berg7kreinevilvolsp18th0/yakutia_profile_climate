@@ -117,6 +117,7 @@ def filter_observations(
     inversion_only: bool,
     inversion_quality: str = QUALITY_ANY,
     hide_missing_levels: bool = False,
+    inversion_v3_only: bool = False,
 ) -> list[dict]:
     """Месяц уже выбран снаружи; здесь даты / cycle / инверсия / наличие уровней."""
     out: list[dict] = []
@@ -130,6 +131,8 @@ def filter_observations(
         if cycle_mode == "12" and cy != "12":
             continue
         if inversion_only and not obs.get("inversion_detected"):
+            continue
+        if inversion_v3_only and int(obs.get("n_inversion_layers_v3") or 0) <= 0:
             continue
         if inversion_quality != QUALITY_ANY:
             if str(obs.get("inversion_quality") or "") != inversion_quality:
@@ -251,6 +254,13 @@ def _set_enabled(state_scope: str, observations: list[dict], predicate) -> None:
         st.session_state[_obs_state_key(state_scope, obs["profile_id"])] = bool(predicate(obs))
 
 
+V3_TYPE_COLORS = {
+    "G": "#C0392B",
+    "E": "#2980B9",
+    "HE": "#8E44AD",
+}
+
+
 def _add_inversion_marker(
     fig: go.Figure,
     obs: dict,
@@ -259,7 +269,7 @@ def _add_inversion_marker(
     color: str,
     day_key: str,
 ) -> None:
-    """Ромб на верху инверсии, если координаты есть."""
+    """Ромб на верху инверсии v2, если координаты есть."""
     inv_t = obs.get("inversion_top_temp_c")
     inv_y = (
         obs.get("inversion_top_pressure_hpa")
@@ -272,7 +282,7 @@ def _add_inversion_marker(
     p_hpa = obs.get("inversion_top_pressure_hpa")
     d_t = obs.get("inversion_delta_t_c")
     inv_hover = (
-        f"Верх инверсии {obs.get('datetime_utc', day_key)}<br>"
+        f"Верх инверсии v2 {obs.get('datetime_utc', day_key)}<br>"
         f"T=%{{x:.1f}} °C<br>"
         + (f"H={h_m:.0f} м<br>" if h_m is not None else "")
         + (f"P={p_hpa:.0f} гПа<br>" if p_hpa is not None else "")
@@ -283,7 +293,7 @@ def _add_inversion_marker(
         x=[float(inv_t)],
         y=[float(inv_y)],
         mode="markers",
-        name=f"{day_key[8:]}·{obs.get('cycle', '??')} inv",
+        name=f"{day_key[8:]}·{obs.get('cycle', '??')} inv-v2",
         marker=dict(
             size=11,
             symbol="diamond",
@@ -293,6 +303,92 @@ def _add_inversion_marker(
         showlegend=False,
         hovertemplate=inv_hover,
     ))
+
+
+def _add_v3_layer_overlays(
+    fig: go.Figure,
+    obs: dict,
+    *,
+    y_axis: str,
+    day_key: str,
+    layers: list[dict] | None = None,
+) -> None:
+    """Отрезки base→top для слоёв gap-v3 (G/E/HE)."""
+    use_layers = layers if layers is not None else (obs.get("inversion_layers_v3") or [])
+    for layer in use_layers:
+        pos = str(layer.get("position_type") or "?")
+        color = V3_TYPE_COLORS.get(pos, "#555555")
+        t0 = layer.get("base_temperature_c")
+        t1 = layer.get("top_temperature_c")
+        if y_axis == "pressure":
+            y0 = layer.get("base_pressure_hpa")
+            y1 = layer.get("top_pressure_hpa")
+        else:
+            y0 = layer.get("base_height_m")
+            y1 = layer.get("top_height_m")
+        if None in (t0, t1, y0, y1):
+            continue
+        depth = layer.get("depth_m")
+        delta = layer.get("delta_t_c")
+        hover = (
+            f"gap-v3 {pos} {obs.get('datetime_utc', day_key)}<br>"
+            f"base T={float(t0):.1f} → top T={float(t1):.1f}<br>"
+            + (f"D={float(depth):.0f} м<br>" if depth is not None else "")
+            + (f"ΔT={float(delta):.2f} °C<br>" if delta is not None else "")
+            + "<extra></extra>"
+        )
+        fig.add_trace(go.Scatter(
+            x=[float(t0), float(t1)],
+            y=[float(y0), float(y1)],
+            mode="lines+markers",
+            name=f"{day_key[8:]}·{obs.get('cycle', '??')} v3-{pos}",
+            line=dict(width=3.2, color=color),
+            marker=dict(size=7, symbol="square", color=color),
+            opacity=0.9,
+            showlegend=False,
+            hovertemplate=hover,
+        ))
+
+
+def _recompute_v3_layers_for_obs(
+    obs: dict,
+    *,
+    max_embedded_gap_m: float,
+    min_strength_c: float,
+    min_depth_m: float | None,
+    he_threshold_m: float,
+) -> list[dict]:
+    from gdex_bufr.profile_climate.inversion_layers import (
+        detect_inversion_layers_gap_v3,
+        layers_to_dashboard_payload,
+    )
+
+    z = np.asarray(
+        [np.nan if v is None else v for v in (obs.get("heights_m") or [])],
+        dtype=float,
+    )
+    t = np.asarray(
+        [np.nan if v is None else v for v in (obs.get("temperature_c") or [])],
+        dtype=float,
+    )
+    p = np.asarray(
+        [np.nan if v is None else v for v in (obs.get("pressure_hpa") or [])],
+        dtype=float,
+    )
+    mask = np.isfinite(z) & np.isfinite(t)
+    if mask.sum() < 2:
+        return []
+    layers = detect_inversion_layers_gap_v3(
+        z[mask],
+        t[mask],
+        p[mask] if p.size == z.size else None,
+        max_embedded_gap_m=max_embedded_gap_m,
+        min_strength_c=min_strength_c,
+        min_depth_m=min_depth_m,
+        he_threshold_m=he_threshold_m,
+    )
+    z0 = float(np.min(z[mask]))
+    return layers_to_dashboard_payload(layers, z0=z0)
 
 
 def _build_figure(
@@ -305,9 +401,11 @@ def _build_figure(
     apply_plot_qc: bool,
     show_day_means: bool,
     show_inv_top: bool,
+    show_v3_layers: bool,
     mean: tuple[np.ndarray, np.ndarray] | None,
     station_name: str,
     month_key: str,
+    v3_layers_override: dict[str, list[dict]] | None = None,
 ) -> go.Figure:
     """Собирает Plotly-график включённых наблюдений."""
     fig = go.Figure()
@@ -352,6 +450,17 @@ def _build_figure(
                 _add_inversion_marker(
                     fig, obs, y_axis=y_axis, color=color, day_key=day_key,
                 )
+            if show_v3_layers:
+                override = None
+                if v3_layers_override is not None:
+                    override = v3_layers_override.get(obs["profile_id"])
+                _add_v3_layer_overlays(
+                    fig,
+                    obs,
+                    y_axis=y_axis,
+                    day_key=day_key,
+                    layers=override,
+                )
 
         day = day_lookup.get(day_key)
         if show_day_means and day_has_enabled and day and day.get("day_mean"):
@@ -369,11 +478,9 @@ def _build_figure(
                     opacity=0.55,
                     connectgaps=False,
                     hovertemplate=(
-                        f"Суточное среднее {day_key}<br>"
-                        f"T=%{{x:.1f}} °C<br>"
-                        f"{y_hover}<extra></extra>"
+                        f"{day_key} day mean<br>"
+                        f"T=%{{x:.1f}} °C<br>{y_hover}<extra></extra>"
                     ),
-                    showlegend=False,
                 ))
 
     if mean is not None:
@@ -381,21 +488,17 @@ def _build_figure(
             x=mean[1],
             y=mean[0],
             mode="lines",
-            name="Среднее (включённые)",
-            line=dict(width=3.5, color=MEAN_COLOR),
-            connectgaps=False,
-            hovertemplate=(
-                "Среднее<br>"
-                f"T=%{{x:.1f}} °C<br>"
-                f"{y_hover}<extra></extra>"
-            ),
+            name="month mean",
+            line=dict(width=3.2, color=MEAN_COLOR),
+            opacity=0.95,
+            hovertemplate=f"month mean<br>T=%{{x:.1f}} °C<br>{y_hover}<extra></extra>",
         ))
 
-    yaxis_cfg: dict = {"title": y_axis_label}
+    yaxis_cfg: dict = dict(title=y_axis_label)
     if y_axis == "pressure":
         yaxis_cfg["autorange"] = "reversed"
     fig.update_layout(
-        title=f"{station_name} — {month_key} (наблюдения)",
+        title=f"{station_name} · {month_key}",
         xaxis_title="Температура, °C",
         yaxis=yaxis_cfg,
         height=720,
@@ -579,7 +682,18 @@ def main() -> None:
             value=(d_min, d_max),
             format="DD.MM",
         )
-    inversion_only = st.sidebar.checkbox("Только с инверсией", value=False)
+    inversion_only = st.sidebar.checkbox(
+        "Только с инверсией (v2)",
+        value=False,
+        help="Фильтр по legacy v2: inversion_detected=True (confirmed).",
+    )
+    inversion_v3_only = False
+    if "inversion_v3" in features:
+        inversion_v3_only = st.sidebar.checkbox(
+            "Только со слоями gap-v3",
+            value=False,
+            help="n_inversion_layers_v3 > 0 (не заменяет фильтр v2).",
+        )
     inversion_quality = QUALITY_ANY
     if "inversion_quality" in features:
         present_qualities = sorted(
@@ -608,9 +722,29 @@ def main() -> None:
         help="Серые линии day_mean для дней с ≥1 включённым наблюдением.",
     )
     show_inv_top = st.sidebar.checkbox(
-        "Отметить верх инверсии",
+        "Отметить верх инверсии (legacy v2)",
         value=True,
-        help="Маркер на графике и высота/давление верха в списке и таблице.",
+        help="Ромб на confirmed-верху v2.",
+    )
+    has_v3_data = any(int(o.get("n_inversion_layers_v3") or 0) > 0 for o in observations)
+    show_v3_layers = st.sidebar.checkbox(
+        "Слои gap-v3 (G/E/HE)",
+        value=has_v3_data,
+        help="Отрезки base→top всех найденных слоёв v3.",
+    )
+
+    st.sidebar.markdown("### Параметры gap-v3 (пересчёт на экране)")
+    v3_gap = st.sidebar.slider("max_embedded_gap_m", 60.0, 140.0, 100.0, 10.0)
+    v3_strength = st.sidebar.slider("min_strength_c", 0.1, 1.0, 0.3, 0.1)
+    v3_he = st.sidebar.slider("he_base_threshold_m", 100.0, 400.0, 250.0, 25.0)
+    v3_min_depth_on = st.sidebar.checkbox("Включить min_depth_m", value=False)
+    v3_min_depth = st.sidebar.number_input(
+        "min_depth_m", min_value=0.0, value=50.0, step=10.0, disabled=not v3_min_depth_on,
+    )
+    v3_live = st.sidebar.checkbox(
+        "Живой пересчёт v3 по параметрам",
+        value=False,
+        help="Пересчитывает слои для включённых наблюдений в памяти (не пишет CSV).",
     )
 
     y_axis_label = st.sidebar.radio(
@@ -640,6 +774,7 @@ def main() -> None:
         inversion_only=inversion_only,
         inversion_quality=inversion_quality,
         hide_missing_levels=hide_missing_levels,
+        inversion_v3_only=inversion_v3_only,
     )
     visible_ids = {o["profile_id"] for o in visible}
     visible_plottable = [o for o in visible if has_levels(o)]
@@ -755,7 +890,8 @@ def main() -> None:
         f"Уровни: **{'подготовленные' if apply_plot_qc else 'все исходные без QC'}** · "
         f"срок **{cycle_mode}** · дни "
         f"**{day_from.isoformat()}…{day_to.isoformat()}**"
-        + (" · только инверсии" if inversion_only else "")
+        + (" · только инверсии v2" if inversion_only else "")
+        + (" · только слои v3" if inversion_v3_only else "")
         + (
             f" · качество **{inversion_quality}**"
             if inversion_quality != QUALITY_ANY
@@ -773,21 +909,31 @@ def main() -> None:
     )
     m3.metric("Дней с данными", len({o["date"] for o in enabled_plottable}))
     m4.metric(
-        "С инверсией",
+        "С инверсией v2",
         sum(1 for o in enabled_plottable if o.get("inversion_detected")),
     )
+    n_v3 = sum(1 for o in enabled_plottable if int(o.get("n_inversion_layers_v3") or 0) > 0)
     inv_heights = [
         float(o["inversion_top_height_m"])
         for o in enabled_plottable
         if o.get("inversion_detected") and o.get("inversion_top_height_m") is not None
     ]
     if inv_heights:
-        m5.metric("Ср. H_inv, м", f"{sum(inv_heights) / len(inv_heights):.0f}")
-    elif mean is not None:
-        ts = _first_valid_temp(mean[1])
-        m5.metric("Ts среднего, °C", f"{ts:.1f}" if ts is not None else "—")
+        m5.metric("Ср. H_inv v2, м", f"{sum(inv_heights) / len(inv_heights):.0f}")
     else:
-        m5.metric("Ts среднего, °C", "—")
+        m5.metric("Со слоями v3", n_v3)
+
+    v3_override: dict[str, list[dict]] | None = None
+    if show_v3_layers and v3_live:
+        v3_override = {}
+        for obs in enabled_plottable:
+            v3_override[obs["profile_id"]] = _recompute_v3_layers_for_obs(
+                obs,
+                max_embedded_gap_m=float(v3_gap),
+                min_strength_c=float(v3_strength),
+                min_depth_m=float(v3_min_depth) if v3_min_depth_on else None,
+                he_threshold_m=float(v3_he),
+            )
 
     # График и таблица QC — отдельные шаги, чтобы main оставался последовательностью экрана
     fig = _build_figure(
@@ -799,11 +945,49 @@ def main() -> None:
         apply_plot_qc=apply_plot_qc,
         show_day_means=show_day_means,
         show_inv_top=show_inv_top,
+        show_v3_layers=show_v3_layers,
         mean=mean,
         station_name=str(data.get("station_name", "Aldan")),
         month_key=month_key,
+        v3_layers_override=v3_override,
     )
     st.plotly_chart(fig, width="stretch")
+
+    if show_v3_layers and enabled_plottable:
+        export_rows = []
+        for obs in enabled_plottable:
+            layers = (
+                (v3_override or {}).get(obs["profile_id"])
+                if v3_override is not None
+                else (obs.get("inversion_layers_v3") or [])
+            )
+            for layer in layers or []:
+                export_rows.append({
+                    "profile_id": obs["profile_id"],
+                    "datetime_utc": obs.get("datetime_utc"),
+                    "cycle": obs.get("cycle"),
+                    "inversion_detected_v2": bool(obs.get("inversion_detected")),
+                    "max_embedded_gap_m": float(v3_gap),
+                    "min_strength_c": float(v3_strength),
+                    "he_threshold_m": float(v3_he),
+                    "min_depth_m": float(v3_min_depth) if v3_min_depth_on else None,
+                    **layer,
+                })
+        if export_rows:
+            import csv
+            from io import StringIO
+
+            buf = StringIO()
+            fieldnames = list(export_rows[0].keys())
+            writer = csv.DictWriter(buf, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(export_rows)
+            st.download_button(
+                "Экспорт сравнения v2/v3 (видимые)",
+                data=buf.getvalue(),
+                file_name=f"inversion_compare_{month_key}.csv",
+                mime="text/csv",
+            )
 
     if enabled_plottable:
         rows, flags, form_thr = _qc_table_rows(enabled_plottable)

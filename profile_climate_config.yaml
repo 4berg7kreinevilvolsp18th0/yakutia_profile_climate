@@ -19,6 +19,12 @@ profile_climate:
   confirm_drop_levels: 2
   confirm_depth_hpa: 30
   min_drop_delta_c: 0.2
+  # gap-v3 (параллельно; не заменяет inversion_* v2 в profile_metrics)
+  inversion_v3_max_embedded_gap_m: 100
+  inversion_v3_min_strength_c: 0.3
+  # inversion_v3_min_depth_m: null
+  inversion_v3_he_threshold_m: 250
+  # inversion_v3_max_gap_drop_c: null   # экспериментальный, выкл. по умолчанию
   min_profiles_per_month: 5
   max_surface_pressure_hpa: 1000
   plot_only_good: false

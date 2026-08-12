@@ -40,6 +40,7 @@ FEATURES = (
     "height_variants",        # heights_interp_m / heights_baro_m на каждом наблюдении
     "height_source_counts",   # состав источников высоты внутри зонда
     "surface_context",        # p_surface_hpa / station_elevation_m
+    "inversion_v3",           # inversion_layers_v3 / pattern / n_layers (gap-merge)
 )
 
 DEFAULT_DIR = Path("gdex_outputs") / "актуальное"
@@ -105,6 +106,90 @@ def _metric_inversion_fields(metric: Any) -> dict[str, Any]:
         "inversion_quality": str(quality or ""),
         "inversion_candidate": _metric_flag(metric, "inversion_candidate"),
     }
+
+
+def _empty_v3_fields() -> dict[str, Any]:
+    return {
+        "inversion_layers_v3": [],
+        "n_inversion_layers_v3": 0,
+        "inversion_pattern_v3": "NONE",
+        "has_G_v3": False,
+        "has_E_v3": False,
+        "has_HE_v3": False,
+        "strongest_delta_t_c_v3": None,
+    }
+
+
+def _v3_fields_from_maps(
+    profile_id: str,
+    layers_by_profile: dict[str, list[dict[str, Any]]] | None,
+    summary_by_profile: dict[str, dict[str, Any]] | None,
+) -> dict[str, Any]:
+    if not layers_by_profile and not summary_by_profile:
+        return _empty_v3_fields()
+    layers = (layers_by_profile or {}).get(profile_id, [])
+    summary = (summary_by_profile or {}).get(profile_id) or {}
+    return {
+        "inversion_layers_v3": layers,
+        "n_inversion_layers_v3": int(summary.get("n_inversion_layers", len(layers))),
+        "inversion_pattern_v3": str(summary.get("pattern", "NONE" if not layers else "MULTI")),
+        "has_G_v3": bool(summary.get("has_G", any(ly.get("position_type") == "G" for ly in layers))),
+        "has_E_v3": bool(summary.get("has_E", any(ly.get("position_type") == "E" for ly in layers))),
+        "has_HE_v3": bool(summary.get("has_HE", any(ly.get("position_type") == "HE" for ly in layers))),
+        "strongest_delta_t_c_v3": summary.get("strongest_delta_t_c"),
+    }
+
+
+def _as_bool(value: Any) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() in {"true", "1", "yes", "да"}
+    try:
+        if pd.isna(value):
+            return False
+    except (TypeError, ValueError):
+        pass
+    return bool(value)
+
+
+def _load_v3_maps_from_csv(
+    layers_csv: Path | None,
+    summary_csv: Path | None,
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, dict[str, Any]]]:
+    layers_by: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    summary_by: dict[str, dict[str, Any]] = {}
+    if layers_csv is not None and layers_csv.exists():
+        df = pd.read_csv(layers_csv)
+        for row in df.itertuples(index=False):
+            pid = str(row.profile_id)
+            layers_by[pid].append({
+                "layer_index": int(getattr(row, "layer_index", len(layers_by[pid]))),
+                "position_type": str(getattr(row, "position_type", "")),
+                "base_height_m": _finite_metric(getattr(row, "base_height_m", None)),
+                "top_height_m": _finite_metric(getattr(row, "top_height_m", None)),
+                "base_height_agl_m": _finite_metric(getattr(row, "base_height_agl_m", None)),
+                "top_height_agl_m": _finite_metric(getattr(row, "top_height_agl_m", None)),
+                "base_pressure_hpa": _finite_metric(getattr(row, "base_pressure_hpa", None)),
+                "top_pressure_hpa": _finite_metric(getattr(row, "top_pressure_hpa", None)),
+                "base_temperature_c": _finite_metric(getattr(row, "base_temperature_c", None)),
+                "top_temperature_c": _finite_metric(getattr(row, "top_temperature_c", None)),
+                "depth_m": _finite_metric(getattr(row, "depth_m", None)),
+                "delta_t_c": _finite_metric(getattr(row, "delta_t_c", None)),
+                "mean_gradient_c_100m": _finite_metric(getattr(row, "mean_gradient_c_100m", None)),
+                "embedded_gap_count": int(getattr(row, "embedded_gap_count", 0) or 0),
+                "method": str(getattr(row, "method", "gap_v3")),
+            })
+    if summary_csv is not None and summary_csv.exists():
+        sdf = pd.read_csv(summary_csv)
+        for row in sdf.itertuples(index=False):
+            summary_by[str(row.profile_id)] = {
+                "n_inversion_layers": int(getattr(row, "n_inversion_layers", 0) or 0),
+                "has_G": _as_bool(getattr(row, "has_G", False)),
+                "has_E": _as_bool(getattr(row, "has_E", False)),
+                "has_HE": _as_bool(getattr(row, "has_HE", False)),
+                "pattern": str(getattr(row, "pattern", "NONE") or "NONE"),
+                "strongest_delta_t_c": _finite_metric(getattr(row, "strongest_delta_t_c", None)),
+            }
+    return dict(layers_by), summary_by
 
 
 def resolve_xlsx(path: Path | None, search_dir: Path) -> Path | None:
@@ -264,6 +349,7 @@ def _make_observation(
     station_elevation_m: float | None = None,
     height_source_counts: dict[str, int] | None = None,
     missing_levels: bool = False,
+    v3_fields: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Единая структура наблюдения — общая для профилей с уровнями и без них."""
     observation: dict[str, Any] = {
@@ -279,6 +365,7 @@ def _make_observation(
         "t_surface_c": t_surface_c,
         "inversion_detected": inversion_detected,
         **inv_fields,
+        **(v3_fields if v3_fields is not None else _empty_v3_fields()),
         "profile_status": profile_status,
         "p_surface_hpa": None if p_surface_hpa is None else round(float(p_surface_hpa), 2),
         "station_elevation_m": (
@@ -345,6 +432,7 @@ def _observation_from_group(
     pressure_top_hpa: float,
     max_surface_pressure_hpa: float,
     min_levels: int,
+    v3_fields: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, Any]] | None:
     """Собирает одно наблюдение из строк профиля. None — пропуск."""
     status = getattr(metric, "profile_status", None) if metric is not None else None
@@ -405,6 +493,7 @@ def _observation_from_group(
         p_surface_hpa=p_surface,
         station_elevation_m=station_z,
         height_source_counts=_height_source_counts(levels),
+        v3_fields=v3_fields,
     )
 
 
@@ -412,6 +501,9 @@ def _append_metrics_only_profiles(
     by_day: dict[str, list[dict[str, Any]]],
     metrics_df: pd.DataFrame,
     profiles_with_levels: set[str],
+    *,
+    layers_by_profile: dict[str, list[dict[str, Any]]] | None = None,
+    summary_by_profile: dict[str, dict[str, Any]] | None = None,
 ) -> None:
     """В raw-режиме добавляет профили без уровней (только метрики)."""
     for metric in metrics_df.itertuples(index=False):
@@ -441,6 +533,9 @@ def _append_metrics_only_profiles(
             p_surface_hpa=_finite_metric(getattr(metric, "p_surface_hpa", None)),
             station_elevation_m=_finite_metric(getattr(metric, "station_elevation_m", None)),
             missing_levels=True,
+            v3_fields=_v3_fields_from_maps(
+                profile_id, layers_by_profile, summary_by_profile,
+            ),
         ))
 
 
@@ -487,6 +582,10 @@ def build_daily_profiles(
     plot_min_levels: int | None = None,
     grid_points: int = GRID_POINTS,
     level_mode: str = "raw",
+    layers_v3_csv: Path | None = None,
+    summary_v3_csv: Path | None = None,
+    compute_v3: bool = False,
+    v3_params: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if level_mode not in LEVEL_MODES:
         raise ValueError(f"level_mode должен быть одним из {LEVEL_MODES}: {level_mode}")
@@ -512,6 +611,53 @@ def build_daily_profiles(
         for row in metrics_df.itertuples(index=False)
     }
 
+    layers_by_profile: dict[str, list[dict[str, Any]]] = {}
+    summary_by_profile: dict[str, dict[str, Any]] = {}
+    if compute_v3:
+        from gdex_bufr.profile_climate.inversion_layers import (
+            detect_inversion_layers_gap_v3,
+            layers_to_dashboard_payload,
+            summarize_inversion_layers,
+        )
+
+        params = {
+            "max_embedded_gap_m": 100.0,
+            "min_strength_c": 0.3,
+            "min_depth_m": None,
+            "he_threshold_m": 250.0,
+            "max_gap_drop_c": None,
+            **(v3_params or {}),
+        }
+        for profile_id, group in long_df.groupby("profile_id", sort=False):
+            pid = str(profile_id)
+            z = pd.to_numeric(group["height_m"], errors="coerce").to_numpy(dtype=float)
+            t = pd.to_numeric(group["temperature_c"], errors="coerce").to_numpy(dtype=float)
+            p = pd.to_numeric(group["pressure_hpa"], errors="coerce").to_numpy(dtype=float)
+            mask = np.isfinite(z) & np.isfinite(t)
+            z, t, p = z[mask], t[mask], p[mask]
+            if z.size < 2:
+                summary_by_profile[pid] = summarize_inversion_layers(pid, [], z0=0.0)
+                layers_by_profile[pid] = []
+                continue
+            layers = detect_inversion_layers_gap_v3(
+                z,
+                t,
+                p,
+                max_embedded_gap_m=float(params["max_embedded_gap_m"]),
+                min_strength_c=float(params["min_strength_c"]),
+                min_depth_m=params.get("min_depth_m"),
+                he_threshold_m=float(params["he_threshold_m"]),
+                max_gap_drop_c=params.get("max_gap_drop_c"),
+            )
+            order = np.argsort(z, kind="mergesort")
+            z0 = float(z[order][0])
+            layers_by_profile[pid] = layers_to_dashboard_payload(layers, z0=z0)
+            summary_by_profile[pid] = summarize_inversion_layers(pid, layers, z0=z0)
+    elif layers_v3_csv is not None or summary_v3_csv is not None:
+        layers_by_profile, summary_by_profile = _load_v3_maps_from_csv(
+            layers_v3_csv, summary_v3_csv,
+        )
+
     # 2) Собираем наблюдения по дням.
     by_day: dict[str, list[dict[str, Any]]] = defaultdict(list)
     profiles_with_levels: set[str] = set()
@@ -526,6 +672,9 @@ def build_daily_profiles(
             pressure_top_hpa=pressure_top_hpa,
             max_surface_pressure_hpa=max_surface_pressure_hpa,
             min_levels=min_levels,
+            v3_fields=_v3_fields_from_maps(
+                profile_id, layers_by_profile, summary_by_profile,
+            ),
         )
         if built is None:
             continue
@@ -534,7 +683,13 @@ def build_daily_profiles(
 
     # 3) В raw добавляем профили без уровней, чтобы ничего не терялось.
     if level_mode == "raw":
-        _append_metrics_only_profiles(by_day, metrics_df, profiles_with_levels)
+        _append_metrics_only_profiles(
+            by_day,
+            metrics_df,
+            profiles_with_levels,
+            layers_by_profile=layers_by_profile,
+            summary_by_profile=summary_by_profile,
+        )
 
     # 4) Собираем месяцы и итоговый JSON.
     months, n_observations = _build_months_payload(by_day, grid_points=grid_points)
@@ -588,6 +743,13 @@ def main() -> int:
         type=int,
         help="Минимум уровней (по умолчанию: raw=1, clean=3)",
     )
+    parser.add_argument(
+        "--compute-v3",
+        action="store_true",
+        help="Посчитать gap-v3 слои из profiles_long и вложить в JSON",
+    )
+    parser.add_argument("--layers-v3", help="Готовый inversion_layers_v3.csv")
+    parser.add_argument("--summary-v3", help="Готовый profile_inversion_summary_v3.csv")
     args = parser.parse_args()
 
     payload = build_daily_profiles(
@@ -596,6 +758,9 @@ def main() -> int:
         xlsx=Path(args.xlsx) if args.xlsx else None,
         level_mode=args.level_mode,
         plot_min_levels=args.min_levels,
+        compute_v3=bool(args.compute_v3),
+        layers_v3_csv=Path(args.layers_v3) if args.layers_v3 else None,
+        summary_v3_csv=Path(args.summary_v3) if args.summary_v3 else None,
     )
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)

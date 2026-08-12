@@ -106,6 +106,58 @@ PROFILE_METRICS_COLUMNS = [
     "source_file",
 ]
 
+INVERSION_LAYERS_V3_COLUMNS = [
+    "profile_id",
+    "layer_index",
+    "base_idx",
+    "top_idx",
+    "base_height_m",
+    "top_height_m",
+    "base_height_agl_m",
+    "top_height_agl_m",
+    "base_pressure_hpa",
+    "top_pressure_hpa",
+    "base_temperature_c",
+    "top_temperature_c",
+    "depth_m",
+    "delta_t_c",
+    "mean_gradient_c_100m",
+    "position_type",
+    "embedded_gap_count",
+    "embedded_gap_depth_total_m",
+    "method",
+]
+
+PROFILE_INVERSION_SUMMARY_V3_COLUMNS = [
+    "profile_id",
+    "n_inversion_layers",
+    "has_G",
+    "has_E",
+    "has_HE",
+    "lowest_layer_index",
+    "strongest_layer_index",
+    "lowest_base_agl_m",
+    "lowest_top_agl_m",
+    "lowest_delta_t_c",
+    "strongest_delta_t_c",
+    "strongest_depth_m",
+    "pattern",
+]
+
+COMPARISON_V2_V3_COLUMNS = [
+    "profile_id",
+    "inversion_detected_v2",
+    "inversion_candidate_v2",
+    "inversion_quality_v2",
+    "inversion_delta_t_c_v2",
+    "n_inversion_layers_v3",
+    "has_G_v3",
+    "has_E_v3",
+    "has_HE_v3",
+    "pattern_v3",
+    "strongest_delta_t_c_v3",
+]
+
 # Как в gdex_bufr.xlsx_export.LEVEL_COLUMNS + ключи стыковки с климатическим слоем
 DECODED_LEVEL_BASE_COLUMNS = [
     "profile_id",
@@ -255,6 +307,22 @@ def write_profiles_working_csv(rows: list[dict[str, Any]], output_dir: Path) -> 
 
 def write_profile_metrics_csv(rows: list[dict[str, Any]], output_dir: Path) -> Path:
     return _write_csv(output_dir / "profile_metrics.csv", rows, PROFILE_METRICS_COLUMNS)
+
+
+def write_inversion_layers_v3_csv(rows: list[dict[str, Any]], output_dir: Path) -> Path:
+    return _write_csv(output_dir / "inversion_layers_v3.csv", rows, INVERSION_LAYERS_V3_COLUMNS)
+
+
+def write_profile_inversion_summary_v3_csv(rows: list[dict[str, Any]], output_dir: Path) -> Path:
+    return _write_csv(
+        output_dir / "profile_inversion_summary_v3.csv",
+        rows,
+        PROFILE_INVERSION_SUMMARY_V3_COLUMNS,
+    )
+
+
+def write_comparison_v2_v3_csv(rows: list[dict[str, Any]], output_dir: Path) -> Path:
+    return _write_csv(output_dir / "comparison_v2_v3.csv", rows, COMPARISON_V2_V3_COLUMNS)
 
 
 def write_decoded_levels_csv(rows: list[dict[str, Any]], output_dir: Path) -> Path:
