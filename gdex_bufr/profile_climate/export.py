@@ -567,6 +567,20 @@ def _mean(values: list[Any]) -> float | None:
     return round(sum(nums) / len(nums), 3)
 
 
+def split_rows_by_station(
+    rows: list[dict[str, Any]],
+    *,
+    id_to_slug: dict[str, str],
+) -> dict[str, list[dict[str, Any]]]:
+    """Разнести строки extract по slug станции."""
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        sid = str(row.get("station_id") or "").zfill(5)[-5:]
+        slug = id_to_slug.get(sid) or sid
+        grouped[slug].append(row)
+    return dict(grouped)
+
+
 def _station_counts(metrics_rows: list[dict[str, Any]]) -> dict[str, int]:
     counts: dict[str, int] = defaultdict(int)
     for row in metrics_rows:

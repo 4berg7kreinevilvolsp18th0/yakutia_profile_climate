@@ -23,10 +23,35 @@ STATION_ELEVATION_M: dict[str, float] = {
 ALDAN_TYPICAL_SURFACE_HPA = 935.0
 
 
+_CATALOG_ELEVATION: dict[str, float] | None = None
+
+
+def _catalog_elevation_map() -> dict[str, float]:
+    """Elevation из stations_catalog.yaml; пустой dict, если файла нет."""
+    global _CATALOG_ELEVATION
+    if _CATALOG_ELEVATION is not None:
+        return _CATALOG_ELEVATION
+    try:
+        from gdex_bufr.profile_climate.config import load_stations_catalog
+
+        catalog = load_stations_catalog()
+        _CATALOG_ELEVATION = {
+            station.station_id: float(station.elevation_m)
+            for station in catalog.stations
+            if station.elevation_m is not None
+        }
+    except Exception:  # noqa: BLE001
+        _CATALOG_ELEVATION = {}
+    return _CATALOG_ELEVATION
+
+
 def station_elevation_m(station_id: str | None) -> float | None:
     if not station_id:
         return None
     key = str(station_id).zfill(5)[-5:]
+    catalog = _catalog_elevation_map()
+    if key in catalog:
+        return catalog[key]
     return STATION_ELEVATION_M.get(key)
 
 

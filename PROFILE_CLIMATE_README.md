@@ -239,5 +239,5 @@ pytest -c gdex_pytest.ini tests/test_profile_climate_*.py
 Быстрый smoke-тест без реальных BUFR (синтетические профили Алдана, январь 1999):
 
 ```bash
-python scripts/run_smoke_test.py
+python scripts/старое/run_smoke_test.py
 ```

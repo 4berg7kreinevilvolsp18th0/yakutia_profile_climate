@@ -605,7 +605,7 @@ def decode_bufr_file(
     path: Path,
     *,
     max_profiles: int | None = None,
-    station_id: str | None = None,
+    station_id: str | set[str] | None = None,
     registry: BufrTablesRegistry | None = None,
     decode_mode: str = "adpupa",
     decoder: Any | None = None,
@@ -625,14 +625,24 @@ def decode_bufr_file(
         )
 
 
+def _station_filter_set(station_id: str | set[str] | None) -> set[str] | None:
+    if station_id is None:
+        return None
+    if isinstance(station_id, str):
+        parts = [part.strip() for part in station_id.split(",") if part.strip()]
+        return {part.zfill(5)[-5:] for part in parts} or None
+    return {str(part).zfill(5)[-5:] for part in station_id} or None
+
+
 def _message_subset_indices(
     message: Any,
     n_subsets: int,
     *,
-    station_id: str | None,
+    station_id: str | set[str] | None,
 ) -> list[int]:
     """Какие subset декодировать: все или только совпадающие с WMO station_id."""
-    if station_id is None:
+    wanted = _station_filter_set(station_id)
+    if wanted is None:
         return list(range(n_subsets))
 
     block_map = _query_values(message, DESC_WMO_BLOCK)
@@ -641,7 +651,7 @@ def _message_subset_indices(
     return [
         idx
         for idx in range(n_subsets)
-        if _subset_station_id(station_maps, idx) == station_id
+        if _subset_station_id(station_maps, idx) in wanted
     ]
 
 
@@ -649,7 +659,7 @@ def _decode_bufr_file_impl(
     path: Path,
     *,
     max_profiles: int | None = None,
-    station_id: str | None = None,
+    station_id: str | set[str] | None = None,
     registry: BufrTablesRegistry | None = None,
     decode_mode: str = "adpupa",
     decoder: Any | None = None,
@@ -689,7 +699,8 @@ def _decode_bufr_file_impl(
                 header_meta=header_meta,
                 query_cache=query_cache,
             )
-            if station_id is not None and profile.station_id != station_id:
+            wanted = _station_filter_set(station_id)
+            if wanted is not None and profile.station_id not in wanted:
                 continue
             profiles.append(profile)
             if max_profiles is not None and len(profiles) >= max_profiles:

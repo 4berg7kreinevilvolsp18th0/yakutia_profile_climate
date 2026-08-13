@@ -24,6 +24,7 @@ def _ensure_worker(
     if _WORKER.get("ready"):
         return
 
+    import json
     import sys
 
     root = str(Path(project_root).resolve())
@@ -56,9 +57,14 @@ def _ensure_worker(
         "export_dir": export_dir,
         "export_on_update": False,
     })
+    wanted = {part.strip().zfill(5)[-5:] for part in str(station_id).split(",") if part.strip()}
+    if station_name.startswith("{"):
+        names = json.loads(station_name)
+    else:
+        names = {next(iter(wanted)): station_name} if wanted else {}
     _WORKER.update({
-        "station_id": station_id,
-        "station_name": station_name,
+        "station_ids": wanted,
+        "station_names": names,
         "pressure_top": pressure_top,
         "min_levels": min_levels,
         "min_inv": min_inv,
@@ -99,7 +105,7 @@ def decode_one(payload: tuple) -> tuple[str, list[dict], list[dict], list[dict],
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             profiles = decode_bufr_file(
                 path,
-                station_id=_WORKER["station_id"],
+                station_id=_WORKER["station_ids"],
                 max_profiles=None,
                 registry=_WORKER["registry"],
                 decode_mode=_WORKER["decode_mode"],
@@ -109,10 +115,12 @@ def decode_one(payload: tuple) -> tuple[str, list[dict], list[dict], list[dict],
         metrics_rows: list[dict] = []
         decoded_rows: list[dict] = []
         element_rows: list[dict] = []
+        names = _WORKER["station_names"]
         for profile in profiles:
+            sid = profile.station_id or ""
             rows, metric, decoded, elements = process_profile(
                 profile,
-                station_name=_WORKER["station_name"],
+                station_name=names.get(sid, sid),
                 pressure_top_hpa=_WORKER["pressure_top"],
                 min_levels_to_500=_WORKER["min_levels"],
                 min_inversion_delta_c=_WORKER["min_inv"],

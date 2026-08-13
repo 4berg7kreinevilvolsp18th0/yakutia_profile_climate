@@ -1,6 +1,6 @@
 # Автономный контур Алдана
 
-`scripts/aldan_simple_pipeline.py` — отдельный понятный путь обработки WMO 31004:
+`scripts/старое/aldan_simple_pipeline.py` — отдельный понятный путь обработки WMO 31004:
 
 ```text
 BUFR → SFC/MANL/TXPR → поверхность→500 гПа → высоты → инверсия → CSV/графики/дашборд
@@ -50,19 +50,19 @@ BUFR → Φ→z → высота станции на SFC → интерполя�
 cd "B:\Kutunika programmist\yakutia_profile_climate"
 
 # Проверочный зонд
-python scripts/aldan_simple_pipeline.py --date 2000-09-14 --cycle 12
+python scripts/старое/aldan_simple_pipeline.py --date 2000-09-14 --cycle 12
 
 # Весь архив на машине с данными
-python scripts/aldan_simple_pipeline.py --all --fresh
+python scripts/старое/aldan_simple_pipeline.py --all --fresh
 
 # Только месячные графики из готового CSV
-python scripts/aldan_simple_pipeline.py --plots
+python scripts/старое/aldan_simple_pipeline.py --plots
 
 # Отдельный дашборд, читающий только алдан-simple
-python scripts/aldan_simple_pipeline.py --dashboard
+python scripts/старое/aldan_simple_pipeline.py --dashboard
 
 # Decode всего архива, графики, затем дашборд
-python scripts/aldan_simple_pipeline.py --all --fresh --plots --dashboard
+python scripts/старое/aldan_simple_pipeline.py --all --fresh --plots --dashboard
 ```
 
 Пути можно переопределить через `--bufr-root` и `--output`. Константы `BUFR_ROOT`,

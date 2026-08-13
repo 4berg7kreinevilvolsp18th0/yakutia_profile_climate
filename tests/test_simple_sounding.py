@@ -1,6 +1,14 @@
 """Тесты автономного контура Алдана SFC/MANL/TXPR."""
+import sys
+from pathlib import Path
+
 from gdex_bufr.meteo_parser_bridge import RadiosondeProfile, VerticalLevel
-from scripts.aldan_simple_pipeline import (
+
+_OLD_SCRIPTS = Path(__file__).resolve().parents[1] / "scripts" / "старое"
+if str(_OLD_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_OLD_SCRIPTS))
+
+from aldan_simple_pipeline import (  # noqa: E402
     detect_inversion,
     normalized_level_type,
     pick_preferred_surface,

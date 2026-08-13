@@ -1,0 +1,13 @@
+{
+  "method": "gap_v3",
+  "max_embedded_gap_m": 100.0,
+  "min_strength_c": 0.3,
+  "min_depth_m": null,
+  "he_threshold_m": 250.0,
+  "max_gap_drop_c": null,
+  "pressure_top_hpa": 500.0,
+  "profiles_long": "C:\\Users\\Moon\\Desktop\\Kutenika programmist\\yakutia_profile_climate\\gdex_outputs\\результаты-алдан-прогон_20260806_022516\\profiles_long.csv",
+  "n_profiles": 18200,
+  "n_layers": 20148,
+  "n_profiles_with_layers": 13049
+}

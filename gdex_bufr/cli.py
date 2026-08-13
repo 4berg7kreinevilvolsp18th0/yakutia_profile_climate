@@ -174,6 +174,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Брать все локальные BUFR, не только completed в state_db",
     )
 
+    index_cmd = sub.add_parser(
+        "station-index",
+        help="Индекс BUFR → станции региона (выход в gdex_outputs/far_east/regions/)",
+    )
+    index_cmd.add_argument("--catalog", default="stations_catalog.yaml")
+    index_cmd.add_argument("--region", default="far_east")
+    index_cmd.add_argument("--start-date", default="1999-10-01")
+    index_cmd.add_argument("--end-date", default="2026-07-30")
+    index_cmd.add_argument("--cycles", default="00,06,12,18")
+    index_cmd.add_argument("--workers", type=int, default=8)
+    index_cmd.add_argument("--limit-files", type=int)
+    index_cmd.add_argument("--input-dir", default="")
+    index_cmd.add_argument("--output-dir", default="")
+
     return parser
 
 
@@ -463,6 +477,22 @@ def main(argv: list[str] | None = None) -> int:
         from gdex_bufr.profile_climate.cli import cmd_discover_stations
 
         return cmd_discover_stations(cfg, args)
+    if args.command == "station-index":
+        from gdex_bufr.station_index import cmd_station_index
+
+        extra = []
+        if args.catalog:
+            extra += ["--catalog", args.catalog]
+        extra += ["--region", args.region, "--start-date", args.start_date, "--end-date", args.end_date]
+        extra += ["--cycles", args.cycles, "--workers", str(args.workers)]
+        extra += ["--config", args.config]
+        if args.limit_files:
+            extra += ["--limit-files", str(args.limit_files)]
+        if args.input_dir:
+            extra += ["--input-dir", args.input_dir]
+        if args.output_dir:
+            extra += ["--output-dir", args.output_dir]
+        return cmd_station_index(extra)
     parser.error(f"Unknown command: {args.command}")
     return 2
 

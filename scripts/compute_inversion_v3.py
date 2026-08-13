@@ -127,15 +127,12 @@ def main() -> int:
         description="Gap-v3 инверсии из profiles_long (параллельно legacy v2)",
     )
     parser.add_argument(
-        "--profiles-long",
-        required=True,
-        help="Путь к profiles_long.csv",
+        "--station-dir",
+        default="",
+        help="Каталог станции (profiles_long.csv + profile_metrics.csv); v3 пишется в <dir>/v3",
     )
-    parser.add_argument(
-        "--output-dir",
-        required=True,
-        help="Каталог для inversion_layers_v3.csv / summary / comparison",
-    )
+    parser.add_argument("--profiles-long", default="", help="Путь к profiles_long.csv")
+    parser.add_argument("--output-dir", default="", help="Каталог для CSV v3")
     parser.add_argument("--metrics", default="", help="profile_metrics.csv для comparison_v2_v3")
     parser.add_argument("--max-embedded-gap-m", type=float, default=100.0)
     parser.add_argument("--min-strength-c", type=float, default=0.3)
@@ -155,8 +152,25 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    long_path = Path(args.profiles_long)
-    out_dir = Path(args.output_dir)
+    if not args.station_dir and not (args.profiles_long and args.output_dir):
+        from gdex_bufr.profile_climate.paths import catalog_station_dir
+
+        args.station_dir = str(catalog_station_dir())
+
+    if args.station_dir:
+        station_dir = Path(args.station_dir)
+        long_path = Path(args.profiles_long) if args.profiles_long else station_dir / "profiles_long.csv"
+        out_dir = Path(args.output_dir) if args.output_dir else station_dir / "v3"
+        if not args.metrics:
+            metrics_candidate = station_dir / "profile_metrics.csv"
+            if metrics_candidate.exists():
+                args.metrics = str(metrics_candidate)
+    elif args.profiles_long and args.output_dir:
+        long_path = Path(args.profiles_long)
+        out_dir = Path(args.output_dir)
+    else:
+        parser.error("Укажите --station-dir или пару --profiles-long и --output-dir")
+        return 2
     out_dir.mkdir(parents=True, exist_ok=True)
 
     long_df = pd.read_csv(long_path)

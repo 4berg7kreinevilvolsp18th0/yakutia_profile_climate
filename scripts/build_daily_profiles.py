@@ -21,6 +21,7 @@ from gdex_bufr.profile_climate.height_fill import (  # noqa: E402
     STATION_ELEVATION_M,
     fill_long_dataframe_heights,
 )
+from gdex_bufr.profile_climate.paths import catalog_station_dir  # noqa: E402
 from gdex_bufr.profile_climate.obs_qc import (  # noqa: E402
     clean_observation_levels,
     interp_on_pressure_grid,
@@ -43,8 +44,8 @@ FEATURES = (
     "inversion_v3",           # inversion_layers_v3 / pattern / n_layers (gap-merge)
 )
 
-DEFAULT_DIR = Path("gdex_outputs") / "актуальное"
-LEGACY_DIR = Path("gdex_outputs") / "результаты-алдан"
+DEFAULT_DIR = catalog_station_dir()
+LEGACY_DIR = Path("gdex_outputs") / "актуальное"
 DEFAULT_LONG_CSV = DEFAULT_DIR / "profiles_long.csv"
 DEFAULT_METRICS_CSV = DEFAULT_DIR / "profile_metrics.csv"
 DEFAULT_OUTPUT = DEFAULT_DIR / "daily_profiles.json"

@@ -1,0 +1,465 @@
+# Аэрологическая сеть Дальнего Востока (ЦАО locatore + IGRA2).
+# Новая станция / выключение = правка этого файла, код не трогать.
+# enabled: false — не попадает в --region (станция остаётся в файле).
+# Два id с одним slug — смена индекса ВМО (строки merge в одну папку).
+
+default_region: far_east
+default_station: aldan
+
+stations:
+  # --- Якутское УГМС ---
+  - id: "21432"
+    slug: kotelny
+    name: Ostrov Kotelny
+    elevation_m: 23
+    region: far_east
+    latitude_deg: 76.00
+    longitude_deg: 137.90
+  - id: "21647"
+    slug: shalaurova
+    name: Mys Shalaurova
+    elevation_m: 23
+    region: far_east
+    latitude_deg: 73.20
+    longitude_deg: 143.533
+  - id: "21824"
+    slug: tiksi
+    name: Tiksi
+    elevation_m: 6
+    region: far_east
+    latitude_deg: 71.5833
+    longitude_deg: 128.9167
+  - id: "21946"
+    slug: chokurdakh
+    name: Chokurdakh
+    elevation_m: 44
+    region: far_east
+    latitude_deg: 70.6167
+    longitude_deg: 147.8833
+  - id: "24125"
+    slug: olenek
+    name: Olenek
+    elevation_m: 217
+    region: far_east
+    latitude_deg: 68.50
+    longitude_deg: 112.4333
+  - id: "24122"
+    slug: olenek
+    name: Olenek
+    elevation_m: 207
+    region: far_east
+    latitude_deg: 68.50
+    longitude_deg: 112.4333
+  - id: "24266"
+    slug: verkhoyansk
+    name: Verkhoyansk
+    elevation_m: 136
+    region: far_east
+    latitude_deg: 67.5667
+    longitude_deg: 133.40
+  - id: "24343"
+    slug: zhigansk
+    name: Zhigansk
+    elevation_m: 88
+    region: far_east
+    latitude_deg: 66.7667
+    longitude_deg: 123.40
+  - id: "24641"
+    slug: vilyuysk
+    name: Vilyuysk
+    elevation_m: 111
+    region: far_east
+    latitude_deg: 63.7833
+    longitude_deg: 121.6167
+  - id: "24688"
+    slug: oymyakon
+    name: Oymyakon
+    elevation_m: 740
+    region: far_east
+    latitude_deg: 63.25
+    longitude_deg: 143.15
+  - id: "24726"
+    slug: mirny
+    name: Mirny
+    elevation_m: 351
+    region: far_east
+    latitude_deg: 62.5333
+    longitude_deg: 113.8667
+  - id: "24944"
+    slug: olekminsk
+    name: Olekminsk
+    elevation_m: 225
+    region: far_east
+    latitude_deg: 60.40
+    longitude_deg: 120.4167
+  - id: "24947"
+    slug: olekminsk
+    name: Olekminsk
+    elevation_m: 135
+    region: far_east
+    latitude_deg: 60.3667
+    longitude_deg: 120.4167
+  - id: "24959"
+    slug: yakutsk
+    name: Yakutsk
+    elevation_m: 103
+    region: far_east
+    latitude_deg: 62.0167
+    longitude_deg: 129.7167
+  - id: "25123"
+    slug: chersky
+    name: Chersky
+    elevation_m: 32
+    region: far_east
+    latitude_deg: 68.75
+    longitude_deg: 161.2833
+  - id: "25400"
+    slug: zyryanka
+    name: Zyryanka
+    elevation_m: 41
+    region: far_east
+    latitude_deg: 65.7333
+    longitude_deg: 150.90
+  - id: "25403"
+    slug: zyryanka
+    name: Zyryanka
+    elevation_m: 47
+    region: far_east
+    latitude_deg: 65.7333
+    longitude_deg: 150.90
+  - id: "30054"
+    slug: vitim
+    name: Vitim
+    elevation_m: 186
+    region: far_east
+    latitude_deg: 59.45
+    longitude_deg: 112.5833
+  - id: "31004"
+    slug: aldan
+    name: Aldan
+    elevation_m: 679
+    region: far_east
+    latitude_deg: 58.6167
+    longitude_deg: 125.3667
+
+  # --- Чукотское УГМС ---
+  - id: "21982"
+    slug: wrangel
+    name: Ostrov Wrangelya
+    elevation_m: 4
+    region: far_east
+    latitude_deg: 70.967
+    longitude_deg: -178.65
+  - id: "25042"
+    slug: ayon
+    name: Ostrov Ayon
+    elevation_m: 16
+    region: far_east
+    latitude_deg: 69.9333
+    longitude_deg: 167.9667
+  - id: "25173"
+    slug: mys_shmidta
+    name: Mys Shmidta
+    elevation_m: 2
+    region: far_east
+    latitude_deg: 68.92
+    longitude_deg: -179.48
+  - id: "25399"
+    slug: uelen
+    name: Uelen
+    elevation_m: 7
+    region: far_east
+    latitude_deg: 66.167
+    longitude_deg: -169.833
+  - id: "25428"
+    slug: omolon
+    name: Omolon
+    elevation_m: 260
+    region: far_east
+    latitude_deg: 65.2333
+    longitude_deg: 160.5333
+  - id: "25551"
+    slug: markovo
+    name: Markovo
+    elevation_m: 23
+    region: far_east
+    latitude_deg: 64.683
+    longitude_deg: 170.417
+  - id: "25563"
+    slug: anadyr
+    name: Anadyr
+    elevation_m: 64
+    region: far_east
+    latitude_deg: 64.7833
+    longitude_deg: 177.5667
+  - id: "25594"
+    slug: provideniya
+    name: Bukhta Provideniya
+    elevation_m: 39
+    region: far_east
+    latitude_deg: 64.383
+    longitude_deg: -173.233
+  - id: "25677"
+    slug: beringovskaya
+    name: Beringovskaya
+    elevation_m: 82
+    region: far_east
+    latitude_deg: 63.017
+    longitude_deg: 179.283
+
+  # --- Колымское УГМС ---
+  - id: "24790"
+    slug: susuman
+    name: Susuman
+    elevation_m: 649
+    region: far_east
+    latitude_deg: 62.7833
+    longitude_deg: 148.1333
+  - id: "25703"
+    slug: seymchan
+    name: Seymchan
+    elevation_m: 206
+    region: far_east
+    latitude_deg: 62.9167
+    longitude_deg: 152.4167
+  - id: "25913"
+    slug: magadan
+    name: Magadan
+    elevation_m: 115
+    region: far_east
+    latitude_deg: 59.55
+    longitude_deg: 150.7833
+  - id: "31088"
+    slug: okhotsk
+    name: Okhotsk
+    elevation_m: 5
+    region: far_east
+    latitude_deg: 59.3667
+    longitude_deg: 143.20
+
+  # --- Камчатское УГМС ---
+  - id: "25954"
+    slug: korf
+    name: Korf
+    elevation_m: 4
+    region: far_east
+    latitude_deg: 60.35
+    longitude_deg: 166.00
+  - id: "32389"
+    slug: klyuchi
+    name: Klyuchi
+    elevation_m: 28
+    region: far_east
+    latitude_deg: 56.3167
+    longitude_deg: 160.8333
+  - id: "32477"
+    slug: sobolevo
+    name: Sobolevo
+    elevation_m: 25
+    region: far_east
+    latitude_deg: 54.30
+    longitude_deg: 155.9167
+  - id: "32540"
+    slug: petropavlovsk_kamchatsky
+    name: Petropavlovsk-Kamchatsky
+    elevation_m: 78
+    region: far_east
+    latitude_deg: 53.0833
+    longitude_deg: 158.5833
+  - id: "32618"
+    slug: beringa
+    name: Ostrov Beringa
+    elevation_m: 16
+    region: far_east
+    latitude_deg: 55.20
+    longitude_deg: 165.9833
+
+  # --- Дальневосточное УГМС (Хабаровск, Амур) ---
+  - id: "30692"
+    slug: skovorodino
+    name: Skovorodino
+    elevation_m: 400
+    region: far_east
+    latitude_deg: 54.00
+    longitude_deg: 123.967
+  - id: "31168"
+    slug: ayan
+    name: Ayan
+    elevation_m: 6
+    region: far_east
+    latitude_deg: 56.45
+    longitude_deg: 138.15
+  - id: "31300"
+    slug: zeya
+    name: Zeya
+    elevation_m: 228
+    region: far_east
+    latitude_deg: 53.7414
+    longitude_deg: 127.2764
+  - id: "31329"
+    slug: ekimchan
+    name: Ekimchan
+    elevation_m: 542
+    region: far_east
+    latitude_deg: 53.067
+    longitude_deg: 132.983
+  - id: "31369"
+    slug: nikolaevsk_na_amure
+    name: Nikolaevsk-na-Amure
+    elevation_m: 45
+    region: far_east
+    latitude_deg: 53.1475
+    longitude_deg: 140.6939
+  - id: "31510"
+    slug: blagoveshchensk
+    name: Blagoveshchensk
+    elevation_m: 168
+    region: far_east
+    latitude_deg: 50.2803
+    longitude_deg: 127.4783
+  - id: "31538"
+    slug: sutur
+    name: Sutur
+    elevation_m: 343
+    region: far_east
+    latitude_deg: 50.0667
+    longitude_deg: 132.1333
+  - id: "31561"
+    slug: komsomolsk
+    name: Komsomolsk-on-Amur
+    elevation_m: 19
+    region: far_east
+    latitude_deg: 50.60
+    longitude_deg: 137.0333
+  - id: "31707"
+    slug: ekaterino_nikolskoe
+    name: Ekaterino-Nikolskoe
+    elevation_m: 73
+    region: far_east
+    latitude_deg: 47.733
+    longitude_deg: 130.967
+  - id: "31736"
+    slug: khabarovsk
+    name: Khabarovsk
+    elevation_m: 72
+    region: far_east
+    latitude_deg: 48.5333
+    longitude_deg: 135.2333
+  - id: "31770"
+    slug: sovetskaya_gavan
+    name: Sovetskaya Gavan
+    elevation_m: 21
+    region: far_east
+    latitude_deg: 49.00
+    longitude_deg: 140.30
+
+  # --- Приморское УГМС ---
+  - id: "31873"
+    slug: dalnerechensk
+    name: Dalnerechensk
+    elevation_m: 100
+    region: far_east
+    latitude_deg: 45.8667
+    longitude_deg: 133.7333
+  - id: "31909"
+    slug: terney
+    name: Terney
+    elevation_m: 68
+    region: far_east
+    latitude_deg: 45.00
+    longitude_deg: 136.60
+  - id: "31977"
+    slug: vladivostok
+    name: Vladivostok
+    elevation_m: 77
+    region: far_east
+    latitude_deg: 43.2667
+    longitude_deg: 132.05
+
+  # --- Сахалинское УГМС ---
+  - id: "32061"
+    slug: aleksandrovsk_sakhalinsky
+    name: Aleksandrovsk-Sakhalinsky
+    elevation_m: 30
+    region: far_east
+    latitude_deg: 50.90
+    longitude_deg: 142.1667
+  - id: "32098"
+    slug: poronaysk
+    name: Poronaysk
+    elevation_m: 7
+    region: far_east
+    latitude_deg: 49.2167
+    longitude_deg: 143.10
+  - id: "32150"
+    slug: yuzhno_sakhalinsk
+    name: Yuzhno-Sakhalinsk
+    elevation_m: 22
+    region: far_east
+    latitude_deg: 46.95
+    longitude_deg: 142.7167
+  - id: "32165"
+    slug: yuzhno_kurilsk
+    name: Yuzhno-Kurilsk
+    elevation_m: 49
+    region: far_east
+    latitude_deg: 44.017
+    longitude_deg: 145.867
+  - id: "32215"
+    slug: severo_kurilsk
+    name: Severo-Kurilsk
+    elevation_m: 24
+    region: far_east
+    latitude_deg: 50.6833
+    longitude_deg: 156.1333
+
+  # --- Забайкальское УГМС (ДФО с 2018) ---
+  - id: "30372"
+    slug: chara
+    name: Chara
+    elevation_m: 709
+    region: far_east
+    latitude_deg: 56.90
+    longitude_deg: 118.2667
+  - id: "30557"
+    slug: bagdarin
+    name: Bagdarin
+    elevation_m: 995
+    region: far_east
+    latitude_deg: 54.4667
+    longitude_deg: 113.5833
+  - id: "30635"
+    slug: ust_barguzin
+    name: Ust-Barguzin
+    elevation_m: 459
+    region: far_east
+    latitude_deg: 53.4167
+    longitude_deg: 109.0167
+  - id: "30673"
+    slug: mogocha
+    name: Mogocha
+    elevation_m: 624
+    region: far_east
+    latitude_deg: 53.75
+    longitude_deg: 119.7333
+  - id: "30758"
+    slug: chita
+    name: Chita
+    elevation_m: 671
+    region: far_east
+    latitude_deg: 52.0833
+    longitude_deg: 113.4833
+  - id: "30935"
+    slug: krasny_chikoy
+    name: Krasny Chikoy
+    elevation_m: 770
+    region: far_east
+    latitude_deg: 50.3667
+    longitude_deg: 108.75
+  - id: "30965"
+    slug: borzya
+    name: Borzya
+    elevation_m: 675
+    region: far_east
+    latitude_deg: 50.40
+    longitude_deg: 116.5167

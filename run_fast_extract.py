@@ -121,7 +121,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Быстрая расшифровка станции из локальных BUFR")
     p.add_argument("--config", default="gdex_config.yaml")
     p.add_argument("--profile-config", default="profile_climate_config.yaml")
-    p.add_argument("--station", default="aldan")
+    p.add_argument("--station", default="", help="Одна станция (slug или WMO id). Пусто — весь default_region из каталога")
+    p.add_argument(
+        "--region",
+        default="",
+        help="Регион из stations_catalog.yaml (пусто — default_region). Одна станция: --station aldan",
+    )
     p.add_argument("--start-date", default="1999-10-01")
     p.add_argument("--end-date", default="2026-07-30")
     p.add_argument("--cycles", default="00,12")
@@ -159,9 +164,11 @@ def main(argv: list[str] | None = None) -> int:
         append_csv,
         export_all,
         export_checkpoint,
+        split_rows_by_station,
         write_field_types_csv,
     )
     from gdex_bufr.profile_climate.extract import normalize_station_id
+    from gdex_bufr.profile_climate.paths import FAR_EAST_ROOT, station_dir
 
     def _resolve_station(pc_cfg, station_arg: str) -> tuple[str, str, str]:
         if station_arg.isdigit():
@@ -183,14 +190,32 @@ def main(argv: list[str] | None = None) -> int:
         app_cfg.data_dir = input_dir
         logger.info("input-dir=%s", app_cfg.data_dir)
     pc_cfg = load_profile_climate_config(args.profile_config)
-    station_id, station_slug, station_name = _resolve_station(pc_cfg, args.station)
+    region_name = args.region
+    if not region_name and not args.station:
+        region_name = pc_cfg.default_region or "far_east"
+    region_stations = pc_cfg.stations_in_region(region_name) if region_name else []
+    if region_name and not region_stations:
+        logger.error("Нет станций в region=%s", region_name)
+        return 2
+    if region_stations:
+        station_id = ",".join(s.station_id for s in region_stations)
+        station_slug = region_name
+        station_name = json.dumps({s.station_id: s.name for s in region_stations}, ensure_ascii=False)
+        id_to_slug = {s.station_id: s.slug for s in region_stations}
+    else:
+        station_id, station_slug, station_name = _resolve_station(pc_cfg, args.station)
+        id_to_slug = {station_id: station_slug}
     start = _parse_date(args.start_date)
     end = _parse_date(args.end_date)
     cycles = [c.strip().zfill(2)[-2:] for c in args.cycles.split(",") if c.strip()]
-    output_dir = Path(
-        args.output
-        or ("gdex_outputs/актуальное" if args.actual else f"gdex_outputs/результаты-{station_slug}")
-    )
+    if args.output:
+        output_dir = Path(args.output)
+    elif args.actual:
+        output_dir = Path("gdex_outputs/актуальное")
+    elif region_stations:
+        output_dir = FAR_EAST_ROOT / "_run"
+    else:
+        output_dir = station_dir(station_slug)
     output_dir.mkdir(parents=True, exist_ok=True)
     try:
         _acquire_output_lock(output_dir)
@@ -314,6 +339,27 @@ def main(argv: list[str] | None = None) -> int:
                     )
 
     paths = export_all(long_rows, metrics_rows, output_dir, config_info=config_info)
+    split_paths: dict[str, str] = {}
+    if region_stations:
+        long_by = split_rows_by_station(long_rows, id_to_slug=id_to_slug)
+        metrics_by = split_rows_by_station(metrics_rows, id_to_slug=id_to_slug)
+        for station in pc_cfg.unique_by_slug(region_stations):
+            dest = station_dir(station.slug)
+            dest.mkdir(parents=True, exist_ok=True)
+            split_info = {
+                **config_info,
+                "station_id": station.station_id,
+                "station_slug": station.slug,
+                "station_name": station.name,
+            }
+            dest_paths = export_all(
+                long_by.get(station.slug, []),
+                metrics_by.get(station.slug, []),
+                dest,
+                config_info=split_info,
+            )
+            split_paths[station.slug] = dest_paths.get("profile_metrics", str(dest))
+            logger.info("split %s → %s (%s profiles)", station.slug, dest, len(metrics_by.get(station.slug, [])))
     paths["decoded_levels"] = str(decoded_path) if decoded_path.exists() else ""
     paths["debufr_elements"] = str(elements_path) if elements_path.exists() else ""
     paths["field_types"] = str(output_dir / "field_types.csv")
@@ -322,6 +368,7 @@ def main(argv: list[str] | None = None) -> int:
         "files_processed": processed, "profiles": len(metrics_rows), "levels": len(long_rows),
         "decoded_streamed": decoded_streamed, "elements_streamed": elements_streamed,
         "found_this_run": found, "errors": errors, "outputs": paths,
+        "station_dirs": split_paths,
     }, ensure_ascii=False, indent=2))
     return 0 if metrics_rows else 1
 

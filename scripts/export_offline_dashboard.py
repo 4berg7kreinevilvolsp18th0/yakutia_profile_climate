@@ -2,18 +2,26 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 from plotly.offline import get_plotlyjs
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA_PATH = ROOT / "gdex_outputs" / "результаты-алдан" / "daily_profiles.json"
-OUT_PATH = ROOT / "gdex_outputs" / "результаты-алдан" / "aldan_dashboard.html"
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from gdex_bufr.profile_climate.paths import catalog_station_dir  # noqa: E402
+
+DATA_PATH = ROOT / catalog_station_dir() / "daily_profiles.json"
+LEGACY_DATA_PATH = ROOT / "gdex_outputs" / "актуальное" / "daily_profiles.json"
+OUT_PATH = ROOT / catalog_station_dir() / "aldan_dashboard.html"
 REQUIRED_SCHEMA = "observations_v1"
 
 
 def main() -> int:
-    data = json.loads(DATA_PATH.read_text(encoding="utf-8"))
+    data_path = DATA_PATH if DATA_PATH.exists() else LEGACY_DATA_PATH
+    data = json.loads(data_path.read_text(encoding="utf-8"))
     if data.get("schema") != REQUIRED_SCHEMA:
         raise ValueError(
             f"Нужна схема {REQUIRED_SCHEMA}, получена {data.get('schema')!r}. "

@@ -46,23 +46,28 @@ from gdex_bufr.profile_climate.obs_qc import (  # noqa: E402
     suggest_outliers_form,
     suggest_outliers_spike,
 )
+from gdex_bufr.profile_climate.paths import catalog_station_dir  # noqa: E402
 
-ACTUAL_DATA = ROOT / "gdex_outputs" / "актуальное" / "daily_profiles.json"
+FAR_EAST_DATA = ROOT / catalog_station_dir() / "daily_profiles.json"
+LEGACY_ACTUAL = ROOT / "gdex_outputs" / "актуальное" / "daily_profiles.json"
+LEGACY_ALDAN = ROOT / "gdex_outputs" / "результаты-алдан" / "daily_profiles.json"
 
 
 def _data_path_from_cli() -> Path:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--data")
     args, _ = parser.parse_known_args()
-    return (
-        Path(args.data)
-        if args.data
-        else ACTUAL_DATA
-    )
+    if args.data:
+        return Path(args.data)
+    if FAR_EAST_DATA.exists():
+        return FAR_EAST_DATA
+    if LEGACY_ACTUAL.exists():
+        return LEGACY_ACTUAL
+    return FAR_EAST_DATA
 
 
 DEFAULT_DATA = _data_path_from_cli()
-LEGACY_DATA = ROOT / "gdex_outputs" / "результаты-алдан" / "daily_profiles.json"
+LEGACY_DATA = LEGACY_ACTUAL if LEGACY_ACTUAL.exists() else LEGACY_ALDAN
 REQUIRED_SCHEMA = "observations_v1"
 
 OBS_PALETTE = [
@@ -585,9 +590,10 @@ def main() -> None:
 
     data_path = st.sidebar.text_input("daily_profiles.json", str(DEFAULT_DATA))
     data_file = Path(data_path)
-    if not data_file.exists() and data_file == ACTUAL_DATA and LEGACY_DATA.exists():
+    if LEGACY_DATA.exists():
+        st.sidebar.caption(f"Эталон (legacy): {LEGACY_DATA}")
+    if not data_file.exists() and LEGACY_DATA.exists():
         data_file = LEGACY_DATA
-        st.sidebar.caption(f"Fallback: {LEGACY_DATA}")
     if not data_file.exists():
         st.error(
             "Нет файла данных. Сначала выполните:\n\n"

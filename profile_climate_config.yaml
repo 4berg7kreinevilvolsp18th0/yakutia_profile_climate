@@ -1,14 +1,6 @@
 profile_climate:
-  stations:
-    - id: "31004"
-      slug: "aldan"
-      name: "Aldan"
-      elevation_m: 679
-      # типичное давление у поверхности ~920–945 гПа (не константа; ISA≈935 гПа)
-    - id: "24959"
-      slug: "yakutsk"
-      name: "Yakutsk"
-      elevation_m: 103
+  stations_catalog: stations_catalog.yaml
+  # станции только в stations_catalog.yaml (default_region / default_station там же)
   start_date: "1999-01-01"
   end_date: "2026-12-31"
   pressure_top_hpa: 500
