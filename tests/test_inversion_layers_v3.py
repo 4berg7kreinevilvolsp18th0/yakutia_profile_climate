@@ -130,6 +130,28 @@ def test_summarize_pattern_g_plus_e():
     assert summary["pattern"] == "G+E"
 
 
+def test_g_by_agl_tolerance_not_index():
+    # первый интервал охлаждение, база слоя на 10 м AGL → G по порогу, не по idx==0
+    z = np.array([700.0, 710.0, 730.0, 830.0])
+    t = np.array([-20.0, -21.0, -19.0, -16.0])
+    layers = detect_inversion_layers_gap_v3(
+        z, t, min_strength_c=0.3, surface_tolerance_m=30.0,
+    )
+    assert layers
+    assert layers[0].position_type == "G"
+    assert layers[0].base_idx == 1
+
+
+def test_merge_respects_total_embedded_gap():
+    z = np.array([0.0, 50.0, 130.0, 180.0, 260.0, 310.0])
+    t = np.array([-10.0, -8.0, -8.5, -6.5, -7.0, -5.0])
+    # два gap по 80 м; второй даёт суммарно 160 м > 100 → две склейки не сливаются
+    layers = detect_inversion_layers_gap_v3(
+        z, t, max_embedded_gap_m=100.0, min_strength_c=0.3, max_total_embedded_gap_m=100.0,
+    )
+    assert len(layers) >= 2
+
+
 def test_merge_short_gaps_metadata():
     z = np.array([0.0, 50.0, 80.0, 150.0])
     runs = [(0, 1), (2, 3)]

@@ -16,6 +16,7 @@ profile_climate:
   inversion_v3_min_strength_c: 0.3
   # inversion_v3_min_depth_m: null
   inversion_v3_he_threshold_m: 250
+  inversion_v3_surface_tolerance_m: 30
   # inversion_v3_max_gap_drop_c: null   # экспериментальный, выкл. по умолчанию
   min_profiles_per_month: 5
   max_surface_pressure_hpa: 1000

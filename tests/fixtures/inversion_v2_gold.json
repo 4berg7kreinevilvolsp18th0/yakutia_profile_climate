@@ -1,0 +1,171 @@
+{
+  "defaults": {
+    "min_inversion_delta_c": 0.2,
+    "confirm_drop_levels": 2,
+    "confirm_depth_hpa": 30.0,
+    "min_drop_delta_c": 0.2
+  },
+  "cases": [
+    {
+      "id": "confirmed_classic",
+      "levels": [
+        {"pressure_hpa": 1000, "temperature_c": -30.0, "height_m": 100},
+        {"pressure_hpa": 950, "temperature_c": -28.0, "height_m": 200},
+        {"pressure_hpa": 900, "temperature_c": -25.0, "height_m": 300},
+        {"pressure_hpa": 850, "temperature_c": -24.0, "height_m": 400},
+        {"pressure_hpa": 820, "temperature_c": -26.0, "height_m": 500},
+        {"pressure_hpa": 800, "temperature_c": -28.0, "height_m": 600}
+      ],
+      "expect": {
+        "inversion_quality": "confirmed",
+        "inversion_detected": true,
+        "inversion_top_pressure_hpa": 850,
+        "inversion_top_temp_c": -24.0
+      }
+    },
+    {
+      "id": "rejected_pocket",
+      "levels": [
+        {"pressure_hpa": 1000, "temperature_c": -30.0},
+        {"pressure_hpa": 950, "temperature_c": -28.0},
+        {"pressure_hpa": 900, "temperature_c": -25.0},
+        {"pressure_hpa": 850, "temperature_c": -24.0},
+        {"pressure_hpa": 820, "temperature_c": -26.0},
+        {"pressure_hpa": 800, "temperature_c": -25.0},
+        {"pressure_hpa": 770, "temperature_c": -23.0}
+      ],
+      "expect": {
+        "inversion_quality": "rejected_no_lapse",
+        "inversion_detected": false,
+        "inversion_top_pressure_hpa": 850
+      }
+    },
+    {
+      "id": "none_cooling",
+      "levels": [
+        {"pressure_hpa": 1000, "temperature_c": -20.0},
+        {"pressure_hpa": 900, "temperature_c": -22.0},
+        {"pressure_hpa": 800, "temperature_c": -25.0},
+        {"pressure_hpa": 700, "temperature_c": -30.0}
+      ],
+      "expect": {
+        "inversion_quality": "none",
+        "inversion_detected": false
+      }
+    },
+    {
+      "id": "noise_below_delta",
+      "levels": [
+        {"pressure_hpa": 1000, "temperature_c": -20.0},
+        {"pressure_hpa": 900, "temperature_c": -19.9},
+        {"pressure_hpa": 800, "temperature_c": -21.0}
+      ],
+      "expect": {
+        "inversion_quality": "none",
+        "inversion_detected": false
+      }
+    },
+    {
+      "id": "growth_no_levels_above",
+      "levels": [
+        {"pressure_hpa": 1000, "temperature_c": -30.0},
+        {"pressure_hpa": 950, "temperature_c": -28.0},
+        {"pressure_hpa": 900, "temperature_c": -25.0}
+      ],
+      "expect": {
+        "inversion_quality": "rejected_no_lapse",
+        "inversion_detected": false,
+        "inversion_top_pressure_hpa": 900
+      }
+    },
+    {
+      "id": "single_level",
+      "levels": [{"pressure_hpa": 930, "temperature_c": -20.0}],
+      "expect": {
+        "inversion_quality": "none",
+        "inversion_detected": false
+      }
+    },
+    {
+      "id": "missing_surface_temp",
+      "levels": [
+        {"pressure_hpa": 1000, "temperature_c": null},
+        {"pressure_hpa": 900, "temperature_c": -18.0}
+      ],
+      "expect": {
+        "inversion_quality": "none",
+        "inversion_detected": false
+      }
+    },
+    {
+      "id": "weak_then_strong_growth_confirmed",
+      "levels": [
+        {"pressure_hpa": 1000, "temperature_c": -20.0, "height_m": 100},
+        {"pressure_hpa": 970, "temperature_c": -19.7, "height_m": 200},
+        {"pressure_hpa": 940, "temperature_c": -17.0, "height_m": 300},
+        {"pressure_hpa": 910, "temperature_c": -16.0, "height_m": 400},
+        {"pressure_hpa": 880, "temperature_c": -18.0, "height_m": 500},
+        {"pressure_hpa": 850, "temperature_c": -20.0, "height_m": 600}
+      ],
+      "expect": {
+        "inversion_quality": "confirmed",
+        "inversion_detected": true,
+        "inversion_top_pressure_hpa": 910
+      }
+    },
+    {
+      "id": "one_cooling_step_rejected",
+      "levels": [
+        {"pressure_hpa": 1000, "temperature_c": -30.0},
+        {"pressure_hpa": 950, "temperature_c": -26.0},
+        {"pressure_hpa": 920, "temperature_c": -28.0}
+      ],
+      "expect": {
+        "inversion_quality": "rejected_no_lapse",
+        "inversion_detected": false,
+        "inversion_top_pressure_hpa": 950
+      }
+    },
+    {
+      "id": "isothermal_none",
+      "levels": [
+        {"pressure_hpa": 1000, "temperature_c": -20.0},
+        {"pressure_hpa": 900, "temperature_c": -20.0},
+        {"pressure_hpa": 800, "temperature_c": -20.0}
+      ],
+      "expect": {
+        "inversion_quality": "none",
+        "inversion_detected": false
+      }
+    },
+    {
+      "id": "shallow_confirm_window_rejected",
+      "levels": [
+        {"pressure_hpa": 1000, "temperature_c": -30.0},
+        {"pressure_hpa": 980, "temperature_c": -28.0},
+        {"pressure_hpa": 970, "temperature_c": -29.0},
+        {"pressure_hpa": 960, "temperature_c": -30.0}
+      ],
+      "expect": {
+        "inversion_quality": "rejected_no_lapse",
+        "inversion_detected": false,
+        "inversion_top_pressure_hpa": 980
+      }
+    },
+    {
+      "id": "deep_confirm_ok",
+      "levels": [
+        {"pressure_hpa": 1000, "temperature_c": -32.0, "height_m": 80},
+        {"pressure_hpa": 960, "temperature_c": -28.0, "height_m": 180},
+        {"pressure_hpa": 920, "temperature_c": -26.0, "height_m": 280},
+        {"pressure_hpa": 880, "temperature_c": -28.5, "height_m": 380},
+        {"pressure_hpa": 840, "temperature_c": -31.0, "height_m": 480}
+      ],
+      "expect": {
+        "inversion_quality": "confirmed",
+        "inversion_detected": true,
+        "inversion_top_pressure_hpa": 920
+      }
+    }
+  ]
+}

@@ -177,7 +177,32 @@ def _find_inversion_top(
     return inversion_top, top_index
 
 
-def detect_surface_inversion(
+def v2_inversion_path(
+    levels: list[dict[str, Any]],
+    *,
+    min_inversion_delta_c: float = 0.2,
+    confirm_drop_levels: int = 2,
+    confirm_depth_hpa: float = 30.0,
+    min_drop_delta_c: float = 0.2,
+) -> tuple[InversionResult, list[dict[str, Any]]]:
+    """Путь v2: уровни от поверхности до верха кандидата (для кружков на графике)."""
+    result = detect_surface_inversion_v2_legacy(
+        levels,
+        min_inversion_delta_c=min_inversion_delta_c,
+        confirm_drop_levels=confirm_drop_levels,
+        confirm_depth_hpa=confirm_depth_hpa,
+        min_drop_delta_c=min_drop_delta_c,
+    )
+    if not result.inversion_candidate:
+        return result, []
+    found = _find_inversion_top(levels, min_inversion_delta_c=min_inversion_delta_c)
+    if found is None:
+        return result, []
+    _top, top_index = found
+    return result, levels[: top_index + 1]
+
+
+def detect_surface_inversion_v2_legacy(
     levels: list[dict[str, Any]],
     *,
     min_inversion_delta_c: float = 0.2,
@@ -185,7 +210,7 @@ def detect_surface_inversion(
     confirm_depth_hpa: float = 30.0,
     min_drop_delta_c: float = 0.2,
 ) -> InversionResult:
-    """Приземная инверсия: рост T от земли + устойчивое падение выше верха.
+    """Замороженный baseline v2: рост от земли + подтверждение падения выше.
 
     Этап 1 — кандидат: непрерывный рост T с порогом min_inversion_delta_c.
     Этап 2 — подтверждение: confirm_drop_levels шагов падения и слой
@@ -221,5 +246,19 @@ def detect_surface_inversion(
     )
 
 
-# Явный контрольный алиас: поведение v2 не менять при развитии gap-v3.
-detect_surface_inversion_v2_legacy = detect_surface_inversion
+def detect_surface_inversion(
+    levels: list[dict[str, Any]],
+    *,
+    min_inversion_delta_c: float = 0.2,
+    confirm_drop_levels: int = 2,
+    confirm_depth_hpa: float = 30.0,
+    min_drop_delta_c: float = 0.2,
+) -> InversionResult:
+    """Совместимое имя: делегирует в замороженный v2."""
+    return detect_surface_inversion_v2_legacy(
+        levels,
+        min_inversion_delta_c=min_inversion_delta_c,
+        confirm_drop_levels=confirm_drop_levels,
+        confirm_depth_hpa=confirm_depth_hpa,
+        min_drop_delta_c=min_drop_delta_c,
+    )

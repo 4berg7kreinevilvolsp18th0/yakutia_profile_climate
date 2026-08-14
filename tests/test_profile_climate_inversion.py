@@ -5,6 +5,7 @@ from gdex_bufr.profile_climate.inversion import (
     QUALITY_REJECTED_NO_LAPSE,
     detect_surface_inversion,
     detect_surface_inversion_v2_legacy,
+    v2_inversion_path,
 )
 
 
@@ -38,6 +39,8 @@ def test_inversion_confirmed_with_sustained_lapse():
     assert result.inversion_delta_t_c == 6.0
     assert result.inversion_top_height_m == 400
     assert result.inversion_confirm_drop_c == -2.0  # окно ≥30 гПа закрывается на 820: -26 - (-24)
+    _res, path = v2_inversion_path(levels, min_inversion_delta_c=0.2)
+    assert [lv["pressure_hpa"] for lv in path] == [1000, 950, 900, 850]
 
 
 def test_pocket_rejected_when_lapse_not_sustained():
@@ -56,6 +59,8 @@ def test_pocket_rejected_when_lapse_not_sustained():
     assert result.inversion_detected is False
     assert result.inversion_quality == QUALITY_REJECTED_NO_LAPSE
     assert result.inversion_top_pressure_hpa == 850
+    _res, path = v2_inversion_path(levels, min_inversion_delta_c=0.2)
+    assert [lv["pressure_hpa"] for lv in path] == [1000, 950, 900, 850]
 
 
 def test_no_inversion_when_temperature_decreases():
@@ -69,6 +74,8 @@ def test_no_inversion_when_temperature_decreases():
     assert result.inversion_detected is False
     assert result.inversion_candidate is False
     assert result.inversion_quality == QUALITY_NONE
+    _res, path = v2_inversion_path(levels, min_inversion_delta_c=0.2)
+    assert path == []
 
 
 def test_noise_below_min_delta_ignored():
@@ -115,4 +122,22 @@ def test_v2_legacy_alias_matches_detect_surface_inversion():
         a = detect_surface_inversion(levels, min_inversion_delta_c=0.2)
         b = detect_surface_inversion_v2_legacy(levels, min_inversion_delta_c=0.2)
         assert a.as_dict() == b.as_dict()
-        assert detect_surface_inversion_v2_legacy is detect_surface_inversion
+
+
+def test_v2_gold_fixture_regression():
+    import json
+    from pathlib import Path
+
+    gold = json.loads(
+        (Path(__file__).parent / "fixtures" / "inversion_v2_gold.json").read_text(encoding="utf-8")
+    )
+    defaults = gold["defaults"]
+    for case in gold["cases"]:
+        result = detect_surface_inversion_v2_legacy(case["levels"], **defaults)
+        expect = case["expect"]
+        assert result.inversion_quality == expect["inversion_quality"], case["id"]
+        assert result.inversion_detected is expect["inversion_detected"], case["id"]
+        if "inversion_top_pressure_hpa" in expect:
+            assert result.inversion_top_pressure_hpa == expect["inversion_top_pressure_hpa"], case["id"]
+        if "inversion_top_temp_c" in expect:
+            assert result.inversion_top_temp_c == expect["inversion_top_temp_c"], case["id"]

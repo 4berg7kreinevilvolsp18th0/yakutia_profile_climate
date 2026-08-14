@@ -94,6 +94,8 @@ def merge_short_gaps(
     max_gap_depth_m: float = 100.0,
     max_gap_drop_c: float | None = None,
     t: np.ndarray | None = None,
+    max_total_embedded_gap_m: float | None = None,
+    max_gap_fraction: float | None = None,
 ) -> list[_MergedRun]:
     """Объединяет положительные сегменты через тонкий неинверсионный промежуток."""
     if not runs:
@@ -116,6 +118,17 @@ def merge_short_gaps(
             drop = float(t[base] - t[prev.top_idx])
             if drop < -abs(max_gap_drop_c):
                 allow = False
+        new_total = prev.embedded_gap_depth_total_m + gap_depth
+        new_depth = float(z[top] - z[prev.base_idx])
+        if allow and max_total_embedded_gap_m is not None and new_total > max_total_embedded_gap_m:
+            allow = False
+        if (
+            allow
+            and max_gap_fraction is not None
+            and new_depth > 0
+            and (new_total / new_depth) > max_gap_fraction
+        ):
+            allow = False
 
         if allow:
             prev.embedded_gap_count += 1
@@ -132,8 +145,11 @@ def position_type(
     base_height_agl_m: float,
     *,
     he_threshold_m: float = 250.0,
+    surface_tolerance_m: float = 30.0,
 ) -> PositionType:
-    if base_idx == 0:
+    # G — слой у поверхности по AGL, не по индексу массива.
+    _ = base_idx
+    if base_height_agl_m <= surface_tolerance_m:
         return "G"
     if base_height_agl_m <= he_threshold_m:
         return "E"
@@ -150,6 +166,9 @@ def detect_inversion_layers_gap_v3(
     min_depth_m: float | None = None,
     he_threshold_m: float = 250.0,
     max_gap_drop_c: float | None = None,
+    surface_tolerance_m: float = 30.0,
+    max_total_embedded_gap_m: float | None = None,
+    max_gap_fraction: float | None = None,
 ) -> list[InversionLayer]:
     """Gap-merge v3: все инверсионные слои профиля (G / E / HE)."""
     z_arr = np.asarray(z, dtype=float)
@@ -180,6 +199,8 @@ def detect_inversion_layers_gap_v3(
         max_gap_depth_m=max_embedded_gap_m,
         max_gap_drop_c=max_gap_drop_c,
         t=t_arr,
+        max_total_embedded_gap_m=max_total_embedded_gap_m,
+        max_gap_fraction=max_gap_fraction,
     )
 
     z0 = float(z_arr[0])
@@ -202,7 +223,12 @@ def detect_inversion_layers_gap_v3(
             continue
 
         base_agl = float(z_arr[base_idx] - z0)
-        pos = position_type(base_idx, base_agl, he_threshold_m=he_threshold_m)
+        pos = position_type(
+            base_idx,
+            base_agl,
+            he_threshold_m=he_threshold_m,
+            surface_tolerance_m=surface_tolerance_m,
+        )
         base_p = float(p_arr[base_idx]) if np.isfinite(p_arr[base_idx]) else None
         top_p = float(p_arr[top_idx]) if np.isfinite(p_arr[top_idx]) else None
 

@@ -8,10 +8,12 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import sys
 from datetime import date, datetime
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import plotly.graph_objects as go
@@ -46,7 +48,43 @@ from gdex_bufr.profile_climate.obs_qc import (  # noqa: E402
     suggest_outliers_form,
     suggest_outliers_spike,
 )
+from gdex_bufr.profile_climate.config import load_profile_climate_config  # noqa: E402
+from gdex_bufr.profile_climate import inversion as _inversion_mod  # noqa: E402
 from gdex_bufr.profile_climate.paths import catalog_station_dir  # noqa: E402
+
+# Streamlit может держать старый inversion.py в sys.modules без v2_inversion_path.
+_inversion_mod = importlib.reload(_inversion_mod)
+v2_inversion_path = _inversion_mod.v2_inversion_path
+
+
+def _v3_cfg_dict() -> dict[str, Any]:
+    """Параметры gap-v3: YAML, если доступен; иначе дефолты (Streamlit может держать старый config)."""
+    defaults = {
+        "max_embedded_gap_m": 100.0,
+        "min_strength_c": 0.3,
+        "min_depth_m": None,
+        "he_threshold_m": 250.0,
+        "max_gap_drop_c": None,
+        "surface_tolerance_m": 30.0,
+    }
+    try:
+        cfg = load_profile_climate_config(ROOT / "profile_climate_config.yaml")
+    except Exception:  # noqa: BLE001
+        return defaults
+    getter = getattr(cfg, "v3_detect_kwargs", None)
+    if callable(getter):
+        return {**defaults, **getter()}
+    return {
+        "max_embedded_gap_m": float(getattr(cfg, "inversion_v3_max_embedded_gap_m", 100.0)),
+        "min_strength_c": float(getattr(cfg, "inversion_v3_min_strength_c", 0.3)),
+        "min_depth_m": getattr(cfg, "inversion_v3_min_depth_m", None),
+        "he_threshold_m": float(getattr(cfg, "inversion_v3_he_threshold_m", 250.0)),
+        "max_gap_drop_c": getattr(cfg, "inversion_v3_max_gap_drop_c", None),
+        "surface_tolerance_m": float(getattr(cfg, "inversion_v3_surface_tolerance_m", 30.0)),
+    }
+
+
+_V3_CFG = _v3_cfg_dict()
 
 FAR_EAST_DATA = ROOT / catalog_station_dir() / "daily_profiles.json"
 LEGACY_ACTUAL = ROOT / "gdex_outputs" / "актуальное" / "daily_profiles.json"
@@ -69,6 +107,16 @@ def _data_path_from_cli() -> Path:
 DEFAULT_DATA = _data_path_from_cli()
 LEGACY_DATA = LEGACY_ACTUAL if LEGACY_ACTUAL.exists() else LEGACY_ALDAN
 REQUIRED_SCHEMA = "observations_v1"
+MANUAL_LABEL_COLUMNS = [
+    "profile_id",
+    "annotator",
+    "layer_index",
+    "base_height_m",
+    "top_height_m",
+    "position_type",
+    "confidence",
+    "comment",
+]
 
 OBS_PALETTE = [
     "#1B9E77", "#D95F02", "#7570B3", "#E7298A", "#66A61E",
@@ -131,6 +179,8 @@ def filter_observations(
         if d < day_from or d > day_to:
             continue
         cy = str(obs.get("cycle", "")).zfill(2)[-2:]
+        if cycle_mode == "00+12" and cy not in {"00", "12"}:
+            continue
         if cycle_mode == "00" and cy != "00":
             continue
         if cycle_mode == "12" and cy != "12":
@@ -201,6 +251,22 @@ def observation_plot_arrays(
     if apply_plot_qc:
         return prepare_plot_arrays(obs, y_axis)
     return raw_plot_arrays(obs, y_axis)
+
+
+def _manual_labels_path(data_file: Path) -> Path:
+    return data_file.parent / "manual_inversion_labels.csv"
+
+
+def _append_manual_label(path: Path, row: dict[str, Any]) -> None:
+    import csv
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_header = not path.exists() or path.stat().st_size == 0
+    with path.open("a", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=MANUAL_LABEL_COLUMNS)
+        if write_header:
+            writer.writeheader()
+        writer.writerow({key: row.get(key, "") for key in MANUAL_LABEL_COLUMNS})
 
 
 def _first_valid_temp(temps: np.ndarray) -> float | None:
@@ -310,6 +376,86 @@ def _add_inversion_marker(
     ))
 
 
+def _obs_levels_for_v2(obs: dict) -> list[dict]:
+    temps = obs.get("temperature_c") or []
+    press = obs.get("pressure_hpa") or []
+    heights = obs.get("heights_m") or []
+    n = min(len(temps), len(press))
+    rows: list[dict] = []
+    for i in range(n):
+        if press[i] is None:
+            continue
+        height = None
+        if i < len(heights) and heights[i] is not None:
+            height = float(heights[i])
+        rows.append({
+            "temperature_c": None if temps[i] is None else float(temps[i]),
+            "pressure_hpa": float(press[i]),
+            "height_m": height,
+        })
+    rows.sort(key=lambda lv: lv["pressure_hpa"], reverse=True)
+    return rows
+
+
+def _add_v2_layer_circles(
+    fig: go.Figure,
+    obs: dict,
+    *,
+    y_axis: str,
+    color: str,
+    day_key: str,
+    include_candidates: bool = True,
+) -> None:
+    """Кружки v2 по уровням слоя: поверхность → верх (на оси давления сверху вниз)."""
+    levels = _obs_levels_for_v2(obs)
+    if len(levels) < 2:
+        return
+    result, path = v2_inversion_path(levels)
+    if not path:
+        return
+    if result.inversion_quality == "none":
+        return
+    if result.inversion_quality != "confirmed" and not include_candidates:
+        return
+    plot_levels = [
+        lv for lv in path
+        if lv.get("temperature_c") is not None and lv.get("pressure_hpa") is not None
+    ]
+    if not plot_levels:
+        return
+    xs = [float(lv["temperature_c"]) for lv in plot_levels]
+    if y_axis == "pressure":
+        ys = [float(lv["pressure_hpa"]) for lv in plot_levels]
+    else:
+        ys = [lv["height_m"] for lv in plot_levels]
+        if any(v is None for v in ys):
+            return
+        ys = [float(v) for v in ys]
+    filled = result.inversion_quality == "confirmed"
+    hover = (
+        f"Слой v2 {result.inversion_quality} {obs.get('datetime_utc', day_key)}<br>"
+        f"T=%{{x:.1f}} °C<br>"
+        + ("P=%{y:.1f} гПа" if y_axis == "pressure" else "h=%{y:.0f} м")
+        + "<extra></extra>"
+    )
+    fig.add_trace(go.Scatter(
+        x=xs,
+        y=ys,
+        mode="lines+markers",
+        name=f"{day_key[8:]}·{obs.get('cycle', '??')} v2-layer",
+        line=dict(width=1.4, color=color, dash="solid" if filled else "dot"),
+        marker=dict(
+            size=9,
+            symbol="circle",
+            color=color if filled else "white",
+            line=dict(width=1.6, color=color),
+        ),
+        opacity=0.95,
+        showlegend=False,
+        hovertemplate=hover,
+    ))
+
+
 def _add_v3_layer_overlays(
     fig: go.Figure,
     obs: dict,
@@ -362,6 +508,8 @@ def _recompute_v3_layers_for_obs(
     min_strength_c: float,
     min_depth_m: float | None,
     he_threshold_m: float,
+    max_gap_drop_c: float | None = None,
+    surface_tolerance_m: float = 30.0,
 ) -> list[dict]:
     from gdex_bufr.profile_climate.inversion_layers import (
         detect_inversion_layers_gap_v3,
@@ -391,6 +539,8 @@ def _recompute_v3_layers_for_obs(
         min_strength_c=min_strength_c,
         min_depth_m=min_depth_m,
         he_threshold_m=he_threshold_m,
+        max_gap_drop_c=max_gap_drop_c,
+        surface_tolerance_m=surface_tolerance_m,
     )
     z0 = float(np.min(z[mask]))
     return layers_to_dashboard_payload(layers, z0=z0)
@@ -406,6 +556,7 @@ def _build_figure(
     apply_plot_qc: bool,
     show_day_means: bool,
     show_inv_top: bool,
+    show_v2_circles: bool,
     show_v3_layers: bool,
     mean: tuple[np.ndarray, np.ndarray] | None,
     station_name: str,
@@ -451,6 +602,10 @@ def _build_figure(
                     f"{y_hover}<extra></extra>"
                 ),
             ))
+            if show_v2_circles:
+                _add_v2_layer_circles(
+                    fig, obs, y_axis=y_axis, color=color, day_key=day_key,
+                )
             if show_inv_top and obs.get("inversion_detected"):
                 _add_inversion_marker(
                     fig, obs, y_axis=y_axis, color=color, day_key=day_key,
@@ -672,10 +827,10 @@ def main() -> None:
     st.sidebar.markdown("### Фильтр")
     cycle_mode = st.sidebar.radio(
         "Срок (UTC)",
-        options=["00+12", "00", "12"],
+        options=["00+12", "00", "12", "Все сроки"],
         index=0,
         horizontal=True,
-        help="Ограничивает видимый пул наблюдений.",
+        help="00+12 — только основные сроки. «Все сроки» включает 06/18, если они есть в JSON.",
     )
     if d_min == d_max:
         day_from = day_to = d_min
@@ -728,9 +883,14 @@ def main() -> None:
         help="Серые линии day_mean для дней с ≥1 включённым наблюдением.",
     )
     show_inv_top = st.sidebar.checkbox(
-        "Отметить верх инверсии (legacy v2)",
+        "Отметить верх инверсии (legacy v2, ромб)",
         value=True,
-        help="Ромб на confirmed-верху v2.",
+        help="Ромб на confirmed-верху v2 из JSON.",
+    )
+    show_v2_circles = st.sidebar.checkbox(
+        "Слой v2 кружками (поверхность → верх)",
+        value=True,
+        help="Отдельно от ромба: кружки на всех уровнях роста T v2, сверху вниз по давлению. Кандидаты — полые кружки.",
     )
     has_v3_data = any(int(o.get("n_inversion_layers_v3") or 0) > 0 for o in observations)
     show_v3_layers = st.sidebar.checkbox(
@@ -740,12 +900,38 @@ def main() -> None:
     )
 
     st.sidebar.markdown("### Параметры gap-v3 (пересчёт на экране)")
-    v3_gap = st.sidebar.slider("max_embedded_gap_m", 60.0, 140.0, 100.0, 10.0)
-    v3_strength = st.sidebar.slider("min_strength_c", 0.1, 1.0, 0.3, 0.1)
-    v3_he = st.sidebar.slider("he_base_threshold_m", 100.0, 400.0, 250.0, 25.0)
-    v3_min_depth_on = st.sidebar.checkbox("Включить min_depth_m", value=False)
+    v3_gap = st.sidebar.slider(
+        "max_embedded_gap_m", 60.0, 140.0, float(_V3_CFG["max_embedded_gap_m"]), 10.0,
+    )
+    v3_strength = st.sidebar.slider(
+        "min_strength_c", 0.1, 1.0, float(_V3_CFG["min_strength_c"]), 0.1,
+    )
+    v3_he = st.sidebar.slider(
+        "he_base_threshold_m", 100.0, 400.0, float(_V3_CFG["he_threshold_m"]), 25.0,
+    )
+    v3_min_depth_on = st.sidebar.checkbox(
+        "Включить min_depth_m",
+        value=_V3_CFG["min_depth_m"] is not None,
+    )
     v3_min_depth = st.sidebar.number_input(
-        "min_depth_m", min_value=0.0, value=50.0, step=10.0, disabled=not v3_min_depth_on,
+        "min_depth_m",
+        min_value=0.0,
+        value=float(_V3_CFG["min_depth_m"] or 50.0),
+        step=10.0,
+        disabled=not v3_min_depth_on,
+    )
+    v3_gap_drop_on = st.sidebar.checkbox(
+        "Ограничить падение внутри gap",
+        value=_V3_CFG["max_gap_drop_c"] is not None,
+        help="Не склеивать сегменты, если T в разрыве падает сильнее порога.",
+    )
+    v3_gap_drop = st.sidebar.slider(
+        "max_gap_drop_c",
+        0.2,
+        2.0,
+        float(_V3_CFG["max_gap_drop_c"] or 0.5),
+        0.1,
+        disabled=not v3_gap_drop_on,
     )
     v3_live = st.sidebar.checkbox(
         "Живой пересчёт v3 по параметрам",
@@ -939,6 +1125,8 @@ def main() -> None:
                 min_strength_c=float(v3_strength),
                 min_depth_m=float(v3_min_depth) if v3_min_depth_on else None,
                 he_threshold_m=float(v3_he),
+                max_gap_drop_c=float(v3_gap_drop) if v3_gap_drop_on else None,
+                surface_tolerance_m=float(_V3_CFG["surface_tolerance_m"]),
             )
 
     # График и таблица QC — отдельные шаги, чтобы main оставался последовательностью экрана
@@ -951,6 +1139,7 @@ def main() -> None:
         apply_plot_qc=apply_plot_qc,
         show_day_means=show_day_means,
         show_inv_top=show_inv_top,
+        show_v2_circles=show_v2_circles,
         show_v3_layers=show_v3_layers,
         mean=mean,
         station_name=str(data.get("station_name", "Aldan")),
@@ -958,6 +1147,50 @@ def main() -> None:
         v3_layers_override=v3_override,
     )
     st.plotly_chart(fig, width="stretch")
+
+    if enabled_plottable:
+        st.subheader("Ручная разметка слоя (gold set)")
+        labels_path = _manual_labels_path(data_file)
+        options = [o["profile_id"] for o in enabled_plottable]
+        pick = st.selectbox("profile_id", options=options)
+        chosen = next(o for o in enabled_plottable if o["profile_id"] == pick)
+        c1, c2, c3 = st.columns(3)
+        base_h = c1.number_input(
+            "Base, м",
+            value=float(chosen.get("heights_m")[0] or 0.0) if chosen.get("heights_m") else 0.0,
+            step=10.0,
+        )
+        top_h = c2.number_input(
+            "Top, м",
+            value=float(chosen.get("heights_m")[-1] or 0.0) if chosen.get("heights_m") else 0.0,
+            step=10.0,
+        )
+        pos_type = c3.selectbox("Type", options=["G", "E", "HE"])
+        c4, c5 = st.columns(2)
+        confidence = c4.selectbox("confidence", options=["high", "medium", "low"])
+        annotator = c5.text_input("annotator", value="operator")
+        comment = st.text_input("comment", value="")
+        if st.button("Сохранить слой в manual_inversion_labels.csv"):
+            existing_n = 0
+            if labels_path.exists():
+                import csv as _csv
+
+                with labels_path.open(encoding="utf-8", newline="") as handle:
+                    existing_n = sum(
+                        1 for r in _csv.DictReader(handle) if r.get("profile_id") == pick
+                    )
+            _append_manual_label(labels_path, {
+                "profile_id": pick,
+                "annotator": annotator,
+                "layer_index": existing_n,
+                "base_height_m": round(float(base_h), 1),
+                "top_height_m": round(float(top_h), 1),
+                "position_type": pos_type,
+                "confidence": confidence,
+                "comment": comment,
+            })
+            st.success(f"Записано в {labels_path}")
+        st.caption(f"Файл меток: {labels_path}")
 
     if show_v3_layers and enabled_plottable:
         export_rows = []
@@ -977,6 +1210,7 @@ def main() -> None:
                     "min_strength_c": float(v3_strength),
                     "he_threshold_m": float(v3_he),
                     "min_depth_m": float(v3_min_depth) if v3_min_depth_on else None,
+                    "max_gap_drop_c": float(v3_gap_drop) if v3_gap_drop_on else None,
                     **layer,
                 })
         if export_rows:

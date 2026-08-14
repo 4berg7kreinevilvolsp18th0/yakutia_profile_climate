@@ -621,14 +621,12 @@ def build_daily_profiles(
             summarize_inversion_layers,
         )
 
-        params = {
-            "max_embedded_gap_m": 100.0,
-            "min_strength_c": 0.3,
-            "min_depth_m": None,
-            "he_threshold_m": 250.0,
-            "max_gap_drop_c": None,
-            **(v3_params or {}),
-        }
+        from gdex_bufr.profile_climate.config import load_profile_climate_config
+
+        cfg_params = load_profile_climate_config(
+            ROOT / "profile_climate_config.yaml"
+        ).v3_detect_kwargs()
+        params = {**cfg_params, **(v3_params or {})}
         for profile_id, group in long_df.groupby("profile_id", sort=False):
             pid = str(profile_id)
             z = pd.to_numeric(group["height_m"], errors="coerce").to_numpy(dtype=float)
@@ -649,6 +647,7 @@ def build_daily_profiles(
                 min_depth_m=params.get("min_depth_m"),
                 he_threshold_m=float(params["he_threshold_m"]),
                 max_gap_drop_c=params.get("max_gap_drop_c"),
+                surface_tolerance_m=float(params.get("surface_tolerance_m", 30.0)),
             )
             order = np.argsort(z, kind="mergesort")
             z0 = float(z[order][0])

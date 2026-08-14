@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -116,6 +117,18 @@ class ProfileClimateConfig:
     inversion_v3_min_depth_m: float | None = None
     inversion_v3_he_threshold_m: float = 250.0
     inversion_v3_max_gap_drop_c: float | None = None
+    inversion_v3_surface_tolerance_m: float = 30.0
+
+    def v3_detect_kwargs(self) -> dict[str, Any]:
+        """Параметры gap-v3 из YAML — единый источник для CLI / builder / dashboard."""
+        return {
+            "max_embedded_gap_m": self.inversion_v3_max_embedded_gap_m,
+            "min_strength_c": self.inversion_v3_min_strength_c,
+            "min_depth_m": self.inversion_v3_min_depth_m,
+            "he_threshold_m": self.inversion_v3_he_threshold_m,
+            "max_gap_drop_c": self.inversion_v3_max_gap_drop_c,
+            "surface_tolerance_m": self.inversion_v3_surface_tolerance_m,
+        }
 
     def station_by_id(self, station_id: str) -> StationConfig | None:
         normalized = str(station_id).zfill(5)[-5:]
@@ -199,5 +212,8 @@ def load_profile_climate_config(path: str | Path = "profile_climate_config.yaml"
             None
             if section.get("inversion_v3_max_gap_drop_c", None) in (None, "", "null")
             else float(section["inversion_v3_max_gap_drop_c"])
+        ),
+        inversion_v3_surface_tolerance_m=float(
+            section.get("inversion_v3_surface_tolerance_m", 30.0)
         ),
     )

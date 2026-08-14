@@ -51,3 +51,30 @@ def test_filter_observations_cycle_and_range():
         inversion_only=True,
     )
     assert {o["profile_id"] for o in inv} == {"b", "c"}
+
+
+def test_filter_00_plus_12_excludes_other_cycles():
+    mod = _load_dashboard()
+    observations = [
+        {"profile_id": "c00", "date": "2020-01-01", "cycle": "00", "inversion_detected": False},
+        {"profile_id": "c06", "date": "2020-01-01", "cycle": "06", "inversion_detected": False},
+        {"profile_id": "c12", "date": "2020-01-01", "cycle": "12", "inversion_detected": False},
+        {"profile_id": "c18", "date": "2020-01-01", "cycle": "18", "inversion_detected": False},
+    ]
+    only_main = mod.filter_observations(
+        observations,
+        cycle_mode="00+12",
+        day_from=date(2020, 1, 1),
+        day_to=date(2020, 1, 31),
+        inversion_only=False,
+    )
+    assert {o["profile_id"] for o in only_main} == {"c00", "c12"}
+
+    all_cycles = mod.filter_observations(
+        observations,
+        cycle_mode="Все сроки",
+        day_from=date(2020, 1, 1),
+        day_to=date(2020, 1, 31),
+        inversion_only=False,
+    )
+    assert {o["profile_id"] for o in all_cycles} == {"c00", "c06", "c12", "c18"}

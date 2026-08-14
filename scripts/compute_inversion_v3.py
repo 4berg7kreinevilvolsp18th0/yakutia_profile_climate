@@ -40,6 +40,9 @@ def compute_v3_for_long(
     he_threshold_m: float,
     max_gap_drop_c: float | None,
     pressure_top_hpa: float | None = 500.0,
+    surface_tolerance_m: float = 30.0,
+    max_total_embedded_gap_m: float | None = None,
+    max_gap_fraction: float | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
     """Возвращает (layer_rows, summary_rows, layers_by_profile для dashboard)."""
     layer_rows: list[dict[str, Any]] = []
@@ -81,6 +84,9 @@ def compute_v3_for_long(
             min_depth_m=min_depth_m,
             he_threshold_m=he_threshold_m,
             max_gap_drop_c=max_gap_drop_c,
+            surface_tolerance_m=surface_tolerance_m,
+            max_total_embedded_gap_m=max_total_embedded_gap_m,
+            max_gap_fraction=max_gap_fraction,
         )
         order = np.argsort(z, kind="mergesort")
         z0 = float(z[order][0])
@@ -134,17 +140,19 @@ def main() -> int:
     parser.add_argument("--profiles-long", default="", help="Путь к profiles_long.csv")
     parser.add_argument("--output-dir", default="", help="Каталог для CSV v3")
     parser.add_argument("--metrics", default="", help="profile_metrics.csv для comparison_v2_v3")
-    parser.add_argument("--max-embedded-gap-m", type=float, default=100.0)
-    parser.add_argument("--min-strength-c", type=float, default=0.3)
+    parser.add_argument("--config", default="profile_climate_config.yaml")
+    parser.add_argument("--max-embedded-gap-m", type=float, default=None)
+    parser.add_argument("--min-strength-c", type=float, default=None)
     parser.add_argument("--min-depth-m", type=float, default=None)
-    parser.add_argument("--he-threshold-m", type=float, default=250.0)
+    parser.add_argument("--he-threshold-m", type=float, default=None)
     parser.add_argument(
         "--max-gap-drop-c",
         type=float,
         default=None,
-        help="Экспериментальный порог падения T в gap (по умолчанию выкл.)",
+        help="Экспериментальный порог падения T в gap (по умолчанию из YAML / выкл.)",
     )
-    parser.add_argument("--pressure-top-hpa", type=float, default=500.0)
+    parser.add_argument("--surface-tolerance-m", type=float, default=None)
+    parser.add_argument("--pressure-top-hpa", type=float, default=None)
     parser.add_argument(
         "--params-json",
         default="",
@@ -173,19 +181,37 @@ def main() -> int:
         return 2
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    from gdex_bufr.profile_climate.config import load_profile_climate_config
+
+    cfg = load_profile_climate_config(args.config)
+    v3 = cfg.v3_detect_kwargs()
+    max_embedded_gap_m = (
+        args.max_embedded_gap_m if args.max_embedded_gap_m is not None else v3["max_embedded_gap_m"]
+    )
+    min_strength_c = args.min_strength_c if args.min_strength_c is not None else v3["min_strength_c"]
+    min_depth_m = args.min_depth_m if args.min_depth_m is not None else v3["min_depth_m"]
+    he_threshold_m = args.he_threshold_m if args.he_threshold_m is not None else v3["he_threshold_m"]
+    max_gap_drop_c = args.max_gap_drop_c if args.max_gap_drop_c is not None else v3["max_gap_drop_c"]
+    surface_tolerance_m = (
+        args.surface_tolerance_m
+        if args.surface_tolerance_m is not None
+        else v3["surface_tolerance_m"]
+    )
+    pressure_top_hpa = (
+        args.pressure_top_hpa if args.pressure_top_hpa is not None else cfg.pressure_top_hpa
+    )
+
     long_df = pd.read_csv(long_path)
     layer_rows, summary_rows, _ = compute_v3_for_long(
         long_df,
-        max_embedded_gap_m=args.max_embedded_gap_m,
-        min_strength_c=args.min_strength_c,
-        min_depth_m=args.min_depth_m,
-        he_threshold_m=args.he_threshold_m,
-        max_gap_drop_c=args.max_gap_drop_c,
-        pressure_top_hpa=args.pressure_top_hpa,
+        max_embedded_gap_m=max_embedded_gap_m,
+        min_strength_c=min_strength_c,
+        min_depth_m=min_depth_m,
+        he_threshold_m=he_threshold_m,
+        max_gap_drop_c=max_gap_drop_c,
+        pressure_top_hpa=pressure_top_hpa,
+        surface_tolerance_m=surface_tolerance_m,
     )
-
-    layers_path = write_inversion_layers_v3_csv(layer_rows, out_dir)
-    summary_path = write_profile_inversion_summary_v3_csv(summary_rows, out_dir)
 
     metrics_df = None
     comparison_path = None
@@ -193,19 +219,30 @@ def main() -> int:
         metrics_path = Path(args.metrics)
         if metrics_path.exists():
             metrics_df = pd.read_csv(metrics_path)
+            known = {str(s["profile_id"]) for s in summary_rows}
+            for pid in metrics_df["profile_id"].astype(str):
+                if pid not in known:
+                    summary_rows.append(summarize_inversion_layers(pid, [], z0=0.0))
+                    known.add(pid)
             cmp_rows = build_comparison_rows(summary_rows, metrics_df)
             comparison_path = write_comparison_v2_v3_csv(cmp_rows, out_dir)
 
+    layers_path = write_inversion_layers_v3_csv(layer_rows, out_dir)
+    summary_path = write_profile_inversion_summary_v3_csv(summary_rows, out_dir)
+
     params = {
         "method": "gap_v3",
-        "max_embedded_gap_m": args.max_embedded_gap_m,
-        "min_strength_c": args.min_strength_c,
-        "min_depth_m": args.min_depth_m,
-        "he_threshold_m": args.he_threshold_m,
-        "max_gap_drop_c": args.max_gap_drop_c,
-        "pressure_top_hpa": args.pressure_top_hpa,
+        "max_embedded_gap_m": max_embedded_gap_m,
+        "min_strength_c": min_strength_c,
+        "min_depth_m": min_depth_m,
+        "he_threshold_m": he_threshold_m,
+        "max_gap_drop_c": max_gap_drop_c,
+        "surface_tolerance_m": surface_tolerance_m,
+        "pressure_top_hpa": pressure_top_hpa,
         "profiles_long": str(long_path.resolve()),
         "n_profiles": len(summary_rows),
+        "n_profiles_from_long": int(long_df["profile_id"].nunique()) if "profile_id" in long_df.columns else len(summary_rows),
+        "n_metrics": int(len(metrics_df)) if metrics_df is not None else None,
         "n_layers": len(layer_rows),
         "n_profiles_with_layers": sum(1 for s in summary_rows if s["n_inversion_layers"] > 0),
     }
