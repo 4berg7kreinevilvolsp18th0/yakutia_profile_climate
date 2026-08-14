@@ -128,6 +128,7 @@ def test_observation_carries_inversion_quality_and_height_context(tmp_path):
 
     assert payload["schema"] == "observations_v1"
     assert "inversion_quality" in payload["features"]
+    assert "inversion_from_top" in payload["features"]
     assert payload["station_elevation_m"] == 679.0
 
     with_levels = observations["p1"]
@@ -136,6 +137,9 @@ def test_observation_carries_inversion_quality_and_height_context(tmp_path):
     assert with_levels["inversion_detected"] is False
     assert with_levels["p_surface_hpa"] == 900.0
     assert with_levels["station_elevation_m"] == 679.0
+    assert "inversion_from_top_tops" in with_levels
+    assert "inversion_from_top_count" in with_levels
+    assert isinstance(with_levels["inversion_from_top_tops"], list)
     # средний уровень без H заполнен интерполяцией, крайние — наблюдением (level)
     assert with_levels["height_source_counts"]["interp"] == 1
     assert with_levels["height_source_counts"]["level"] == 2
@@ -145,6 +149,8 @@ def test_observation_carries_inversion_quality_and_height_context(tmp_path):
     assert set(with_levels) | {"missing_levels"} == set(without_levels)
     assert without_levels["heights_interp_m"] == []
     assert without_levels["inversion_quality"] == "none"
+    assert without_levels["inversion_from_top_tops"] == []
+    assert without_levels["inversion_from_top_count"] == 0
 
 
 def test_clean_mode_keeps_legacy_status_filter(tmp_path):

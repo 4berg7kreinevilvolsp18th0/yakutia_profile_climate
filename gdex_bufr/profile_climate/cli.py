@@ -38,7 +38,7 @@ _CSV_FLOAT_FIELDS = frozenset({
     "inversion_top_temp_c", "inversion_delta_t_c",
     "inversion_confirm_drop_c",
 })
-_CSV_INT_FIELDS = frozenset({"year", "month", "level_index"})
+_CSV_INT_FIELDS = frozenset({"year", "month", "level_index", "inversion_from_top_count"})
 _CSV_BOOL_FIELDS = frozenset({"inversion_detected", "inversion_candidate"})
 _TRUTHY_BOOL = frozenset({"true", "1", "yes"})
 

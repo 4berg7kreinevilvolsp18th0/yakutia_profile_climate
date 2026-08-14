@@ -52,9 +52,8 @@ from gdex_bufr.profile_climate.config import load_profile_climate_config  # noqa
 from gdex_bufr.profile_climate import inversion as _inversion_mod  # noqa: E402
 from gdex_bufr.profile_climate.paths import catalog_station_dir  # noqa: E402
 
-# Streamlit может держать старый inversion.py в sys.modules без v2_inversion_path.
+# Streamlit может держать старый inversion.py в sys.modules.
 _inversion_mod = importlib.reload(_inversion_mod)
-v2_inversion_path = _inversion_mod.v2_inversion_path
 
 
 def _v3_cfg_dict() -> dict[str, Any]:
@@ -340,7 +339,7 @@ def _add_inversion_marker(
     color: str,
     day_key: str,
 ) -> None:
-    """Ромб на верху инверсии v2, если координаты есть."""
+    """Ромб на верху приземной инверсии v2 (снизу вверх), если координаты есть."""
     inv_t = obs.get("inversion_top_temp_c")
     inv_y = (
         obs.get("inversion_top_pressure_hpa")
@@ -353,7 +352,7 @@ def _add_inversion_marker(
     p_hpa = obs.get("inversion_top_pressure_hpa")
     d_t = obs.get("inversion_delta_t_c")
     inv_hover = (
-        f"Верх инверсии v2 {obs.get('datetime_utc', day_key)}<br>"
+        f"Верх инверсии v2 (снизу вверх) {obs.get('datetime_utc', day_key)}<br>"
         f"T=%{{x:.1f}} °C<br>"
         + (f"H={h_m:.0f} м<br>" if h_m is not None else "")
         + (f"P={p_hpa:.0f} гПа<br>" if p_hpa is not None else "")
@@ -397,62 +396,69 @@ def _obs_levels_for_v2(obs: dict) -> list[dict]:
     return rows
 
 
-def _add_v2_layer_circles(
+def _from_top_tops_for_obs(obs: dict) -> list[dict]:
+    """Вершины from_top из JSON или пересчёт по уровням наблюдения."""
+    tops = obs.get("inversion_from_top_tops")
+    if isinstance(tops, list) and tops:
+        return [x for x in tops if isinstance(x, dict)]
+    levels = _obs_levels_for_v2(obs)
+    if len(levels) < 2:
+        return []
+    detect_inversions_from_top = _inversion_mod.detect_inversions_from_top
+    return [h.as_dict() for h in detect_inversions_from_top(levels)]
+
+
+def _add_from_top_inversion_markers(
     fig: go.Figure,
     obs: dict,
     *,
     y_axis: str,
     color: str,
     day_key: str,
-    include_candidates: bool = True,
 ) -> None:
-    """Кружки v2 по уровням слоя: поверхность → верх (на оси давления сверху вниз)."""
-    levels = _obs_levels_for_v2(obs)
-    if len(levels) < 2:
+    """Круги на confirmed-вершинах метода «сверху вниз»."""
+    tops = _from_top_tops_for_obs(obs)
+    xs: list[float] = []
+    ys: list[float] = []
+    hovers: list[str] = []
+    for hit in tops:
+        if str(hit.get("quality") or "") != "confirmed":
+            continue
+        inv_t = hit.get("temperature_c")
+        inv_y = (
+            hit.get("pressure_hpa") if y_axis == "pressure" else hit.get("height_m")
+        )
+        if inv_t is None or inv_y is None:
+            continue
+        xs.append(float(inv_t))
+        ys.append(float(inv_y))
+        h_m = hit.get("height_m")
+        p_hpa = hit.get("pressure_hpa")
+        d_t = hit.get("delta_t_c")
+        hovers.append(
+            f"Инверсия сверху вниз {obs.get('datetime_utc', day_key)}<br>"
+            f"T={float(inv_t):.1f} °C<br>"
+            + (f"H={float(h_m):.0f} м<br>" if h_m is not None else "")
+            + (f"P={float(p_hpa):.0f} гПа<br>" if p_hpa is not None else "")
+            + (f"ΔT={float(d_t):.1f} °C<br>" if d_t is not None else "")
+        )
+    if not xs:
         return
-    result, path = v2_inversion_path(levels)
-    if not path:
-        return
-    if result.inversion_quality == "none":
-        return
-    if result.inversion_quality != "confirmed" and not include_candidates:
-        return
-    plot_levels = [
-        lv for lv in path
-        if lv.get("temperature_c") is not None and lv.get("pressure_hpa") is not None
-    ]
-    if not plot_levels:
-        return
-    xs = [float(lv["temperature_c"]) for lv in plot_levels]
-    if y_axis == "pressure":
-        ys = [float(lv["pressure_hpa"]) for lv in plot_levels]
-    else:
-        ys = [lv["height_m"] for lv in plot_levels]
-        if any(v is None for v in ys):
-            return
-        ys = [float(v) for v in ys]
-    filled = result.inversion_quality == "confirmed"
-    hover = (
-        f"Слой v2 {result.inversion_quality} {obs.get('datetime_utc', day_key)}<br>"
-        f"T=%{{x:.1f}} °C<br>"
-        + ("P=%{y:.1f} гПа" if y_axis == "pressure" else "h=%{y:.0f} м")
-        + "<extra></extra>"
-    )
     fig.add_trace(go.Scatter(
         x=xs,
         y=ys,
-        mode="lines+markers",
-        name=f"{day_key[8:]}·{obs.get('cycle', '??')} v2-layer",
-        line=dict(width=1.4, color=color, dash="solid" if filled else "dot"),
+        mode="markers",
+        name=f"{day_key[8:]}·{obs.get('cycle', '??')} from_top",
         marker=dict(
             size=9,
             symbol="circle",
-            color=color if filled else "white",
-            line=dict(width=1.6, color=color),
+            color=color,
+            line=dict(width=1.0, color="#444444"),
+            opacity=0.9,
         ),
-        opacity=0.95,
         showlegend=False,
-        hovertemplate=hover,
+        hovertext=hovers,
+        hoverinfo="text",
     ))
 
 
@@ -556,7 +562,7 @@ def _build_figure(
     apply_plot_qc: bool,
     show_day_means: bool,
     show_inv_top: bool,
-    show_v2_circles: bool,
+    show_inv_from_top: bool,
     show_v3_layers: bool,
     mean: tuple[np.ndarray, np.ndarray] | None,
     station_name: str,
@@ -602,12 +608,12 @@ def _build_figure(
                     f"{y_hover}<extra></extra>"
                 ),
             ))
-            if show_v2_circles:
-                _add_v2_layer_circles(
-                    fig, obs, y_axis=y_axis, color=color, day_key=day_key,
-                )
             if show_inv_top and obs.get("inversion_detected"):
                 _add_inversion_marker(
+                    fig, obs, y_axis=y_axis, color=color, day_key=day_key,
+                )
+            if show_inv_from_top:
+                _add_from_top_inversion_markers(
                     fig, obs, y_axis=y_axis, color=color, day_key=day_key,
                 )
             if show_v3_layers:
@@ -883,14 +889,14 @@ def main() -> None:
         help="Серые линии day_mean для дней с ≥1 включённым наблюдением.",
     )
     show_inv_top = st.sidebar.checkbox(
-        "Отметить верх инверсии (legacy v2, ромб)",
+        "Верх инверсии v2 (снизу вверх, ромб)",
         value=True,
-        help="Ромб на confirmed-верху v2 из JSON.",
+        help="Ромб на confirmed-верху приземной инверсии (метод от земли).",
     )
-    show_v2_circles = st.sidebar.checkbox(
-        "Слой v2 кружками (поверхность → верх)",
+    show_inv_from_top = st.sidebar.checkbox(
+        "Инверсии сверху вниз (круги)",
         value=True,
-        help="Отдельно от ромба: кружки на всех уровнях роста T v2, сверху вниз по давлению. Кандидаты — полые кружки.",
+        help="Круги на confirmed-вершинах всех слоёв роста T (проход сверху вниз).",
     )
     has_v3_data = any(int(o.get("n_inversion_layers_v3") or 0) > 0 for o in observations)
     show_v3_layers = st.sidebar.checkbox(
@@ -1139,7 +1145,7 @@ def main() -> None:
         apply_plot_qc=apply_plot_qc,
         show_day_means=show_day_means,
         show_inv_top=show_inv_top,
-        show_v2_circles=show_v2_circles,
+        show_inv_from_top=show_inv_from_top,
         show_v3_layers=show_v3_layers,
         mean=mean,
         station_name=str(data.get("station_name", "Aldan")),

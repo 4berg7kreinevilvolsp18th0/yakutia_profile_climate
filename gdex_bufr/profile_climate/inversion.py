@@ -262,3 +262,253 @@ def detect_surface_inversion(
         confirm_depth_hpa=confirm_depth_hpa,
         min_drop_delta_c=min_drop_delta_c,
     )
+
+
+@dataclass
+class InversionTopHit:
+    """Одна вершина инверсии, найденная проходом «сверху» (все слои роста T)."""
+
+    quality: str
+    pressure_hpa: float | None
+    height_m: float | None
+    temperature_c: float | None
+    delta_t_c: float | None
+    confirm_drop_c: float | None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "quality": self.quality,
+            "pressure_hpa": self.pressure_hpa,
+            "height_m": self.height_m,
+            "temperature_c": self.temperature_c,
+            "delta_t_c": self.delta_t_c,
+            "confirm_drop_c": self.confirm_drop_c,
+        }
+
+
+def _find_growth_segments(
+    levels: list[dict[str, Any]],
+    *,
+    min_inversion_delta_c: float,
+) -> list[tuple[int, int]]:
+    """Максимальные непрерывные сегменты роста T: (base_idx, top_idx)."""
+    segments: list[tuple[int, int]] = []
+    i = 0
+    n = len(levels)
+    while i < n - 1:
+        t0 = levels[i].get("temperature_c")
+        t1 = levels[i + 1].get("temperature_c")
+        if t0 is None or t1 is None:
+            i += 1
+            continue
+        if float(t1) - float(t0) > min_inversion_delta_c:
+            base = i
+            j = i
+            while j < n - 1:
+                prev = levels[j].get("temperature_c")
+                nxt = levels[j + 1].get("temperature_c")
+                if prev is None or nxt is None:
+                    break
+                if float(nxt) - float(prev) > min_inversion_delta_c:
+                    j += 1
+                else:
+                    break
+            if j > base:
+                segments.append((base, j))
+            i = j if j > base else i + 1
+        else:
+            i += 1
+    return segments
+
+
+def detect_inversions_from_top(
+    levels: list[dict[str, Any]],
+    *,
+    min_inversion_delta_c: float = 0.2,
+    confirm_drop_levels: int = 2,
+    confirm_depth_hpa: float = 30.0,
+    min_drop_delta_c: float = 0.2,
+) -> list[InversionTopHit]:
+    """Все слои роста T с теми же порогами; порядок вершин сверху вниз.
+
+    Не заменяет detect_surface_inversion: обходит весь профиль и ловит
+    elevated-слои. Поверхностный сегмент тоже входит в список при наличии.
+    """
+    if len(levels) < 2:
+        return []
+
+    hits: list[InversionTopHit] = []
+    for base_idx, top_idx in _find_growth_segments(
+        levels, min_inversion_delta_c=min_inversion_delta_c
+    ):
+        base = levels[base_idx]
+        top = levels[top_idx]
+        base_temp = base.get("temperature_c")
+        top_temp = top.get("temperature_c")
+        if base_temp is None or top_temp is None:
+            continue
+        ok, confirm_drop = _confirm_sustained_lapse(
+            levels[top_idx + 1 :],
+            top_temp=float(top_temp),
+            top_pressure_hpa=top.get("pressure_hpa"),
+            confirm_drop_levels=confirm_drop_levels,
+            confirm_depth_hpa=confirm_depth_hpa,
+            min_drop_delta_c=min_drop_delta_c,
+        )
+        quality = QUALITY_CONFIRMED if ok else QUALITY_REJECTED_NO_LAPSE
+        hits.append(
+            InversionTopHit(
+                quality=quality,
+                pressure_hpa=top.get("pressure_hpa"),
+                height_m=top.get("height_m"),
+                temperature_c=float(top_temp),
+                delta_t_c=float(top_temp) - float(base_temp),
+                confirm_drop_c=confirm_drop,
+            )
+        )
+
+    # Сверху вниз: меньшее давление верха раньше.
+    hits.sort(
+        key=lambda h: (
+            float("inf") if h.pressure_hpa is None else float(h.pressure_hpa),
+            -(h.height_m if h.height_m is not None else float("-inf")),
+        )
+    )
+    return hits
+
+
+def inversions_from_top_as_metrics(
+    hits: list[InversionTopHit],
+) -> dict[str, Any]:
+    """Поля метрик для экспорта/JSON."""
+    tops = [h.as_dict() for h in hits]
+    confirmed = [h for h in hits if h.quality == QUALITY_CONFIRMED]
+    return {
+        "inversion_from_top_count": len(confirmed),
+        "inversion_from_top_tops": tops,
+    }
+
+
+@dataclass
+class InversionTopHit:
+    """Одна вершина инверсии, найденная проходом «сверху» (все слои роста T)."""
+
+    quality: str
+    pressure_hpa: float | None
+    height_m: float | None
+    temperature_c: float | None
+    delta_t_c: float | None
+    confirm_drop_c: float | None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "quality": self.quality,
+            "pressure_hpa": self.pressure_hpa,
+            "height_m": self.height_m,
+            "temperature_c": self.temperature_c,
+            "delta_t_c": self.delta_t_c,
+            "confirm_drop_c": self.confirm_drop_c,
+        }
+
+
+def _find_growth_segments(
+    levels: list[dict[str, Any]],
+    *,
+    min_inversion_delta_c: float,
+) -> list[tuple[int, int]]:
+    """Максимальные непрерывные сегменты роста T: (base_idx, top_idx)."""
+    segments: list[tuple[int, int]] = []
+    i = 0
+    n = len(levels)
+    while i < n - 1:
+        t0 = levels[i].get("temperature_c")
+        t1 = levels[i + 1].get("temperature_c")
+        if t0 is None or t1 is None:
+            i += 1
+            continue
+        if float(t1) - float(t0) > min_inversion_delta_c:
+            base = i
+            j = i
+            while j < n - 1:
+                prev = levels[j].get("temperature_c")
+                nxt = levels[j + 1].get("temperature_c")
+                if prev is None or nxt is None:
+                    break
+                if float(nxt) - float(prev) > min_inversion_delta_c:
+                    j += 1
+                else:
+                    break
+            if j > base:
+                segments.append((base, j))
+            i = j if j > base else i + 1
+        else:
+            i += 1
+    return segments
+
+
+def detect_inversions_from_top(
+    levels: list[dict[str, Any]],
+    *,
+    min_inversion_delta_c: float = 0.2,
+    confirm_drop_levels: int = 2,
+    confirm_depth_hpa: float = 30.0,
+    min_drop_delta_c: float = 0.2,
+) -> list[InversionTopHit]:
+    """Все слои роста T с теми же порогами; порядок вершин сверху вниз.
+
+    Не заменяет detect_surface_inversion: обходит весь профиль и ловит
+    elevated-слои. Поверхностный сегмент тоже входит в список при наличии.
+    """
+    if len(levels) < 2:
+        return []
+
+    hits: list[InversionTopHit] = []
+    for base_idx, top_idx in _find_growth_segments(
+        levels, min_inversion_delta_c=min_inversion_delta_c
+    ):
+        base = levels[base_idx]
+        top = levels[top_idx]
+        base_temp = base.get("temperature_c")
+        top_temp = top.get("temperature_c")
+        if base_temp is None or top_temp is None:
+            continue
+        ok, confirm_drop = _confirm_sustained_lapse(
+            levels[top_idx + 1 :],
+            top_temp=float(top_temp),
+            top_pressure_hpa=top.get("pressure_hpa"),
+            confirm_drop_levels=confirm_drop_levels,
+            confirm_depth_hpa=confirm_depth_hpa,
+            min_drop_delta_c=min_drop_delta_c,
+        )
+        quality = QUALITY_CONFIRMED if ok else QUALITY_REJECTED_NO_LAPSE
+        hits.append(
+            InversionTopHit(
+                quality=quality,
+                pressure_hpa=top.get("pressure_hpa"),
+                height_m=top.get("height_m"),
+                temperature_c=float(top_temp),
+                delta_t_c=float(top_temp) - float(base_temp),
+                confirm_drop_c=confirm_drop,
+            )
+        )
+
+    # Сверху вниз: меньшее давление верха раньше.
+    hits.sort(
+        key=lambda h: (
+            float("inf") if h.pressure_hpa is None else float(h.pressure_hpa),
+            -(h.height_m if h.height_m is not None else float("-inf")),
+        )
+    )
+    return hits
+
+
+def inversions_from_top_as_metrics(
+    hits: list[InversionTopHit],
+) -> dict[str, Any]:
+    """Поля метрик для экспорта/JSON."""
+    tops = [h.as_dict() for h in hits]
+    confirmed = [h for h in hits if h.quality == QUALITY_CONFIRMED]
+    return {
+        "inversion_from_top_count": len(confirmed),
+        "inversion_from_top_tops": tops,
+    }

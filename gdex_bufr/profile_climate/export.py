@@ -102,6 +102,8 @@ PROFILE_METRICS_COLUMNS = [
     "inversion_top_temp_c",
     "inversion_delta_t_c",
     "inversion_confirm_drop_c",
+    "inversion_from_top_count",
+    "inversion_from_top_tops",
     "profile_status",
     "source_file",
 ]

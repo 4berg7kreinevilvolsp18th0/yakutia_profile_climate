@@ -38,6 +38,7 @@ LEVEL_MODES = ("raw", "clean")
 # поэтому схема остаётся observations_v1 и старые JSON продолжают открываться.
 FEATURES = (
     "inversion_quality",      # inversion_quality / inversion_candidate / confirm_drop
+    "inversion_from_top",     # inversion_from_top_tops / count (поиск сверху)
     "height_variants",        # heights_interp_m / heights_baro_m на каждом наблюдении
     "height_source_counts",   # состав источников высоты внутри зонда
     "surface_context",        # p_surface_hpa / station_elevation_m
@@ -85,19 +86,93 @@ def _metric_flag(metric: Any, name: str) -> bool:
     return bool(value)
 
 
-def _metric_inversion_fields(metric: Any) -> dict[str, Any]:
+def _parse_from_top_tops(raw: Any) -> list[dict[str, Any]]:
+    """JSON-строка / list из метрик → список вершин."""
+    if raw is None:
+        return []
+    try:
+        if isinstance(raw, float) and pd.isna(raw):
+            return []
+    except (TypeError, ValueError):
+        pass
+    if isinstance(raw, list):
+        return [x for x in raw if isinstance(x, dict)]
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return []
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            return []
+        if isinstance(data, list):
+            return [x for x in data if isinstance(x, dict)]
+    return []
+
+
+def _from_top_fields_from_levels(levels: list[dict[str, Any]]) -> dict[str, Any]:
+    """Пересчёт from_top по уровням наблюдения (если в метриках поля ещё нет)."""
+    from gdex_bufr.profile_climate.inversion import (
+        detect_inversions_from_top,
+        inversions_from_top_as_metrics,
+    )
+
+    prepared: list[dict[str, Any]] = []
+    for lv in levels:
+        p = lv.get("pressure_hpa")
+        t = lv.get("temperature_c")
+        if p is None or t is None:
+            continue
+        prepared.append({
+            "pressure_hpa": float(p),
+            "temperature_c": float(t),
+            "height_m": lv.get("height_m"),
+        })
+    prepared.sort(key=lambda row: row["pressure_hpa"], reverse=True)
+    meta = inversions_from_top_as_metrics(detect_inversions_from_top(prepared))
+    return {
+        "inversion_from_top_count": int(meta["inversion_from_top_count"]),
+        "inversion_from_top_tops": meta["inversion_from_top_tops"],
+    }
+
+
+def _metric_inversion_fields(
+    metric: Any,
+    *,
+    levels: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Поля инверсии из метрик, включая семантику v2 (quality / candidate)."""
-    h = _finite_metric(getattr(metric, "inversion_top_height_m", None))
-    p = _finite_metric(getattr(metric, "inversion_top_pressure_hpa", None))
-    t = _finite_metric(getattr(metric, "inversion_top_temp_c", None))
-    d = _finite_metric(getattr(metric, "inversion_delta_t_c", None))
-    drop = _finite_metric(getattr(metric, "inversion_confirm_drop_c", None))
-    quality = getattr(metric, "inversion_quality", None)
+    h = _finite_metric(getattr(metric, "inversion_top_height_m", None)) if metric is not None else None
+    p = _finite_metric(getattr(metric, "inversion_top_pressure_hpa", None)) if metric is not None else None
+    t = _finite_metric(getattr(metric, "inversion_top_temp_c", None)) if metric is not None else None
+    d = _finite_metric(getattr(metric, "inversion_delta_t_c", None)) if metric is not None else None
+    drop = (
+        _finite_metric(getattr(metric, "inversion_confirm_drop_c", None))
+        if metric is not None
+        else None
+    )
+    quality = getattr(metric, "inversion_quality", None) if metric is not None else None
     try:
         if quality is None or pd.isna(quality):
             quality = ""
     except (TypeError, ValueError):
         pass
+
+    tops: list[dict[str, Any]] = []
+    count = 0
+    if metric is not None:
+        tops = _parse_from_top_tops(getattr(metric, "inversion_from_top_tops", None))
+        count_raw = getattr(metric, "inversion_from_top_count", None)
+        count_val = _finite_metric(count_raw)
+        if count_val is not None:
+            count = int(count_val)
+        elif tops:
+            count = sum(1 for x in tops if str(x.get("quality") or "") == "confirmed")
+    if not tops and levels:
+        computed = _from_top_fields_from_levels(levels)
+        tops = computed["inversion_from_top_tops"]
+        count = int(computed["inversion_from_top_count"])
+
     return {
         "inversion_top_height_m": None if h is None else round(h, 1),
         "inversion_top_pressure_hpa": None if p is None else round(p, 1),
@@ -105,7 +180,11 @@ def _metric_inversion_fields(metric: Any) -> dict[str, Any]:
         "inversion_delta_t_c": None if d is None else round(d, 2),
         "inversion_confirm_drop_c": None if drop is None else round(drop, 2),
         "inversion_quality": str(quality or ""),
-        "inversion_candidate": _metric_flag(metric, "inversion_candidate"),
+        "inversion_candidate": (
+            _metric_flag(metric, "inversion_candidate") if metric is not None else False
+        ),
+        "inversion_from_top_count": count,
+        "inversion_from_top_tops": tops,
     }
 
 
@@ -469,13 +548,18 @@ def _observation_from_group(
             t_surface = round(float(t_s), 3)
         inversion = _metric_flag(metric, "inversion_detected")
         status_text = str(getattr(metric, "profile_status", "") or "")
-        inv_fields = _metric_inversion_fields(metric)
+        inv_fields = _metric_inversion_fields(metric, levels=levels)
         p_surface = _finite_metric(getattr(metric, "p_surface_hpa", None))
         station_z = _finite_metric(getattr(metric, "station_elevation_m", None))
     if t_surface is None and temps:
         t_surface = temps[0]
     if p_surface is None and pressures:
         p_surface = max(pressures)
+    if not inv_fields.get("inversion_from_top_tops") and levels:
+        inv_fields = {
+            **inv_fields,
+            **_from_top_fields_from_levels(levels),
+        }
 
     return day, _make_observation(
         profile_id=profile_id,

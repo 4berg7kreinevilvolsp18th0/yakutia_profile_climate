@@ -1,9 +1,14 @@
 """Метрики температурного профиля до заданного давления."""
 from __future__ import annotations
 
+import json
 from typing import Any
 
-from gdex_bufr.profile_climate.inversion import detect_surface_inversion
+from gdex_bufr.profile_climate.inversion import (
+    detect_inversions_from_top,
+    detect_surface_inversion,
+    inversions_from_top_as_metrics,
+)
 
 
 PROFILE_STATUS_GOOD = "good"
@@ -24,6 +29,8 @@ _EMPTY_INVERSION = {
     "inversion_top_temp_c": None,
     "inversion_delta_t_c": None,
     "inversion_confirm_drop_c": None,
+    "inversion_from_top_count": 0,
+    "inversion_from_top_tops": "[]",
 }
 
 
@@ -144,6 +151,20 @@ def compute_profile_metrics(
         confirm_depth_hpa=confirm_depth_hpa,
         min_drop_delta_c=min_drop_delta_c,
     ).as_dict()
+    from_top = inversions_from_top_as_metrics(
+        detect_inversions_from_top(
+            trimmed,
+            min_inversion_delta_c=min_inversion_delta_c,
+            confirm_drop_levels=confirm_drop_levels,
+            confirm_depth_hpa=confirm_depth_hpa,
+            min_drop_delta_c=min_drop_delta_c,
+        )
+    )
+    # CSV-friendly: список вершин как JSON-строка; в JSON daily — разберём обратно.
+    inversion["inversion_from_top_count"] = from_top["inversion_from_top_count"]
+    inversion["inversion_from_top_tops"] = json.dumps(
+        from_top["inversion_from_top_tops"], ensure_ascii=False
+    )
 
     # Профиль не дотягивает до верхней границы.
     min_pressure = min(lv["pressure_hpa"] for lv in trimmed)
