@@ -1,15 +1,21 @@
 {
-  "input": "/mnt/data/profiles_long.csv",
-  "rows": 183102,
-  "profiles": 18189,
-  "eligible_article_profiles": 17980,
-  "confirmed_inversions": 3498,
+  "input": "../gdex_outputs/far_east/stations/aldan/profiles_long.csv",
+  "rows": 183179,
+  "profiles": 18200,
+  "eligible_article_profiles": 17991,
+  "confirmed_inversions": 3500,
+  "confirmed_layers": 10597,
+  "layers_by_type": {
+    "G": 3804,
+    "E": 608,
+    "HE": 6185
+  },
   "trend": {
     "sen_slope_pp_per_year": -0.3005992950754732,
     "sen_slope_low": -0.5524861878453038,
-    "sen_slope_high": -0.03696016069635064,
-    "kendall_tau": -0.3484496797414458,
-    "p_value": 0.027427367767267972
+    "sen_slope_high": -0.03263226541111086,
+    "kendall_tau": -0.34285714285714286,
+    "p_value": 0.03074704290123868
   },
   "analysis_config": {
     "station_id": "31004",
@@ -61,12 +67,38 @@
       "confirm_drop_levels": 2,
       "confirm_depth_hpa": 30,
       "min_drop_delta_c": 0.2
+    },
+    "layers": {
+      "surface_tolerance_m": 30,
+      "he_threshold_m": 250,
+      "height_bin_edges_m": [
+        0.0,
+        100.0,
+        250.0,
+        500.0,
+        1000.0,
+        2000.0,
+        4000.0
+      ],
+      "gamma_bin_edges_c_per_100m": [
+        0.0,
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        3.0,
+        4.0,
+        6.0,
+        8.0,
+        12.0,
+        20.0
+      ]
     }
   },
   "figure_style": {
     "language": "ru",
     "journal_mode": true,
-    "show_title": false,
+    "show_title": true,
     "font_family": "DejaVu Sans",
     "base_font_size": 9.5,
     "title_font_size": 12.0,
@@ -88,36 +120,128 @@
   },
   "figures": {
     "fig01_completeness_heatmap": [
-      "sample_output/figures/fig01_completeness_heatmap.png",
-      "sample_output/figures/fig01_completeness_heatmap.svg"
+      "sample_output\\figures\\fig01_completeness_heatmap.png",
+      "sample_output\\figures\\fig01_completeness_heatmap.svg"
     ],
     "fig02_seasonal_temperature_profiles": [
-      "sample_output/figures/fig02_seasonal_temperature_profiles.png",
-      "sample_output/figures/fig02_seasonal_temperature_profiles.svg"
+      "sample_output\\figures\\fig02_seasonal_temperature_profiles.png",
+      "sample_output\\figures\\fig02_seasonal_temperature_profiles.svg"
     ],
     "fig03_monthly_inversion_frequency": [
-      "sample_output/figures/fig03_monthly_inversion_frequency.png",
-      "sample_output/figures/fig03_monthly_inversion_frequency.svg"
+      "sample_output\\figures\\fig03_monthly_inversion_frequency.png",
+      "sample_output\\figures\\fig03_monthly_inversion_frequency.svg"
     ],
     "fig04_annual_inversion_variability": [
-      "sample_output/figures/fig04_annual_inversion_variability.png",
-      "sample_output/figures/fig04_annual_inversion_variability.svg"
+      "sample_output\\figures\\fig04_annual_inversion_variability.png",
+      "sample_output\\figures\\fig04_annual_inversion_variability.svg"
     ],
     "extra01_monthly_inversion_intensity": [
-      "sample_output/figures/extra01_monthly_inversion_intensity.png",
-      "sample_output/figures/extra01_monthly_inversion_intensity.svg"
+      "sample_output\\figures\\extra01_monthly_inversion_intensity.png",
+      "sample_output\\figures\\extra01_monthly_inversion_intensity.svg"
     ],
     "extra02_monthly_inversion_top_height": [
-      "sample_output/figures/extra02_monthly_inversion_top_height.png",
-      "sample_output/figures/extra02_monthly_inversion_top_height.svg"
+      "sample_output\\figures\\extra02_monthly_inversion_top_height.png",
+      "sample_output\\figures\\extra02_monthly_inversion_top_height.svg"
     ],
     "extra03_profile_qc_summary": [
-      "sample_output/figures/extra03_profile_qc_summary.png",
-      "sample_output/figures/extra03_profile_qc_summary.svg"
+      "sample_output\\figures\\extra03_profile_qc_summary.png",
+      "sample_output\\figures\\extra03_profile_qc_summary.svg"
     ],
     "extra04_pressure_level_time_series": [
-      "sample_output/figures/extra04_pressure_level_time_series.png",
-      "sample_output/figures/extra04_pressure_level_time_series.svg"
+      "sample_output\\figures\\extra04_pressure_level_time_series.png",
+      "sample_output\\figures\\extra04_pressure_level_time_series.svg"
+    ],
+    "type01_matrix_G": [
+      "sample_output\\figures\\type01_matrix_G.png",
+      "sample_output\\figures\\type01_matrix_G.svg"
+    ],
+    "type01_matrix_E": [
+      "sample_output\\figures\\type01_matrix_E.png",
+      "sample_output\\figures\\type01_matrix_E.svg"
+    ],
+    "type01_matrix_HE": [
+      "sample_output\\figures\\type01_matrix_HE.png",
+      "sample_output\\figures\\type01_matrix_HE.svg"
+    ],
+    "type02_height_bar": [
+      "sample_output\\figures\\type02_height_bar.png",
+      "sample_output\\figures\\type02_height_bar.svg"
+    ],
+    "type02_height_line": [
+      "sample_output\\figures\\type02_height_line.png",
+      "sample_output\\figures\\type02_height_line.svg"
+    ],
+    "type02_height_months_facets": [
+      "sample_output\\figures\\type02_height_months_facets.png",
+      "sample_output\\figures\\type02_height_months_facets.svg"
+    ],
+    "type02_height_months_overlay": [
+      "sample_output\\figures\\type02_height_months_overlay.png",
+      "sample_output\\figures\\type02_height_months_overlay.svg"
+    ],
+    "type03_gamma_bar": [
+      "sample_output\\figures\\type03_gamma_bar.png",
+      "sample_output\\figures\\type03_gamma_bar.svg"
+    ],
+    "type03_gamma_line": [
+      "sample_output\\figures\\type03_gamma_line.png",
+      "sample_output\\figures\\type03_gamma_line.svg"
+    ],
+    "type03_gamma_hist": [
+      "sample_output\\figures\\type03_gamma_hist.png",
+      "sample_output\\figures\\type03_gamma_hist.svg"
+    ],
+    "type03_gamma_monthly_box": [
+      "sample_output\\figures\\type03_gamma_monthly_box.png",
+      "sample_output\\figures\\type03_gamma_monthly_box.svg"
+    ],
+    "type02_height_bar_m01": [
+      "sample_output\\figures\\type02_height_bar_m01.png",
+      "sample_output\\figures\\type02_height_bar_m01.svg"
+    ],
+    "type02_height_bar_m02": [
+      "sample_output\\figures\\type02_height_bar_m02.png",
+      "sample_output\\figures\\type02_height_bar_m02.svg"
+    ],
+    "type02_height_bar_m03": [
+      "sample_output\\figures\\type02_height_bar_m03.png",
+      "sample_output\\figures\\type02_height_bar_m03.svg"
+    ],
+    "type02_height_bar_m04": [
+      "sample_output\\figures\\type02_height_bar_m04.png",
+      "sample_output\\figures\\type02_height_bar_m04.svg"
+    ],
+    "type02_height_bar_m05": [
+      "sample_output\\figures\\type02_height_bar_m05.png",
+      "sample_output\\figures\\type02_height_bar_m05.svg"
+    ],
+    "type02_height_bar_m06": [
+      "sample_output\\figures\\type02_height_bar_m06.png",
+      "sample_output\\figures\\type02_height_bar_m06.svg"
+    ],
+    "type02_height_bar_m07": [
+      "sample_output\\figures\\type02_height_bar_m07.png",
+      "sample_output\\figures\\type02_height_bar_m07.svg"
+    ],
+    "type02_height_bar_m08": [
+      "sample_output\\figures\\type02_height_bar_m08.png",
+      "sample_output\\figures\\type02_height_bar_m08.svg"
+    ],
+    "type02_height_bar_m09": [
+      "sample_output\\figures\\type02_height_bar_m09.png",
+      "sample_output\\figures\\type02_height_bar_m09.svg"
+    ],
+    "type02_height_bar_m10": [
+      "sample_output\\figures\\type02_height_bar_m10.png",
+      "sample_output\\figures\\type02_height_bar_m10.svg"
+    ],
+    "type02_height_bar_m11": [
+      "sample_output\\figures\\type02_height_bar_m11.png",
+      "sample_output\\figures\\type02_height_bar_m11.svg"
+    ],
+    "type02_height_bar_m12": [
+      "sample_output\\figures\\type02_height_bar_m12.png",
+      "sample_output\\figures\\type02_height_bar_m12.svg"
     ]
   }
 }

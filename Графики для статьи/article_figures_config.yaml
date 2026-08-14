@@ -20,6 +20,11 @@ analysis:
     confirm_drop_levels: 2
     confirm_depth_hpa: 30
     min_drop_delta_c: 0.2
+  layers:
+    surface_tolerance_m: 30
+    he_threshold_m: 250
+    height_bin_edges_m: [0, 100, 250, 500, 1000, 2000, 4000]
+    gamma_bin_edges_c_per_100m: [0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, 20.0]
 
 style:
   language: ru

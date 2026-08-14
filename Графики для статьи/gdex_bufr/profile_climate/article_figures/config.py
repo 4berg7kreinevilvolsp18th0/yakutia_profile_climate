@@ -16,6 +16,18 @@ class InversionConfig:
 
 
 @dataclass(frozen=True)
+class LayerClassConfig:
+    """Классификация слоёв по высоте основания (как G/E/HE, без изменения V3)."""
+
+    surface_tolerance_m: float = 30.0
+    he_threshold_m: float = 250.0
+    height_bin_edges_m: tuple[float, ...] = (0.0, 100.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0)
+    gamma_bin_edges_c_per_100m: tuple[float, ...] = (
+        0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, 20.0,
+    )
+
+
+@dataclass(frozen=True)
 class AnalysisConfig:
     """Правила отбора и агрегации профилей."""
 
@@ -41,6 +53,7 @@ class AnalysisConfig:
     pressure_grid_hpa: tuple[float, ...] = tuple(float(x) for x in range(500, 926, 25))
     standard_pressure_levels_hpa: tuple[float, ...] = (925.0, 850.0, 700.0, 500.0)
     inversion: InversionConfig = field(default_factory=InversionConfig)
+    layers: LayerClassConfig = field(default_factory=LayerClassConfig)
 
 
 @dataclass(frozen=True)
@@ -77,6 +90,7 @@ def load_yaml_config(path: str | Path) -> tuple[AnalysisConfig, FigureStyle]:
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
     analysis_raw = dict(raw.get("analysis", {}))
     inversion_raw = dict(analysis_raw.pop("inversion", {}))
+    layers_raw = dict(analysis_raw.pop("layers", {}))
     if "cycles" in analysis_raw:
         analysis_raw["cycles"] = tuple(str(x).zfill(2) for x in analysis_raw["cycles"])
     if "pressure_grid_hpa" in analysis_raw:
@@ -85,7 +99,14 @@ def load_yaml_config(path: str | Path) -> tuple[AnalysisConfig, FigureStyle]:
         analysis_raw["standard_pressure_levels_hpa"] = tuple(
             float(x) for x in analysis_raw["standard_pressure_levels_hpa"]
         )
+    if "height_bin_edges_m" in layers_raw:
+        layers_raw["height_bin_edges_m"] = tuple(float(x) for x in layers_raw["height_bin_edges_m"])
+    if "gamma_bin_edges_c_per_100m" in layers_raw:
+        layers_raw["gamma_bin_edges_c_per_100m"] = tuple(
+            float(x) for x in layers_raw["gamma_bin_edges_c_per_100m"]
+        )
     analysis_raw["inversion"] = InversionConfig(**inversion_raw)
+    analysis_raw["layers"] = LayerClassConfig(**layers_raw)
 
     style_raw = dict(raw.get("style", {}))
     if "output_formats" in style_raw:

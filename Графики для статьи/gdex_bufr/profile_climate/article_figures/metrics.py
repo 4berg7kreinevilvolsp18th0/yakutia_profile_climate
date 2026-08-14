@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any, Iterable, Sequence
 
 import numpy as np
 import pandas as pd
 from scipy.stats import kendalltau, theilslopes
 
-from .config import AnalysisConfig, InversionConfig
+from .config import AnalysisConfig, InversionConfig, LayerClassConfig
 
 
 SEASON_BY_MONTH = {
@@ -17,6 +17,9 @@ SEASON_BY_MONTH = {
     9: "SON", 10: "SON", 11: "SON",
 }
 SEASON_ORDER = ("DJF", "MAM", "JJA", "SON")
+INVERSION_TYPES = ("G", "E", "HE")
+TYPE_LABELS_RU = {"G": "Приземная (G)", "E": "Приподнятая (E)", "HE": "Высокая приподнятая (HE)"}
+TYPE_LABELS_EN = {"G": "Surface (G)", "E": "Elevated (E)", "HE": "High elevated (HE)"}
 
 
 @dataclass
@@ -338,3 +341,289 @@ def pressure_level_annual_series(
         .agg(median_temperature_c="median", q25=lambda x: x.quantile(0.25), q75=lambda x: x.quantile(0.75), profiles="size")
         .reset_index()
     )
+
+
+def _confirm_segment(
+    pressure: np.ndarray,
+    temperature: np.ndarray,
+    top_index: int,
+    config: InversionConfig,
+) -> tuple[bool, float | None]:
+    top_temp = float(temperature[top_index])
+    top_pressure = float(pressure[top_index])
+    above_start = top_index + 1
+    above_count = pressure.size - above_start
+    if above_count < config.confirm_drop_levels:
+        return False, None
+    prev_temp = top_temp
+    for idx in range(above_start, above_start + config.confirm_drop_levels):
+        current = float(temperature[idx])
+        if current - prev_temp > -config.min_drop_delta_c:
+            return False, None
+        prev_temp = current
+    depth_indices = np.flatnonzero(top_pressure - pressure[above_start:] >= config.confirm_depth_hpa)
+    if depth_indices.size == 0:
+        return False, None
+    end_idx = above_start + int(depth_indices[0])
+    confirm_drop = float(temperature[end_idx] - top_temp)
+    if confirm_drop >= 0:
+        return False, confirm_drop
+    return True, confirm_drop
+
+
+def _classify_position(
+    base_height_agl_m: float,
+    layers_cfg: LayerClassConfig,
+) -> str:
+    if base_height_agl_m <= layers_cfg.surface_tolerance_m:
+        return "G"
+    if base_height_agl_m <= layers_cfg.he_threshold_m:
+        return "E"
+    return "HE"
+
+
+def _detect_confirmed_layers_arrays(
+    pressure: np.ndarray,
+    temperature: np.ndarray,
+    height: np.ndarray,
+    inversion_cfg: InversionConfig,
+    layers_cfg: LayerClassConfig,
+) -> list[dict[str, Any]]:
+    valid = np.isfinite(pressure) & np.isfinite(temperature)
+    pressure = pressure[valid]
+    temperature = temperature[valid]
+    height = height[valid]
+    if pressure.size < 2:
+        return []
+    order = np.argsort(-pressure, kind="stable")
+    pressure = pressure[order]
+    temperature = temperature[order]
+    height = height[order]
+    surface_height = float(height[0]) if np.isfinite(height[0]) else np.nan
+
+    layers: list[dict[str, Any]] = []
+    i = 0
+    n = pressure.size
+    while i < n - 1:
+        if float(temperature[i + 1]) - float(temperature[i]) > inversion_cfg.min_inversion_delta_c:
+            base = i
+            j = i
+            while j < n - 1:
+                if float(temperature[j + 1]) - float(temperature[j]) > inversion_cfg.min_inversion_delta_c:
+                    j += 1
+                else:
+                    break
+            if j > base:
+                ok, confirm_drop = _confirm_segment(pressure, temperature, j, inversion_cfg)
+                if ok:
+                    base_h = float(height[base]) if np.isfinite(height[base]) else np.nan
+                    top_h = float(height[j]) if np.isfinite(height[j]) else np.nan
+                    base_agl = (
+                        base_h - surface_height
+                        if np.isfinite(base_h) and np.isfinite(surface_height)
+                        else np.nan
+                    )
+                    top_agl = (
+                        top_h - surface_height
+                        if np.isfinite(top_h) and np.isfinite(surface_height)
+                        else np.nan
+                    )
+                    depth = top_agl - base_agl if np.isfinite(top_agl) and np.isfinite(base_agl) else np.nan
+                    delta_t = float(temperature[j] - temperature[base])
+                    gamma = (
+                        (delta_t / depth) * 100.0
+                        if np.isfinite(depth) and depth > 1.0
+                        else np.nan
+                    )
+                    pos = (
+                        _classify_position(float(base_agl), layers_cfg)
+                        if np.isfinite(base_agl)
+                        else "E"
+                    )
+                    layers.append(
+                        {
+                            "position_type": pos,
+                            "base_pressure_hpa": float(pressure[base]),
+                            "top_pressure_hpa": float(pressure[j]),
+                            "base_height_m": base_h,
+                            "top_height_m": top_h,
+                            "base_height_agl_m": base_agl,
+                            "top_height_agl_m": top_agl,
+                            "depth_m": depth,
+                            "delta_t_c": delta_t,
+                            "gamma_c_per_100m": gamma,
+                            "confirm_drop_c": confirm_drop,
+                        }
+                    )
+                i = j if j > base else i + 1
+            else:
+                i += 1
+        else:
+            i += 1
+    return layers
+
+
+def compute_inversion_layers(
+    df: pd.DataFrame,
+    profile_qc: pd.DataFrame,
+    config: AnalysisConfig,
+) -> pd.DataFrame:
+    """Подтверждённые слои роста T с классификацией G/E/HE по высоте основания."""
+    profile_ids = df["profile_id"].astype(str).to_numpy()
+    pressure_all = df["pressure_hpa"].to_numpy(float)
+    temperature_all = df["temperature_c"].to_numpy(float)
+    height_all = df["height_m"].to_numpy(float)
+    group_indices = df.assign(_profile_id_str=profile_ids).groupby("_profile_id_str", sort=False).indices
+    qc_map = (
+        profile_qc.assign(profile_id=profile_qc["profile_id"].astype(str))
+        .set_index("profile_id")
+        .to_dict("index")
+    )
+
+    rows: list[dict[str, Any]] = []
+    top = config.pressure_top_hpa
+    bottom = config.pressure_bottom_hpa
+    for profile_id, idx in group_indices.items():
+        q = qc_map[profile_id]
+        if not bool(q.get("eligible_article", False)):
+            continue
+        idx = np.asarray(idx, dtype=int)
+        p = pressure_all[idx]
+        mask = np.isfinite(p) & (p >= top) & (p <= bottom)
+        layers = _detect_confirmed_layers_arrays(
+            p[mask],
+            temperature_all[idx][mask],
+            height_all[idx][mask],
+            config.inversion,
+            config.layers,
+        )
+        for layer_index, layer in enumerate(layers):
+            rows.append(
+                {
+                    "profile_id": profile_id,
+                    "datetime_utc": q["datetime_utc"],
+                    "year": int(q["year"]),
+                    "month": int(q["month"]),
+                    "cycle": str(q["cycle"]),
+                    "layer_index": layer_index,
+                    **layer,
+                }
+            )
+    if not rows:
+        return pd.DataFrame(
+            columns=[
+                "profile_id", "datetime_utc", "year", "month", "cycle", "layer_index",
+                "position_type", "base_pressure_hpa", "top_pressure_hpa",
+                "base_height_m", "top_height_m", "base_height_agl_m", "top_height_agl_m",
+                "depth_m", "delta_t_c", "gamma_c_per_100m", "confirm_drop_c",
+            ]
+        )
+    return pd.DataFrame.from_records(rows).sort_values(
+        ["datetime_utc", "layer_index"]
+    ).reset_index(drop=True)
+
+
+def profile_type_flags(layers: pd.DataFrame, profile_qc: pd.DataFrame) -> pd.DataFrame:
+    """Профиль × флаги наличия G/E/HE (для матриц повторяемости)."""
+    eligible = profile_qc[profile_qc["eligible_article"]].copy()
+    eligible["profile_id"] = eligible["profile_id"].astype(str)
+    out = eligible[["profile_id", "year", "month", "cycle"]].copy()
+    for kind in INVERSION_TYPES:
+        out[f"has_{kind}"] = False
+    if layers.empty:
+        return out
+    present = (
+        layers.groupby(["profile_id", "position_type"], sort=False)
+        .size()
+        .reset_index(name="n")
+    )
+    for kind in INVERSION_TYPES:
+        ids = set(present.loc[present["position_type"] == kind, "profile_id"].astype(str))
+        out[f"has_{kind}"] = out["profile_id"].isin(ids)
+    return out
+
+
+def frequency_matrix_by_type(
+    flags: pd.DataFrame,
+    *,
+    inversion_type: str,
+) -> pd.DataFrame:
+    """Матрица год×месяц: % профилей с данным типом инверсии."""
+    col = f"has_{inversion_type}"
+    if col not in flags.columns:
+        raise ValueError(f"Нет колонки {col}")
+    pivot = (
+        flags.groupby(["year", "month"])[col]
+        .mean()
+        .mul(100.0)
+        .reset_index()
+        .pivot(index="year", columns="month", values=col)
+        .reindex(columns=range(1, 13))
+        .sort_index()
+    )
+    return pivot
+
+
+def _bin_edges_table(counts: pd.DataFrame, value_col: str) -> pd.DataFrame:
+    """Добавляет bin_left/right/center из колонки Interval."""
+    intervals = counts["bin"]
+    left = []
+    right = []
+    for item in intervals:
+        if pd.isna(item):
+            left.append(np.nan)
+            right.append(np.nan)
+        else:
+            left.append(float(item.left))
+            right.append(float(item.right))
+    out = counts.drop(columns=["bin"]).copy()
+    out["bin_left"] = np.asarray(left, dtype=float)
+    out["bin_right"] = np.asarray(right, dtype=float)
+    out["bin_center"] = (out["bin_left"] + out["bin_right"]) / 2.0
+    return out
+
+
+def height_count_table(
+    layers: pd.DataFrame,
+    *,
+    bin_edges: Sequence[float],
+    by_month: bool = True,
+) -> pd.DataFrame:
+    """Число инверсий по бинам высоты верха AGL."""
+    edges = np.asarray(tuple(bin_edges), dtype=float)
+    use = layers.dropna(subset=["top_height_agl_m"]).copy()
+    if use.empty:
+        return pd.DataFrame(columns=["month", "bin_left", "bin_right", "bin_center", "count"])
+    use["bin"] = pd.cut(use["top_height_agl_m"], bins=edges, right=False, include_lowest=True)
+    group_cols = ["month", "bin"] if by_month else ["bin"]
+    counts = use.groupby(group_cols, observed=True).size().reset_index(name="count")
+    if not by_month:
+        counts["month"] = 0
+    out = _bin_edges_table(counts, "count")
+    return out.sort_values(["month", "bin_left"]).reset_index(drop=True)
+
+
+def gamma_count_table(
+    layers: pd.DataFrame,
+    *,
+    bin_edges: Sequence[float],
+    by_month: bool = False,
+) -> pd.DataFrame:
+    """Число дней/слоёв по бинам температурного градиента γ (°C/100 м)."""
+    edges = np.asarray(tuple(bin_edges), dtype=float)
+    use = layers.dropna(subset=["gamma_c_per_100m"]).copy()
+    if use.empty:
+        return pd.DataFrame(columns=["month", "bin_left", "bin_right", "bin_center", "days"])
+    # один профиль — один день; берём максимальный γ среди слоёв профиля
+    per_day = (
+        use.groupby(["profile_id", "year", "month"], sort=False)["gamma_c_per_100m"]
+        .max()
+        .reset_index()
+    )
+    per_day["bin"] = pd.cut(per_day["gamma_c_per_100m"], bins=edges, right=False, include_lowest=True)
+    group_cols = ["month", "bin"] if by_month else ["bin"]
+    counts = per_day.groupby(group_cols, observed=True).size().reset_index(name="days")
+    if not by_month:
+        counts["month"] = 0
+    out = _bin_edges_table(counts, "days")
+    return out.sort_values(["month", "bin_left"]).reset_index(drop=True)
