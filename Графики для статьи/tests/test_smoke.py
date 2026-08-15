@@ -98,6 +98,24 @@ def test_typed_layers_and_gamma():
     assert int(heights["count"].sum()) == 1
     gammas = gamma_count_table(df_layers, bin_edges=AnalysisConfig().layers.gamma_bin_edges_c_per_100m)
     assert int(gammas["days"].sum()) == 1
+    assert (gammas["bin_left"] < 0).any()
+
+
+def test_negative_gamma_is_binned():
+    from gdex_bufr.profile_climate.article_figures.config import AnalysisConfig
+    from gdex_bufr.profile_climate.article_figures.metrics import gamma_count_table
+
+    layers = pd.DataFrame(
+        {
+            "profile_id": ["a", "b"],
+            "year": [2000, 2000],
+            "month": [1, 1],
+            "gamma_c_per_100m": [-1.2, 0.8],
+        }
+    )
+    table = gamma_count_table(layers, bin_edges=AnalysisConfig().layers.gamma_bin_edges_c_per_100m)
+    assert int(table.loc[table["bin_left"] < 0, "days"].sum()) == 1
+    assert int(table.loc[table["bin_left"] >= 0, "days"].sum()) == 1
 
 
 def test_height_bins_keep_overflow_and_empty_slots():
