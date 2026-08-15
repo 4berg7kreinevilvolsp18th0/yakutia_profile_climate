@@ -126,6 +126,7 @@ OBS_PALETTE = [
 ]
 MEAN_COLOR = "#8B1E3F"
 DAY_MEAN_COLOR = "#4A4A4A"
+NO_CLASS_COLOR = "#888888"
 
 QUALITY_ANY = "любое"
 QUALITY_LABELS = {
@@ -133,6 +134,29 @@ QUALITY_LABELS = {
     "rejected_no_lapse": "rejected_no_lapse — кандидат без падения выше",
     "none": "none — роста T от земли нет",
 }
+V3_TYPE_COLORS = {
+    "G": "#C0392B",
+    "E": "#2980B9",
+    "HE": "#8E44AD",
+}
+LAYER_COUNT_ANY = "любое"
+LAYER_COUNT_OPTIONS = {
+    LAYER_COUNT_ANY: "любое",
+    "0": "0 слоёв",
+    "1": "1 слой",
+    "2+": "2 и больше",
+    "MULTI": "pattern MULTI",
+}
+V2_V3_ANY = "любое"
+V2_V3_OPTIONS = {
+    V2_V3_ANY: "любое",
+    "both": "есть и v2, и v3",
+    "only_v2": "только v2",
+    "only_v3": "только v3",
+    "neither": "ни v2, ни v3",
+}
+STATUS_ANY = "любое"
+SOURCE_ANY = "любой"
 
 
 @st.cache_data(show_spinner="Загрузка профилей…")
@@ -160,6 +184,129 @@ def _parse_day(value: str) -> date:
     return datetime.strptime(value, "%Y-%m-%d").date()
 
 
+def _obs_v3_layers(obs: dict) -> list[dict]:
+    layers = obs.get("inversion_layers_v3")
+    return list(layers) if isinstance(layers, list) else []
+
+
+def _obs_has_type(obs: dict, kind: str) -> bool:
+    flag = obs.get(f"has_{kind}_v3")
+    if flag is not None:
+        return bool(flag)
+    return any(str(ly.get("position_type") or "") == kind for ly in _obs_v3_layers(obs))
+
+
+def _obs_primary_type(obs: dict) -> str | None:
+    """Один класс для цвета профиля: G → E → HE."""
+    for kind in ("G", "E", "HE"):
+        if _obs_has_type(obs, kind):
+            return kind
+    return None
+
+
+def _obs_profile_color(obs: dict, *, color_by_class: bool, fallback: str) -> str:
+    if not color_by_class:
+        return fallback
+    kind = _obs_primary_type(obs)
+    if kind is None:
+        return NO_CLASS_COLOR
+    return V3_TYPE_COLORS.get(kind, NO_CLASS_COLOR)
+
+
+def _finite(value: Any) -> float | None:
+    try:
+        if value is None:
+            return None
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not np.isfinite(number):
+        return None
+    return number
+
+
+def _obs_layer_metric_extrema(obs: dict) -> dict[str, float | None]:
+    """Мин/макс по слоям v3: основание/верх AGL, толщина, ΔT, γ."""
+    layers = _obs_v3_layers(obs)
+    if not layers:
+        return {
+            "base_agl_min": None,
+            "base_agl_max": None,
+            "top_agl_min": None,
+            "top_agl_max": None,
+            "depth_min": None,
+            "depth_max": None,
+            "delta_t_min": None,
+            "delta_t_max": None,
+            "gamma_min": None,
+            "gamma_max": None,
+        }
+    bases = [_finite(ly.get("base_height_agl_m")) for ly in layers]
+    tops = [_finite(ly.get("top_height_agl_m")) for ly in layers]
+    depths = [_finite(ly.get("depth_m")) for ly in layers]
+    deltas = [_finite(ly.get("delta_t_c")) for ly in layers]
+    gammas = [
+        _finite(ly.get("mean_gradient_c_100m") if ly.get("mean_gradient_c_100m") is not None else ly.get("gamma_c_per_100m"))
+        for ly in layers
+    ]
+    bases_f = [v for v in bases if v is not None]
+    tops_f = [v for v in tops if v is not None]
+    depths_f = [v for v in depths if v is not None]
+    deltas_f = [v for v in deltas if v is not None]
+    gammas_f = [v for v in gammas if v is not None]
+    return {
+        "base_agl_min": min(bases_f) if bases_f else None,
+        "base_agl_max": max(bases_f) if bases_f else None,
+        "top_agl_min": min(tops_f) if tops_f else None,
+        "top_agl_max": max(tops_f) if tops_f else None,
+        "depth_min": min(depths_f) if depths_f else None,
+        "depth_max": max(depths_f) if depths_f else None,
+        "delta_t_min": min(deltas_f) if deltas_f else None,
+        "delta_t_max": max(deltas_f) if deltas_f else None,
+        "gamma_min": min(gammas_f) if gammas_f else None,
+        "gamma_max": max(gammas_f) if gammas_f else None,
+    }
+
+
+def _obs_height_sources(obs: dict) -> set[str]:
+    counts = obs.get("height_source_counts")
+    if isinstance(counts, dict):
+        return {str(key) for key, value in counts.items() if value}
+    sources = obs.get("height_sources")
+    if isinstance(sources, dict):
+        return {str(key) for key, value in sources.items() if value}
+    if isinstance(sources, list):
+        return {str(item) for item in sources}
+    return set()
+
+
+def _obs_v2_v3_relation(obs: dict) -> str:
+    has_v2 = bool(obs.get("inversion_detected"))
+    has_v3 = int(obs.get("n_inversion_layers_v3") or 0) > 0
+    if has_v2 and has_v3:
+        return "both"
+    if has_v2:
+        return "only_v2"
+    if has_v3:
+        return "only_v3"
+    return "neither"
+
+
+def _range_overlaps(
+    value_min: float | None,
+    value_max: float | None,
+    lo: float,
+    hi: float,
+) -> bool:
+    """Есть ли пересечение [value_min, value_max] с [lo, hi]."""
+    if value_min is None and value_max is None:
+        return False
+    left = value_min if value_min is not None else value_max
+    right = value_max if value_max is not None else value_min
+    assert left is not None and right is not None
+    return not (right < lo or left > hi)
+
+
 def filter_observations(
     observations: list[dict],
     *,
@@ -170,8 +317,22 @@ def filter_observations(
     inversion_quality: str = QUALITY_ANY,
     hide_missing_levels: bool = False,
     inversion_v3_only: bool = False,
+    types: tuple[str, ...] | list[str] | None = None,
+    top_agl_range: tuple[float, float] | None = None,
+    base_agl_range: tuple[float, float] | None = None,
+    depth_range: tuple[float, float] | None = None,
+    delta_t_range: tuple[float, float] | None = None,
+    gamma_range: tuple[float, float] | None = None,
+    layer_count_mode: str = LAYER_COUNT_ANY,
+    height_sources: tuple[str, ...] | list[str] | None = None,
+    profile_status: str = STATUS_ANY,
+    v2_v3_mode: str = V2_V3_ANY,
+    profile_id_query: str = "",
 ) -> list[dict]:
-    """Месяц уже выбран снаружи; здесь даты / cycle / инверсия / наличие уровней."""
+    """Месяц уже выбран снаружи; здесь даты / cycle / инверсия / расширенные фильтры."""
+    wanted_types = {str(t) for t in (types or ())}
+    wanted_sources = {str(s) for s in (height_sources or ())}
+    query = str(profile_id_query or "").strip().lower()
     out: list[dict] = []
     for obs in observations:
         d = _parse_day(obs["date"])
@@ -193,8 +354,94 @@ def filter_observations(
                 continue
         if hide_missing_levels and not has_levels(obs):
             continue
+        if query and query not in str(obs.get("profile_id") or "").lower():
+            continue
+        if profile_status != STATUS_ANY:
+            if str(obs.get("profile_status") or "") != profile_status:
+                continue
+        if v2_v3_mode != V2_V3_ANY and _obs_v2_v3_relation(obs) != v2_v3_mode:
+            continue
+        n_layers = int(obs.get("n_inversion_layers_v3") or 0)
+        pattern = str(obs.get("inversion_pattern_v3") or obs.get("pattern_v3") or "")
+        if layer_count_mode == "0" and n_layers != 0:
+            continue
+        if layer_count_mode == "1" and n_layers != 1:
+            continue
+        if layer_count_mode == "2+" and n_layers < 2:
+            continue
+        if layer_count_mode == "MULTI" and pattern != "MULTI":
+            continue
+        if wanted_types:
+            if not any(_obs_has_type(obs, kind) for kind in wanted_types):
+                continue
+        if wanted_sources:
+            sources = _obs_height_sources(obs)
+            if not sources.intersection(wanted_sources):
+                continue
+        extrema = _obs_layer_metric_extrema(obs)
+        needs_layers = any(
+            rng is not None
+            for rng in (top_agl_range, base_agl_range, depth_range, delta_t_range, gamma_range)
+        )
+        if needs_layers and n_layers <= 0:
+            continue
+        if top_agl_range is not None and not _range_overlaps(
+            extrema["top_agl_min"], extrema["top_agl_max"], *top_agl_range
+        ):
+            continue
+        if base_agl_range is not None and not _range_overlaps(
+            extrema["base_agl_min"], extrema["base_agl_max"], *base_agl_range
+        ):
+            continue
+        if depth_range is not None and not _range_overlaps(
+            extrema["depth_min"], extrema["depth_max"], *depth_range
+        ):
+            continue
+        if delta_t_range is not None and not _range_overlaps(
+            extrema["delta_t_min"], extrema["delta_t_max"], *delta_t_range
+        ):
+            continue
+        if gamma_range is not None and not _range_overlaps(
+            extrema["gamma_min"], extrema["gamma_max"], *gamma_range
+        ):
+            continue
         out.append(obs)
     return out
+
+
+def _visible_export_rows(observations: list[dict]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for obs in observations:
+        extrema = _obs_layer_metric_extrema(obs)
+        rows.append(
+            {
+                "profile_id": obs.get("profile_id"),
+                "date": obs.get("date"),
+                "datetime_utc": obs.get("datetime_utc"),
+                "cycle": obs.get("cycle"),
+                "profile_status": obs.get("profile_status"),
+                "inversion_detected_v2": bool(obs.get("inversion_detected")),
+                "inversion_quality_v2": obs.get("inversion_quality"),
+                "n_inversion_layers_v3": int(obs.get("n_inversion_layers_v3") or 0),
+                "has_G_v3": _obs_has_type(obs, "G"),
+                "has_E_v3": _obs_has_type(obs, "E"),
+                "has_HE_v3": _obs_has_type(obs, "HE"),
+                "primary_type": _obs_primary_type(obs),
+                "v2_v3": _obs_v2_v3_relation(obs),
+                "top_agl_min_m": extrema["top_agl_min"],
+                "top_agl_max_m": extrema["top_agl_max"],
+                "base_agl_min_m": extrema["base_agl_min"],
+                "base_agl_max_m": extrema["base_agl_max"],
+                "depth_min_m": extrema["depth_min"],
+                "depth_max_m": extrema["depth_max"],
+                "delta_t_min_c": extrema["delta_t_min"],
+                "delta_t_max_c": extrema["delta_t_max"],
+                "gamma_min": extrema["gamma_min"],
+                "gamma_max": extrema["gamma_max"],
+                "height_sources": ";".join(sorted(_obs_height_sources(obs))),
+            }
+        )
+    return rows
 
 
 def month_mean(
@@ -322,13 +569,6 @@ def _obs_state_key(state_scope: str, profile_id: str) -> str:
 def _set_enabled(state_scope: str, observations: list[dict], predicate) -> None:
     for obs in observations:
         st.session_state[_obs_state_key(state_scope, obs["profile_id"])] = bool(predicate(obs))
-
-
-V3_TYPE_COLORS = {
-    "G": "#C0392B",
-    "E": "#2980B9",
-    "HE": "#8E44AD",
-}
 
 
 def _add_inversion_marker(
@@ -469,11 +709,14 @@ def _add_v3_layer_overlays(
     y_axis: str,
     day_key: str,
     layers: list[dict] | None = None,
+    types: set[str] | None = None,
 ) -> None:
-    """Отрезки base→top для слоёв gap-v3 (G/E/HE)."""
+    """Отрезки base→top для слоёв gap-v3 (G/E/HE), цвет фиксирован по классу."""
     use_layers = layers if layers is not None else (obs.get("inversion_layers_v3") or [])
     for layer in use_layers:
         pos = str(layer.get("position_type") or "?")
+        if types and pos not in types:
+            continue
         color = V3_TYPE_COLORS.get(pos, "#555555")
         t0 = layer.get("base_temperature_c")
         t1 = layer.get("top_temperature_c")
@@ -498,13 +741,38 @@ def _add_v3_layer_overlays(
             x=[float(t0), float(t1)],
             y=[float(y0), float(y1)],
             mode="lines+markers",
-            name=f"{day_key[8:]}·{obs.get('cycle', '??')} v3-{pos}",
+            name=f"v3-{pos}",
+            legendgroup=f"v3-{pos}",
             line=dict(width=3.2, color=color),
             marker=dict(size=7, symbol="square", color=color),
             opacity=0.9,
             showlegend=False,
             hovertemplate=hover,
         ))
+
+
+def _add_class_legend(fig: go.Figure) -> None:
+    """Одна легенда на класс G/E/HE."""
+    labels = {"G": "G приземная", "E": "E приподнятая", "HE": "HE высокая"}
+    for kind in ("G", "E", "HE"):
+        fig.add_trace(go.Scatter(
+            x=[None],
+            y=[None],
+            mode="lines",
+            name=labels[kind],
+            legendgroup=kind,
+            line=dict(width=3.0, color=V3_TYPE_COLORS[kind]),
+            showlegend=True,
+        ))
+    fig.add_trace(go.Scatter(
+        x=[None],
+        y=[None],
+        mode="lines",
+        name="без слоя v3",
+        legendgroup="none",
+        line=dict(width=2.0, color=NO_CLASS_COLOR),
+        showlegend=True,
+    ))
 
 
 def _recompute_v3_layers_for_obs(
@@ -568,12 +836,16 @@ def _build_figure(
     station_name: str,
     month_key: str,
     v3_layers_override: dict[str, list[dict]] | None = None,
+    color_by_class: bool = True,
+    layer_types: set[str] | None = None,
 ) -> go.Figure:
     """Собирает Plotly-график включённых наблюдений."""
     fig = go.Figure()
     y_hover = "P=%{y:.1f} гПа" if y_axis == "pressure" else "h=%{y:.0f} м"
     color_idx = 0
     day_lookup = {d["date"]: d for d in days}
+    if color_by_class:
+        _add_class_legend(fig)
 
     for day_key in sorted(visible_by_day):
         day_has_enabled = False
@@ -585,27 +857,33 @@ def _build_figure(
                 continue
             t_vals, y_vals = prepared
             day_has_enabled = True
-            color = OBS_PALETTE[color_idx % len(OBS_PALETTE)]
+            fallback = OBS_PALETTE[color_idx % len(OBS_PALETTE)]
             color_idx += 1
+            color = _obs_profile_color(obs, color_by_class=color_by_class, fallback=fallback)
+            primary = _obs_primary_type(obs)
             name = f"{day_key[8:]}·{obs.get('cycle', '??')}"
+            if color_by_class and primary:
+                name = f"{name} · {primary}"
             fig.add_trace(go.Scatter(
                 x=t_vals,
                 y=y_vals,
                 mode="lines+markers" if not apply_plot_qc else "lines",
                 name=name,
+                legendgroup=primary or "none",
+                showlegend=not color_by_class,
                 line=dict(
                     width=1.6,
                     color=color,
                     dash=_cycle_dash(str(obs.get("cycle", ""))),
                 ),
-                marker=dict(size=3),
+                marker=dict(size=3, color=color),
                 opacity=0.88,
                 connectgaps=False,
                 hovertemplate=(
                     f"{obs.get('datetime_utc', day_key)}<br>"
-                    f"CY{obs.get('cycle', '??')}<br>"
-                    f"T=%{{x:.1f}} °C<br>"
-                    f"{y_hover}<extra></extra>"
+                    f"CY{obs.get('cycle', '??')}"
+                    + (f" · {primary}" if primary else "")
+                    + f"<br>T=%{{x:.1f}} °C<br>{y_hover}<extra></extra>"
                 ),
             ))
             if show_inv_top and obs.get("inversion_detected"):
@@ -626,6 +904,7 @@ def _build_figure(
                     y_axis=y_axis,
                     day_key=day_key,
                     layers=override,
+                    types=layer_types,
                 )
 
         day = day_lookup.get(day_key)
@@ -849,16 +1128,37 @@ def main() -> None:
             value=(d_min, d_max),
             format="DD.MM",
         )
+
+    profile_id_query = st.sidebar.text_input(
+        "Поиск profile_id",
+        value="",
+        help="Подстрока без учёта регистра.",
+    )
+    preset = st.sidebar.selectbox(
+        "Пресет фильтров",
+        options=[
+            "без пресета",
+            "только G",
+            "только E",
+            "только HE",
+            "confirmed v2",
+            "v3 MULTI",
+            "v2 и v3 вместе",
+            "только v3",
+        ],
+        index=0,
+    )
+
     inversion_only = st.sidebar.checkbox(
         "Только с инверсией (v2)",
-        value=False,
+        value=(preset == "confirmed v2"),
         help="Фильтр по legacy v2: inversion_detected=True (confirmed).",
     )
     inversion_v3_only = False
     if "inversion_v3" in features:
         inversion_v3_only = st.sidebar.checkbox(
             "Только со слоями gap-v3",
-            value=False,
+            value=(preset in {"только G", "только E", "только HE", "v3 MULTI", "только v3"}),
             help="n_inversion_layers_v3 > 0 (не заменяет фильтр v2).",
         )
     inversion_quality = QUALITY_ANY
@@ -871,9 +1171,13 @@ def main() -> None:
             }
         )
         if present_qualities:
+            default_quality = "confirmed" if preset == "confirmed v2" and "confirmed" in present_qualities else QUALITY_ANY
+            quality_options = [QUALITY_ANY, *present_qualities]
+            quality_index = quality_options.index(default_quality) if default_quality in quality_options else 0
             inversion_quality = st.sidebar.selectbox(
                 "Качество инверсии (v2)",
-                options=[QUALITY_ANY, *present_qualities],
+                options=quality_options,
+                index=quality_index,
                 format_func=lambda q: QUALITY_LABELS.get(q, q),
                 help="confirmed = подтверждена падением T выше верха; остальные — для разбора.",
             )
@@ -883,10 +1187,98 @@ def main() -> None:
         help="Профили, у которых есть только метрики: в списке видны, но на графике их нет.",
     )
 
+    selected_types: list[str] = []
+    layer_count_mode = LAYER_COUNT_ANY
+    v2_v3_mode = V2_V3_ANY
+    top_agl_range = None
+    base_agl_range = None
+    depth_range = None
+    delta_t_range = None
+    gamma_range = None
+    selected_sources: list[str] = []
+    profile_status = STATUS_ANY
+
+    if "inversion_v3" in features:
+        st.sidebar.markdown("### Слои v3 (G/E/HE)")
+        default_types: list[str] = []
+        if preset == "только G":
+            default_types = ["G"]
+        elif preset == "только E":
+            default_types = ["E"]
+        elif preset == "только HE":
+            default_types = ["HE"]
+        selected_types = st.sidebar.multiselect(
+            "Классы инверсии",
+            options=["G", "E", "HE"],
+            default=default_types,
+            help="Пустой список = не фильтровать по классу. Цвет профиля = класс.",
+        )
+        layer_default = "MULTI" if preset == "v3 MULTI" else LAYER_COUNT_ANY
+        layer_keys = list(LAYER_COUNT_OPTIONS.keys())
+        layer_count_mode = st.sidebar.selectbox(
+            "Число слоёв v3",
+            options=layer_keys,
+            index=layer_keys.index(layer_default),
+            format_func=lambda key: LAYER_COUNT_OPTIONS[key],
+        )
+        v2v3_default = (
+            "both" if preset == "v2 и v3 вместе"
+            else "only_v3" if preset == "только v3"
+            else V2_V3_ANY
+        )
+        v2v3_keys = list(V2_V3_OPTIONS.keys())
+        v2_v3_mode = st.sidebar.selectbox(
+            "Сравнение v2 / v3",
+            options=v2v3_keys,
+            index=v2v3_keys.index(v2v3_default),
+            format_func=lambda key: V2_V3_OPTIONS[key],
+        )
+
+        use_geom = st.sidebar.checkbox("Фильтр по геометрии слоёв", value=False)
+        if use_geom:
+            top_agl_range = st.sidebar.slider("Высота верха AGL, м", 0.0, 5000.0, (0.0, 5000.0), 50.0)
+            base_agl_range = st.sidebar.slider("Высота основания AGL, м", 0.0, 5000.0, (0.0, 5000.0), 50.0)
+            depth_range = st.sidebar.slider("Толщина слоя, м", 0.0, 3000.0, (0.0, 3000.0), 25.0)
+            delta_t_range = st.sidebar.slider("ΔT слоя, °C", 0.0, 20.0, (0.0, 20.0), 0.2)
+            gamma_range = st.sidebar.slider("γ слоя, °C/100 м", -5.0, 20.0, (-5.0, 20.0), 0.2)
+
+    present_statuses = sorted(
+        {
+            str(o.get("profile_status") or "")
+            for o in observations
+            if o.get("profile_status")
+        }
+    )
+    if present_statuses:
+        profile_status = st.sidebar.selectbox(
+            "Статус QC профиля",
+            options=[STATUS_ANY, *present_statuses],
+        )
+
+    all_sources = sorted({src for o in observations for src in _obs_height_sources(o)})
+    if all_sources:
+        selected_sources = st.sidebar.multiselect(
+            "Источник высоты",
+            options=all_sources,
+            default=[],
+            help="Пустой список = любой источник.",
+        )
+
+    st.sidebar.markdown("### Отображение")
+    show_month_mean = st.sidebar.checkbox(
+        "Месячное среднее",
+        value=False,
+        help="Красная линия month mean по включённым профилям.",
+    )
     show_day_means = st.sidebar.checkbox(
-        "Показать суточные средние",
+        "Суточные средние",
         value=False,
         help="Серые линии day_mean для дней с ≥1 включённым наблюдением.",
+    )
+    color_by_class = st.sidebar.checkbox(
+        "Цвет профиля по классу G/E/HE",
+        value=True,
+        help="G красный, E синий, HE фиолетовый. Без слоя v3 — серый.",
     )
     show_inv_top = st.sidebar.checkbox(
         "Верх инверсии v2 (снизу вверх, ромб)",
@@ -973,6 +1365,17 @@ def main() -> None:
         inversion_quality=inversion_quality,
         hide_missing_levels=hide_missing_levels,
         inversion_v3_only=inversion_v3_only,
+        types=selected_types or None,
+        top_agl_range=tuple(top_agl_range) if top_agl_range is not None else None,
+        base_agl_range=tuple(base_agl_range) if base_agl_range is not None else None,
+        depth_range=tuple(depth_range) if depth_range is not None else None,
+        delta_t_range=tuple(delta_t_range) if delta_t_range is not None else None,
+        gamma_range=tuple(gamma_range) if gamma_range is not None else None,
+        layer_count_mode=layer_count_mode,
+        height_sources=selected_sources or None,
+        profile_status=profile_status,
+        v2_v3_mode=v2_v3_mode,
+        profile_id_query=profile_id_query,
     )
     visible_ids = {o["profile_id"] for o in visible}
     visible_plottable = [o for o in visible if has_levels(o)]
@@ -1076,7 +1479,9 @@ def main() -> None:
                     enabled.add(obs["profile_id"])
 
     st.sidebar.caption(f"Включено: {len(enabled)} / видимых {len(visible)}")
-    mean = month_mean(visible, enabled, y_axis=y_axis, apply_plot_qc=apply_plot_qc)
+    mean = None
+    if show_month_mean:
+        mean = month_mean(visible, enabled, y_axis=y_axis, apply_plot_qc=apply_plot_qc)
 
     # На графике участвуют только наблюдения с уровнями — счётчики считаем по ним же.
     enabled_plottable = [o for o in visible_plottable if o["profile_id"] in enabled]
@@ -1151,8 +1556,21 @@ def main() -> None:
         station_name=str(data.get("station_name", "Aldan")),
         month_key=month_key,
         v3_layers_override=v3_override,
+        color_by_class=color_by_class,
+        layer_types=set(selected_types) if selected_types else None,
     )
     st.plotly_chart(fig, width="stretch")
+
+    if enabled_plottable:
+        import pandas as pd
+
+        export_df = pd.DataFrame(_visible_export_rows(enabled_plottable))
+        st.download_button(
+            "Скачать видимую выборку (CSV)",
+            data=export_df.to_csv(index=False).encode("utf-8-sig"),
+            file_name=f"dashboard_selection_{month_key}.csv",
+            mime="text/csv",
+        )
 
     if enabled_plottable:
         st.subheader("Ручная разметка слоя (gold set)")

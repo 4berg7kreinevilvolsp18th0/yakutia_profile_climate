@@ -1,8 +1,8 @@
 """Сборка профилей наблюдений (зондов) для интерактивного дашборда."""
 from __future__ import annotations
 
-import argparse
 import json
+import argparse
 import sys
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -44,7 +44,7 @@ FEATURES = (
     "surface_context",        # p_surface_hpa / station_elevation_m
     "inversion_v3",           # inversion_layers_v3 / pattern / n_layers (gap-merge)
 )
-
+#Станция каталога - это папка с данными о станции, которая содержит файлы с данными о наблюдениях.
 DEFAULT_DIR = catalog_station_dir()
 LEGACY_DIR = Path("gdex_outputs") / "актуальное"
 DEFAULT_LONG_CSV = DEFAULT_DIR / "profiles_long.csv"
@@ -56,7 +56,7 @@ def _day_key(dt: str) -> str:
     parsed = datetime.fromisoformat(str(dt).replace("Z", "+00:00"))
     return parsed.date().isoformat()
 
-
+#Функция _finite_metric проверяет, является ли значение числом и не является NaN.
 def _finite_metric(value: Any) -> float | None:
     if value is None:
         return None
@@ -73,7 +73,7 @@ def _finite_metric(value: Any) -> float | None:
         return None
     return f
 
-
+#Функция _metric_flag проверяет, является ли значение логическим и не является NaN. Если является, то возвращает True, иначе False.
 def _metric_flag(metric: Any, name: str) -> bool:
     value = getattr(metric, name, False)
     try:
@@ -85,9 +85,9 @@ def _metric_flag(metric: Any, name: str) -> bool:
         return value.strip().lower() in {"true", "1", "yes", "да"}
     return bool(value)
 
-
+#Функция _parse_from_top_tops преобразует строку в список словарей. Если строка не является JSON, то возвращает пустой список. Если строка является JSON, то преобразует её в список словарей.
 def _parse_from_top_tops(raw: Any) -> list[dict[str, Any]]:
-    """JSON-строка / list из метрик → список вершин."""
+    """JSON-строка / list из метрик → список вершин. Если строка не является JSON, то возвращает пустой список. Если строка является JSON, то преобразует её в список словарей."""
     if raw is None:
         return []
     try:
@@ -109,7 +109,7 @@ def _parse_from_top_tops(raw: Any) -> list[dict[str, Any]]:
             return [x for x in data if isinstance(x, dict)]
     return []
 
-
+#Функция _from_top_fields_from_levels пересчитывает поля from_top по уровням наблюдения. Если в метриках поля ещё нет, то пересчитывает их. Вызывается в функции _metric_inversion_fields.
 def _from_top_fields_from_levels(levels: list[dict[str, Any]]) -> dict[str, Any]:
     """Пересчёт from_top по уровням наблюдения (если в метриках поля ещё нет)."""
     from gdex_bufr.profile_climate.inversion import (
@@ -135,7 +135,7 @@ def _from_top_fields_from_levels(levels: list[dict[str, Any]]) -> dict[str, Any]
         "inversion_from_top_tops": meta["inversion_from_top_tops"],
     }
 
-
+#Функция _metric_inversion_fields извлекает поля инверсии из метрик, включая семантику v2 (quality / candidate). Если в метриках поля ещё нет, то пересчитывает их. Вызывается в функции _build_months_payload.
 def _metric_inversion_fields(
     metric: Any,
     *,
@@ -187,7 +187,7 @@ def _metric_inversion_fields(
         "inversion_from_top_tops": tops,
     }
 
-
+#Функция _empty_v3_fields возвращает пустые поля для v3.
 def _empty_v3_fields() -> dict[str, Any]:
     return {
         "inversion_layers_v3": [],
@@ -199,7 +199,7 @@ def _empty_v3_fields() -> dict[str, Any]:
         "strongest_delta_t_c_v3": None,
     }
 
-
+#Функция _v3_fields_from_maps извлекает поля v3 из словарей. Если словари пусты, то возвращает пустые поля. Если словари не пусты, то извлекает поля из словарей. Вызывается в функции _make_observation.
 def _v3_fields_from_maps(
     profile_id: str,
     layers_by_profile: dict[str, list[dict[str, Any]]] | None,
@@ -219,7 +219,7 @@ def _v3_fields_from_maps(
         "strongest_delta_t_c_v3": summary.get("strongest_delta_t_c"),
     }
 
-
+#Функция _as_bool преобразует строку в логическое значение. Если строка не является логическим значением, то возвращает False.
 def _as_bool(value: Any) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in {"true", "1", "yes", "да"}
@@ -230,7 +230,7 @@ def _as_bool(value: Any) -> bool:
         pass
     return bool(value)
 
-
+#Функция _load_v3_maps_from_csv загружает словари v3 из CSV файлов. Если CSV файлы не существуют, то возвращает пустые словари. Если CSV файлы существуют, то загружает словари из CSV файлов. Вызывается в функции _build_months_payload.
 def _load_v3_maps_from_csv(
     layers_csv: Path | None,
     summary_csv: Path | None,
@@ -271,7 +271,7 @@ def _load_v3_maps_from_csv(
             }
     return dict(layers_by), summary_by
 
-
+#Функция resolve_xlsx находит последний Excel файл в каталоге. Если файл не существует, то возвращает None. Если файл существует, то возвращает путь к файлу. Вызывается в функции load_long_and_metrics.
 def resolve_xlsx(path: Path | None, search_dir: Path) -> Path | None:
     """Явный --xlsx или последний aldan_profile_climate_*.xlsx / profile_climate.xlsx."""
     if path is not None:
@@ -294,7 +294,7 @@ def resolve_xlsx(path: Path | None, search_dir: Path) -> Path | None:
     plain = search_dir / "profile_climate.xlsx"
     return plain if plain.exists() else None
 
-
+#Функция load_long_and_metrics загружает long-таблицу и метрики из CSV или Excel файлов. Если CSV файлы не существуют, то загружает из Excel файлов. Если Excel файлы не существуют, то возвращает None. Если Excel файлы существуют, то загружает из Excel файлов. Вызывается в функции build_daily_profiles.
 def load_long_and_metrics(
     long_csv: Path,
     metrics_csv: Path,
@@ -335,7 +335,7 @@ def load_long_and_metrics(
     metrics_df = pd.read_excel(xlsx_path, sheet_name="profile_metrics")
     return long_df, metrics_df, f"xlsx:{xlsx_path}"
 
-
+#Функция _series_to_levels преобразует строки в список словарей. Если строка не является числом, то возвращает None. Если строка является числом, то преобразует её в число. Вызывается в функции _make_observation.
 def _series_to_levels(group: pd.DataFrame) -> list[dict[str, Any]]:
     levels: list[dict[str, Any]] = []
     for row in group.itertuples(index=False):
@@ -359,7 +359,7 @@ def _series_to_levels(group: pd.DataFrame) -> list[dict[str, Any]]:
         })
     return levels
 
-
+#Функция _obs_arrays извлекает массивы высот, давления, температуры и высот интерполяции из списка словарей. Вызывается в функции _make_observation. Возвращает кортеж из пяти списков: высот, давления, температуры, высот интерполяции и высот барометрических.
 def _obs_arrays(
     levels: list[dict[str, Any]],
 ) -> tuple[list[float | None], list[float], list[float], list[float | None], list[float | None]]:
@@ -379,7 +379,7 @@ def _obs_arrays(
     temps = [round(float(lv["temperature_c"]), 3) for lv in levels]
     return heights, pressures, temps, heights_interp, heights_baro
 
-
+#Функция _station_elevation извлекает высоту станции из метрик или long-таблицы. Если высота станции не найдена, то возвращает None. Вызывается в функции _make_observation. Возвращает высоту станции в метрах.
 def _station_elevation(
     long_df: pd.DataFrame,
     metrics_df: pd.DataFrame,
@@ -397,7 +397,7 @@ def _station_elevation(
     fallback = STATION_ELEVATION_M.get(str(station_id).zfill(5)[-5:])
     return None if fallback is None else round(float(fallback), 1)
 
-
+#Функция _height_source_counts подсчитывает количество уровней, получивших высоту каждым методом (level/phi/interp/baro/…). Вызывается в функции _make_observation. Возвращает словарь с количеством уровней для каждого метода. Например, {'level': 10, 'phi': 5, 'interp': 3, 'baro': 2}.
 def _height_source_counts(levels: list[dict[str, Any]]) -> dict[str, int]:
     """Сколько уровней получило высоту каждым методом (level/phi/interp/baro/…)."""
     counts: dict[str, int] = {}
@@ -409,7 +409,7 @@ def _height_source_counts(levels: list[dict[str, Any]]) -> dict[str, int]:
         counts[key] = counts.get(key, 0) + 1
     return counts
 
-
+#Функция _make_observation собирает одно наблюдение из списка словарей. Вызывается в функции _observation_from_group. Возвращает словарь с наблюдением. Например, {'profile_id': '1234567890', 'datetime_utc': '2026-01-01 12:00:00', 'cycle': '01', 'heights_m': [100.0, 101.0, 102.0], 'heights_interp_m': [100.5, 101.5, 102.5], 'heights_baro_m': [100.2, 101.2, 102.2], 'pressure_hpa': [1000.0, 999.0, 998.0], 'temperature_c': [20.0, 20.1, 20.2], 'n_levels': 3, 't_surface_c': 20.0, 'inversion_detected': True, 'inv_fields': {'inversion_from_top_tops': [100.0, 101.0, 102.0], 'inversion_from_bottom_tops': [100.0, 101.0, 102.0], 'inversion_from_top_bottoms': [100.0, 101.0, 102.0], 'inversion_from_bottom_bottoms': [100.0, 101.0, 102.0]}, 'profile_status': 'good', 'p_surface_hpa': 1000.0, 'station_elevation_m': 100.0, 'height_source_counts': {'level': 10, 'phi': 5, 'interp': 3, 'baro': 2}, 'missing_levels': False, 'v3_fields': {'inversion_layers_v3': [100.0, 101.0, 102.0], 'pattern': 'NONE', 'n_layers': 3, 'strongest_delta_t_c_v3': 1.0}}.
 def _make_observation(
     *,
     profile_id: str,
@@ -457,7 +457,7 @@ def _make_observation(
         observation["missing_levels"] = True
     return observation
 
-
+#Функция _day_mean_on_pressure вычисляет среднее значение температуры и высоты на давлении. Вызывается в функции _build_months_payload. Возвращает словарь с средним значением температуры и высоты на давлении. Например, {'pressure_hpa': [1000.0, 999.0, 998.0], 'heights_m': [100.0, 101.0, 102.0], 'temperature_c': [20.0, 20.1, 20.2]}. Если данные невалидны, то возвращает None.
 def _day_mean_on_pressure(
     observations: list[dict[str, Any]],
     *,
@@ -497,12 +497,12 @@ def _day_mean_on_pressure(
         "temperature_c": [None if np.isnan(x) else round(float(x), 3) for x in mean_t],
     }
 
-
+#Функция REJECTED_CLEAN_STATUSES определяет статусы профилей, которые не будут включены в средние значения. Вызывается в функции _observation_from_group. Возвращает множество статусов. Например, {'no_temp', 'bad_pressure', 'duplicate_levels', 'no_surface_level'}.
 REJECTED_CLEAN_STATUSES = frozenset({
     "no_temp", "bad_pressure", "duplicate_levels", "no_surface_level",
 })
 
-
+#Функция _observation_from_group собирает одно наблюдение из строк профиля. None — пропуск. Вызывается в функции build_daily_profiles. Возвращает кортеж из дня и словаря с наблюдением. Например, ('2026-01-01', {'profile_id': '1234567890', 'datetime_utc': '2026-01-01 12:00:00', 'cycle': '01', 'heights_m': [100.0, 101.0, 102.0], 'heights_interp_m': [100.5, 101.5, 102.5], 'heights_baro_m': [100.2, 101.2, 102.2], 'pressure_hpa': [1000.0, 999.0, 998.0], 'temperature_c': [20.0, 20.1, 20.2], 'n_levels': 3, 't_surface_c': 20.0, 'inversion_detected': True, 'inv_fields': {'inversion_from_top_tops': [100.0, 101.0, 102.0], 'inversion_from_bottom_tops': [100.0, 101.0, 102.0], 'inversion_from_top_bottoms': [100.0, 101.0, 102.0], 'inversion_from_bottom_bottoms': [100.0, 101.0, 102.0]}, 'profile_status': 'good', 'p_surface_hpa': 1000.0, 'station_elevation_m': 100.0, 'height_source_counts': {'level': 10, 'phi': 5, 'interp': 3, 'baro': 2}, 'missing_levels': False, 'v3_fields': {'inversion_layers_v3': [100.0, 101.0, 102.0], 'pattern': 'NONE', 'n_layers': 3, 'strongest_delta_t_c_v3': 1.0}}).
 def _observation_from_group(
     profile_id: str,
     group: pd.DataFrame,
@@ -581,7 +581,7 @@ def _observation_from_group(
         v3_fields=v3_fields,
     )
 
-
+#Функция _append_metrics_only_profiles добавляет профили без уровней (только метрики) в словарь по дням. Вызывается в функции build_daily_profiles. Возвращает None. Если профиль уже есть в словаре, то пропускает его. Если профиль не есть в словаре, то добавляет его в словарь.
 def _append_metrics_only_profiles(
     by_day: dict[str, list[dict[str, Any]]],
     metrics_df: pd.DataFrame,
@@ -623,7 +623,7 @@ def _append_metrics_only_profiles(
             ),
         ))
 
-
+#Функция _build_months_payload группирует дни по месяцам и считает суточные средние. Вызывается в функции build_daily_profiles. Возвращает словарь с средними значениями температуры и высоты на давлении. Например, {'2026-01': {'days': [{'date': '2026-01-01', 'n_profiles': 10, 'n_good': 8, 'n_missing_levels': 2, 'inversion_detected': True, 't_surface_c': 20.0, 'observations': [{'profile_id': '1234567890', 'datetime_utc': '2026-01-01 12:00:00', 'cycle': '01', 'heights_m': [100.0, 101.0, 102.0], 'heights_interp_m': [100.5, 101.5, 102.5], 'heights_baro_m': [100.2, 101.2, 102.2], 'pressure_hpa': [1000.0, 999.0, 998.0], 'temperature_c': [20.0, 20.1, 20.2], 'n_levels': 3, 't_surface_c': 20.0, 'inversion_detected': True, 'inv_fields': {'inversion_from_top_tops': [100.0, 101.0, 102.0], 'inversion_from_bottom_tops': [100.0, 101.0, 102.0], 'inversion_from_top_bottoms': [100.0, 101.0, 102.0], 'inversion_from_bottom_bottoms': [100.0, 101.0, 102.0]}, 'profile_status': 'good', 'p_surface_hpa': 1000.0, 'station_elevation_m': 100.0, 'height_source_counts': {'level': 10, 'phi': 5, 'interp': 3, 'baro': 2}, 'missing_levels': False, 'v3_fields': {'inversion_layers_v3': [100.0, 101.0, 102.0], 'pattern': 'NONE', 'n_layers': 3, 'strongest_delta_t_c_v3': 1.0}}, ...], 'day_mean': {'pressure_hpa': [1000.0, 999.0, 998.0], 'heights_m': [100.0, 101.0, 102.0], 'temperature_c': [20.0, 20.1, 20.2]}]}}}.
 def _build_months_payload(
     by_day: dict[str, list[dict[str, Any]]],
     *,
@@ -656,7 +656,7 @@ def _build_months_payload(
         months[month_key]["days"].sort(key=lambda d: d["date"])
     return months, n_observations
 
-
+#Функция build_daily_profiles собирает ежедневные профили из long-таблицы и метрик. Вызывается в функции main. Возвращает словарь с ежедневными профилями. Например, {'2026-01-01': {'n_profiles': 10, 'n_good': 8, 'n_missing_levels': 2, 'inversion_detected': True, 't_surface_c': 20.0, 'observations': [{'profile_id': '1234567890', 'datetime_utc': '2026-01-01 12:00:00', 'cycle': '01', 'heights_m': [100.0, 101.0, 102.0], 'heights_interp_m': [100.5, 101.5, 102.5], 'heights_baro_m': [100.2, 101.2, 102.2], 'pressure_hpa': [1000.0, 999.0, 998.0], 'temperature_c': [20.0, 20.1, 20.2], 'n_levels': 3, 't_surface_c': 20.0, 'inversion_detected': True, 'inv_fields': {'inversion_from_top_tops': [100.0, 101.0, 102.0], 'inversion_from_bottom_tops': [100.0, 101.0, 102.0], 'inversion_from_top_bottoms': [100.0, 101.0, 102.0], 'inversion_from_bottom_bottoms': [100.0, 101.0, 102.0]}, 'profile_status': 'good', 'p_surface_hpa': 1000.0, 'station_elevation_m': 100.0, 'height_source_counts': {'level': 10, 'phi': 5, 'interp': 3, 'baro': 2}, 'missing_levels': False, 'v3_fields': {'inversion_layers_v3': [100.0, 101.0, 102.0], 'pattern': 'NONE', 'n_layers': 3, 'strongest_delta_t_c_v3': 1.0}}, ...]}}.
 def build_daily_profiles(
     long_csv: Path,
     metrics_csv: Path,
@@ -676,96 +676,82 @@ def build_daily_profiles(
         raise ValueError(f"level_mode должен быть одним из {LEVEL_MODES}: {level_mode}")
     min_levels = (1 if level_mode == "raw" else PLOT_MIN_LEVELS) if plot_min_levels is None else plot_min_levels
 
-    # 1) Читаем таблицы и заполняем высоты.
-    long_df, metrics_df, source = load_long_and_metrics(long_csv, metrics_csv, xlsx=xlsx)
+    # 1) Читаем таблицы и заполняем высоты. Читаем long-таблицу и метрики из CSV или Excel файлов. Если CSV файлы не существуют, то загружает из Excel файлов. Если Excel файлы не существуют, то возвращает None. Если Excel файлы существуют, то загружает из Excel файлов. Вызывается в функции build_daily_profiles. Возвращает кортеж из long-таблицы, метрик и источника данных.
+    long_df, metrics_df, source = load_long_and_metrics(long_csv, metrics_csv, xlsx=xlsx) #long_df - long-таблица, metrics_df - метрики, source - источник данных.
     print(f"Источник таблиц: {source}")
     print(
-        f"Станция Алдан: высота {STATION_ELEVATION_M.get('31004')} м н.у.м.; "
-        f"типичное P у поверхности ~ {ALDAN_TYPICAL_SURFACE_HPA} гПа (не константа)"
+        f"Станция Алдан: высота {STATION_ELEVATION_M.get('31004')} м н.у.м.; " #STATION_ELEVATION_M - высота станции Алдан в метрах.
+        f"типичное P у поверхности ~ {ALDAN_TYPICAL_SURFACE_HPA} гПа (не константа)" #ALDAN_TYPICAL_SURFACE_HPA - типичное давление у поверхности в гПа.
     )
 
-    long_df = long_df.dropna(subset=["temperature_c", "pressure_hpa"])
+    long_df = long_df.dropna(subset=["temperature_c", "pressure_hpa"]) #long_df - long-таблица, temperature_c - температура, pressure_hpa - давление.
     long_df = long_df[
-        (long_df["pressure_hpa"] <= max_surface_pressure_hpa)
-        & (long_df["pressure_hpa"] >= pressure_top_hpa)
+        (long_df["pressure_hpa"] <= max_surface_pressure_hpa) #max_surface_pressure_hpa - максимальное давление у поверхности в гПа.
+        & (long_df["pressure_hpa"] >= pressure_top_hpa) #pressure_top_hpa - минимальное давление у поверхности в гПа.
     ]
-    long_df = fill_long_dataframe_heights(long_df, metrics_df)
+    long_df = fill_long_dataframe_heights(long_df, metrics_df) #long_df - long-таблица, metrics_df - метрики.
 
-    metrics_map = {
-        str(row.profile_id): row
-        for row in metrics_df.itertuples(index=False)
+    metrics_map = { #metrics_map - словарь с метриками.
+        str(row.profile_id): row #row - строка метрик.
+        for row in metrics_df.itertuples(index=False) #metrics_df - метрики.
     }
 
-    layers_by_profile: dict[str, list[dict[str, Any]]] = {}
-    summary_by_profile: dict[str, dict[str, Any]] = {}
+    layers_by_profile: dict[str, list[dict[str, Any]]] = {} #layers_by_profile - словарь с уровнями.
+    summary_by_profile: dict[str, dict[str, Any]] = {} #summary_by_profile - словарь с суммарией уровней.
     if compute_v3:
-        from gdex_bufr.profile_climate.inversion_layers import (
-            detect_inversion_layers_gap_v3,
-            layers_to_dashboard_payload,
-            summarize_inversion_layers,
+        from gdex_bufr.profile_climate.inversion_layers import ( #gdex_bufr.profile_climate.inversion_layers - модуль с функциями для работы с уровнями инверсии.
+            detect_inversion_layers_gap_v3, #detect_inversion_layers_gap_v3 - функция для детектирования уровней инверсии.
+            layers_to_dashboard_payload, #layers_to_dashboard_payload - функция для преобразования уровней инверсии в формат для dashboard.
+            summarize_inversion_layers, #summarize_inversion_layers - функция для суммаризации уровней инверсии.
         )
 
-        from gdex_bufr.profile_climate.config import load_profile_climate_config
+        from gdex_bufr.profile_climate.config import load_profile_climate_config #gdex_bufr.profile_climate.config - модуль с функциями для работы с конфигурацией.
 
-        cfg_params = load_profile_climate_config(
-            ROOT / "profile_climate_config.yaml"
-        ).v3_detect_kwargs()
-        params = {**cfg_params, **(v3_params or {})}
-        for profile_id, group in long_df.groupby("profile_id", sort=False):
+        cfg_params = load_profile_climate_config( #cfg_params - конфигурация.
+            ROOT / "profile_climate_config.yaml" #ROOT / "profile_climate_config.yaml" - путь к конфигурации.
+        ).v3_detect_kwargs() #v3_detect_kwargs() - функция для получения параметров для детектирования уровней инверсии.
+        params = {**cfg_params, **(v3_params or {})} #params - параметры для детектирования уровней инверсии.
+        for profile_id, group in long_df.groupby("profile_id", sort=False): #profile_id - id профиля, group - группа профилей.
             pid = str(profile_id)
-            z = pd.to_numeric(group["height_m"], errors="coerce").to_numpy(dtype=float)
-            t = pd.to_numeric(group["temperature_c"], errors="coerce").to_numpy(dtype=float)
-            p = pd.to_numeric(group["pressure_hpa"], errors="coerce").to_numpy(dtype=float)
-            mask = np.isfinite(z) & np.isfinite(t)
-            z, t, p = z[mask], t[mask], p[mask]
+            z = pd.to_numeric(group["height_m"], errors="coerce").to_numpy(dtype=float) #z - высоты.
+            t = pd.to_numeric(group["temperature_c"], errors="coerce").to_numpy(dtype=float) #t - температуры.
+            p = pd.to_numeric(group["pressure_hpa"], errors="coerce").to_numpy(dtype=float) #p - давления.
+            mask = np.isfinite(z) & np.isfinite(t) #mask - маска для высот и температур.
+            z, t, p = z[mask], t[mask], p[mask] #z, t, p - высоты, температуры и давления.
             if z.size < 2:
-                summary_by_profile[pid] = summarize_inversion_layers(pid, [], z0=0.0)
-                layers_by_profile[pid] = []
+                summary_by_profile[pid] = summarize_inversion_layers(pid, [], z0=0.0) #summary_by_profile[pid] - суммаризация уровней инверсии.
+                layers_by_profile[pid] = [] #layers_by_profile[pid] - уровни инверсии. Пустой список.
                 continue
-            layers = detect_inversion_layers_gap_v3(
-                z,
-                t,
-                p,
-                max_embedded_gap_m=float(params["max_embedded_gap_m"]),
-                min_strength_c=float(params["min_strength_c"]),
-                min_depth_m=params.get("min_depth_m"),
-                he_threshold_m=float(params["he_threshold_m"]),
-                max_gap_drop_c=params.get("max_gap_drop_c"),
-                surface_tolerance_m=float(params.get("surface_tolerance_m", 30.0)),
-            )
-            order = np.argsort(z, kind="mergesort")
-            z0 = float(z[order][0])
-            layers_by_profile[pid] = layers_to_dashboard_payload(layers, z0=z0)
-            summary_by_profile[pid] = summarize_inversion_layers(pid, layers, z0=z0)
+            layers = detect_inversion_layers_gap_v3(z, t, p, max_embedded_gap_m=float(params["max_embedded_gap_m"]), min_strength_c=float(params["min_strength_c"]), min_depth_m=params.get("min_depth_m"), he_threshold_m=float(params["he_threshold_m"]), max_gap_drop_c=params.get("max_gap_drop_c"), surface_tolerance_m=float(params.get("surface_tolerance_m", 30.0)))
+            order = np.argsort(z, kind="mergesort") #order - порядок высот.
+            z0 = float(z[order][0]) #z0 - высота нуля.
+            layers_by_profile[pid] = layers_to_dashboard_payload(layers, z0=z0) #layers_by_profile[pid] - уровни инверсии в формате для dashboard.
+            summary_by_profile[pid] = summarize_inversion_layers(pid, layers, z0=z0) #summary_by_profile[pid] - суммаризация уровней инверсии.
     elif layers_v3_csv is not None or summary_v3_csv is not None:
-        layers_by_profile, summary_by_profile = _load_v3_maps_from_csv(
-            layers_v3_csv, summary_v3_csv,
-        )
+        layers_by_profile, summary_by_profile = _load_v3_maps_from_csv(layers_v3_csv, summary_v3_csv) #layers_by_profile, summary_by_profile - словари с уровнями и суммарией уровней.
 
-    # 2) Собираем наблюдения по дням.
-    by_day: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    profiles_with_levels: set[str] = set()
-    for profile_id, group in long_df.groupby("profile_id"):
-        profile_id = str(profile_id)
-        profiles_with_levels.add(profile_id)
-        built = _observation_from_group(
+    # 2) Собираем наблюдения по дням. Собираем наблюдения по дням из long-таблицы. Вызывается в функции build_daily_profiles. Возвращает словарь с наблюдениями по дням. Например, {'2026-01-01': [{'profile_id': '1234567890', 'datetime_utc': '2026-01-01 12:00:00', 'cycle': '01', 'heights_m': [100.0, 101.0, 102.0], 'heights_interp_m': [100.5, 101.5, 102.5], 'heights_baro_m': [100.2, 101.2, 102.2], 'pressure_hpa': [1000.0, 999.0, 998.0], 'temperature_c': [20.0, 20.1, 20.2], 'n_levels': 3, 't_surface_c': 20.0, 'inversion_detected': True, 'inv_fields': {'inversion_from_top_tops': [100.0, 101.0, 102.0], 'inversion_from_bottom_tops': [100.0, 101.0, 102.0], 'inversion_from_top_bottoms': [100.0, 101.0, 102.0], 'inversion_from_bottom_bottoms': [100.0, 101.0, 102.0]}, 'profile_status': 'good', 'p_surface_hpa': 1000.0, 'station_elevation_m': 100.0, 'height_source_counts': {'level': 10, 'phi': 5, 'interp': 3, 'baro': 2}, 'missing_levels': False, 'v3_fields': {'inversion_layers_v3': [100.0, 101.0, 102.0], 'pattern': 'NONE', 'n_layers': 3, 'strongest_delta_t_c_v3': 1.0}}, ...]}}.
+    by_day: dict[str, list[dict[str, Any]]] = defaultdict(list) #by_day - словарь с наблюдениями по дням.
+    profiles_with_levels: set[str] = set() #profiles_with_levels - множество с id профилей.
+    for profile_id, group in long_df.groupby("profile_id"): #profile_id - id профиля, group - группа профилей.
+        profile_id = str(profile_id) #profile_id - id профиля.
+        profiles_with_levels.add(profile_id) #profiles_with_levels.add(profile_id) - добавляет id профиля в множество.
+        built = _observation_from_group( #built - наблюдение. Вызывается в функции build_daily_profiles. Возвращает кортеж из дня и словаря с наблюдением. Например, ('2026-01-01', {'profile_id': '1234567890', 'datetime_utc': '2026-01-01 12:00:00', 'cycle': '01', 'heights_m': [100.0, 101.0, 102.0], 'heights_interp_m': [100.5, 101.5, 102.5], 'heights_baro_m': [100.2, 101.2, 102.2], 'pressure_hpa': [1000.0, 999.0, 998.0], 'temperature_c': [20.0, 20.1, 20.2], 'n_levels': 3, 't_surface_c': 20.0, 'inversion_detected': True, 'inv_fields': {'inversion_from_top_tops': [100.0, 101.0, 102.0], 'inversion_from_bottom_tops': [100.0, 101.0, 102.0], 'inversion_from_top_bottoms': [100.0, 101.0, 102.0], 'inversion_from_bottom_bottoms': [100.0, 101.0, 102.0]}, 'profile_status': 'good', 'p_surface_hpa': 1000.0, 'station_elevation_m': 100.0, 'height_source_counts': {'level': 10, 'phi': 5, 'interp': 3, 'baro': 2}, 'missing_levels': False, 'v3_fields': {'inversion_layers_v3': [100.0, 101.0, 102.0], 'pattern': 'NONE', 'n_layers': 3, 'strongest_delta_t_c_v3': 1.0}}).
             profile_id,
             group,
-            metrics_map.get(profile_id),
-            level_mode=level_mode,
-            pressure_top_hpa=pressure_top_hpa,
-            max_surface_pressure_hpa=max_surface_pressure_hpa,
-            min_levels=min_levels,
-            v3_fields=_v3_fields_from_maps(
-                profile_id, layers_by_profile, summary_by_profile,
-            ),
+            metrics_map.get(profile_id), #metrics_map.get(profile_id) - метрики профиля.
+            level_mode=level_mode, #level_mode - режим уровней.
+            pressure_top_hpa=pressure_top_hpa, #pressure_top_hpa - минимальное давление у поверхности в гПа.
+            max_surface_pressure_hpa=max_surface_pressure_hpa, #max_surface_pressure_hpa - максимальное давление у поверхности в гПа.
+            min_levels=min_levels, #min_levels - минимальное количество уровней.
+            v3_fields=_v3_fields_from_maps(profile_id, layers_by_profile, summary_by_profile), #v3_fields - поля v3.
         )
         if built is None:
             continue
         day, obs = built
         by_day[day].append(obs)
 
-    # 3) В raw добавляем профили без уровней, чтобы ничего не терялось.
+    # 3) В raw добавляем профили без уровней, чтобы ничего не терялось. В raw добавляем профили без уровней, чтобы ничего не терялось. Вызывается в функции build_daily_profiles. Возвращает None. Если режим уровней raw, то добавляет профили без уровней в словарь по дням.
     if level_mode == "raw":
         _append_metrics_only_profiles(
             by_day,
@@ -775,22 +761,22 @@ def build_daily_profiles(
             summary_by_profile=summary_by_profile,
         )
 
-    # 4) Собираем месяцы и итоговый JSON.
+    # 4) Собираем месяцы и итоговый JSON. Собираем месяцы и итоговый JSON. Вызывается в функции build_daily_profiles. Возвращает кортеж из словаря с месяцами и количества наблюдений. Например, ({'2026-01': {'days': [{'date': '2026-01-01', 'n_profiles': 10, 'n_good': 8, 'n_missing_levels': 2, 'inversion_detected': True, 't_surface_c': 20.0, 'observations': [{'profile_id': '1234567890', 'datetime_utc': '2026-01-01 12:00:00', 'cycle': '01', 'heights_m': [100.0, 101.0, 102.0], 'heights_interp_m': [100.5, 101.5, 102.5], 'heights_baro_m': [100.2, 101.2, 102.2], 'pressure_hpa': [1000.0, 999.0, 998.0], 'temperature_c': [20.0, 20.1, 20.2], 'n_levels': 3, 't_surface_c': 20.0, 'inversion_detected': True, 'inv_fields': {'inversion_from_top_tops': [100.0, 101.0, 102.0], 'inversion_from_bottom_tops': [100.0, 101.0, 102.0], 'inversion_from_top_bottoms': [100.0, 101.0, 102.0], 'inversion_from_bottom_bottoms': [100.0, 101.0, 102.0]}, 'profile_status': 'good', 'p_surface_hpa': 1000.0, 'station_elevation_m': 100.0, 'height_source_counts': {'level': 10, 'phi': 5, 'interp': 3, 'baro': 2}, 'missing_levels': False, 'v3_fields': {'inversion_layers_v3': [100.0, 101.0, 102.0], 'pattern': 'NONE', 'n_layers': 3, 'strongest_delta_t_c_v3': 1.0}}, ...], 'day_mean': {'pressure_hpa': [1000.0, 999.0, 998.0], 'heights_m': [100.0, 101.0, 102.0], 'temperature_c': [20.0, 20.1, 20.2]}]}}, 100).
     months, n_observations = _build_months_payload(by_day, grid_points=grid_points)
-    station_name = str(long_df["station_name"].iloc[0]) if len(long_df) else ""
-    station_id = str(long_df["station_id"].iloc[0]) if len(long_df) else ""
-    station_z = _station_elevation(long_df, metrics_df, station_id)
+    station_name = str(long_df["station_name"].iloc[0]) if len(long_df) else "" #station_name - название станции.
+    station_id = str(long_df["station_id"].iloc[0]) if len(long_df) else "" #station_id - id станции.
+    station_z = _station_elevation(long_df, metrics_df, station_id) #station_z - высота станции.
 
-    return {
+    return { #return - возвращает словарь с ежедневными профилями.
         "schema": SCHEMA,
-        "features": list(FEATURES),
-        "built_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "station_id": station_id,
-        "station_name": station_name,
+        "features": list(FEATURES), #FEATURES - список признаков.
+        "built_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), #built_at - дата и время сборки.
+        "station_id": station_id, #station_id - id станции.
+        "station_name": station_name, #station_name - название станции.
         "station_elevation_m": station_z,
-        "source_tables": source,
-        "pressure_top_hpa": pressure_top_hpa,
-        "max_surface_pressure_hpa": max_surface_pressure_hpa,
+        "source_tables": source, #source - источник данных.
+        "pressure_top_hpa": pressure_top_hpa, #pressure_top_hpa - минимальное давление у поверхности в гПа.
+        "max_surface_pressure_hpa": max_surface_pressure_hpa, #max_surface_pressure_hpa - максимальное давление у поверхности в гПа.
         "level_mode": level_mode,
         "plot_min_levels": min_levels,
         "grid_points": grid_points,
@@ -804,18 +790,18 @@ def build_daily_profiles(
         ),
         "months": months,
     }
-
-
+#Функция main собирает ежедневные профили из long-таблицы и метрик. Вызывается в функции main. Возвращает 0.
 def main() -> int:
     parser = argparse.ArgumentParser(description="Собрать daily_profiles.json (observations_v1)")
-    parser.add_argument("--long", default=str(DEFAULT_LONG_CSV))
-    parser.add_argument("--metrics", default=str(DEFAULT_METRICS_CSV))
+    parser.add_argument("--long", default=str(DEFAULT_LONG_CSV)) #long - путь к long-таблице.
+    parser.add_argument("--metrics", default=str(DEFAULT_METRICS_CSV)) #metrics - путь к метрикам.
     parser.add_argument(
         "--xlsx",
+        default=None,
         help="Excel с листами profiles_long и profile_metrics "
              "(если CSV нет — берётся автоматически из папки --long)",
-    )
-    parser.add_argument("--output", default=str(DEFAULT_OUTPUT))
+    ) #Excel с листами profiles_long и profile_metrics (если CSV нет — берётся автоматически из папки --long)
+    parser.add_argument("--output", default=str(DEFAULT_OUTPUT)) #output - путь к выходному файлу.
     parser.add_argument(
         "--level-mode",
         choices=LEVEL_MODES,
@@ -832,10 +818,10 @@ def main() -> int:
         action="store_true",
         help="Посчитать gap-v3 слои из profiles_long и вложить в JSON",
     )
-    parser.add_argument("--layers-v3", help="Готовый inversion_layers_v3.csv")
-    parser.add_argument("--summary-v3", help="Готовый profile_inversion_summary_v3.csv")
+    parser.add_argument("--layers-v3", default=None, help="Готовый inversion_layers_v3.csv")
+    parser.add_argument("--summary-v3", default=None, help="Готовый profile_inversion_summary_v3.csv")
     args = parser.parse_args()
-
+#Функция build_daily_profiles собирает ежедневные профили из long-таблицы и метрик. Вызывается в функции main. Возвращает словарь с ежедневными профилями. 
     payload = build_daily_profiles(
         Path(args.long),
         Path(args.metrics),

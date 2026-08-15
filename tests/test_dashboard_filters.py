@@ -53,6 +53,91 @@ def test_filter_observations_cycle_and_range():
     assert {o["profile_id"] for o in inv} == {"b", "c"}
 
 
+def test_filter_by_type_and_v2_v3():
+    mod = _load_dashboard()
+    observations = [
+        {
+            "profile_id": "g",
+            "date": "2020-01-01",
+            "cycle": "00",
+            "inversion_detected": True,
+            "n_inversion_layers_v3": 1,
+            "has_G_v3": True,
+            "has_E_v3": False,
+            "has_HE_v3": False,
+            "inversion_layers_v3": [
+                {
+                    "position_type": "G",
+                    "base_height_agl_m": 0.0,
+                    "top_height_agl_m": 200.0,
+                    "depth_m": 200.0,
+                    "delta_t_c": 2.0,
+                    "mean_gradient_c_100m": 1.0,
+                }
+            ],
+        },
+        {
+            "profile_id": "he",
+            "date": "2020-01-01",
+            "cycle": "12",
+            "inversion_detected": False,
+            "n_inversion_layers_v3": 1,
+            "has_G_v3": False,
+            "has_E_v3": False,
+            "has_HE_v3": True,
+            "inversion_layers_v3": [
+                {
+                    "position_type": "HE",
+                    "base_height_agl_m": 400.0,
+                    "top_height_agl_m": 900.0,
+                    "depth_m": 500.0,
+                    "delta_t_c": 1.5,
+                    "mean_gradient_c_100m": 0.3,
+                }
+            ],
+        },
+        {
+            "profile_id": "none",
+            "date": "2020-01-02",
+            "cycle": "00",
+            "inversion_detected": False,
+            "n_inversion_layers_v3": 0,
+        },
+    ]
+    only_g = mod.filter_observations(
+        observations,
+        cycle_mode="00+12",
+        day_from=date(2020, 1, 1),
+        day_to=date(2020, 1, 31),
+        inversion_only=False,
+        types=["G"],
+    )
+    assert [o["profile_id"] for o in only_g] == ["g"]
+
+    only_v3 = mod.filter_observations(
+        observations,
+        cycle_mode="00+12",
+        day_from=date(2020, 1, 1),
+        day_to=date(2020, 1, 31),
+        inversion_only=False,
+        v2_v3_mode="only_v3",
+    )
+    assert [o["profile_id"] for o in only_v3] == ["he"]
+
+    tall = mod.filter_observations(
+        observations,
+        cycle_mode="00+12",
+        day_from=date(2020, 1, 1),
+        day_to=date(2020, 1, 31),
+        inversion_only=False,
+        top_agl_range=(800.0, 1200.0),
+    )
+    assert [o["profile_id"] for o in tall] == ["he"]
+
+    assert mod._obs_primary_type(observations[0]) == "G"
+    assert mod._obs_profile_color(observations[0], color_by_class=True, fallback="#111") == mod.V3_TYPE_COLORS["G"]
+
+
 def test_filter_00_plus_12_excludes_other_cycles():
     mod = _load_dashboard()
     observations = [
