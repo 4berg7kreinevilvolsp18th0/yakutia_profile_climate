@@ -1,0 +1,334 @@
+{
+  "input": "../gdex_outputs/far_east/stations/aldan/profiles_long.csv",
+  "rows": 183179,
+  "profiles": 18200,
+  "eligible_article_profiles": 17991,
+  "confirmed_inversions": 3500,
+  "confirmed_layers": 19996,
+  "layers_by_type": {
+    "G": 6641,
+    "E": 532,
+    "HE": 12823
+  },
+  "method": "height-primary gap-v3",
+  "qc_checks": {
+    "old": {
+      "layers": 10597,
+      "negative_depth": 49,
+      "top_below_base": 49,
+      "negative_base_agl": 2
+    },
+    "new": {
+      "layers": 19996,
+      "negative_depth": 0,
+      "top_below_base": 0,
+      "negative_base_agl": 0
+    }
+  },
+  "trend": {
+    "sen_slope_pp_per_year": -0.3005992950754732,
+    "sen_slope_low": -0.5524861878453038,
+    "sen_slope_high": -0.03263226541111086,
+    "kendall_tau": -0.34285714285714286,
+    "p_value": 0.03074704290123868
+  },
+  "analysis_config": {
+    "station_id": "31004",
+    "station_name": "Алдан",
+    "station_elevation_m": 679,
+    "cycles": [
+      "00",
+      "12"
+    ],
+    "pressure_top_hpa": 500,
+    "pressure_bottom_hpa": 1000,
+    "min_levels_to_500": 5,
+    "exact_top_tolerance_hpa": 0.6,
+    "strict_surface_qc": true,
+    "max_surface_pressure_hpa": 960,
+    "use_surface_height_qc": false,
+    "max_surface_height_deviation_m": 250,
+    "trend_start_year": 2005,
+    "trend_end_year": 2025,
+    "moving_average_window": 5,
+    "pressure_grid_hpa": [
+      500.0,
+      525.0,
+      550.0,
+      575.0,
+      600.0,
+      625.0,
+      650.0,
+      675.0,
+      700.0,
+      725.0,
+      750.0,
+      775.0,
+      800.0,
+      825.0,
+      850.0,
+      875.0,
+      900.0,
+      925.0
+    ],
+    "standard_pressure_levels_hpa": [
+      925.0,
+      850.0,
+      700.0,
+      500.0
+    ],
+    "inversion": {
+      "min_inversion_delta_c": 0.2,
+      "confirm_drop_levels": 2,
+      "confirm_depth_hpa": 30,
+      "min_drop_delta_c": 0.2
+    },
+    "layers": {
+      "surface_tolerance_m": 30,
+      "he_threshold_m": 250,
+      "max_embedded_gap_m": 100,
+      "min_strength_c": 0.3,
+      "height_bin_edges_m": [
+        0.0,
+        50.0,
+        100.0,
+        150.0,
+        250.0,
+        400.0,
+        600.0,
+        800.0,
+        1000.0,
+        1500.0,
+        2000.0,
+        3000.0,
+        4500.0
+      ],
+      "gamma_bin_edges_c_per_100m": [
+        0.0,
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        3.0,
+        4.0,
+        6.0,
+        8.0,
+        12.0,
+        20.0
+      ]
+    }
+  },
+  "figure_style": {
+    "language": "ru",
+    "journal_mode": true,
+    "show_title": true,
+    "font_family": "DejaVu Sans",
+    "base_font_size": 9.5,
+    "title_font_size": 12.0,
+    "label_font_size": 10.0,
+    "tick_font_size": 8.5,
+    "legend_font_size": 8.5,
+    "line_width": 1.8,
+    "marker_size": 4.5,
+    "grid_alpha": 0.25,
+    "dpi": 600,
+    "completeness_cmap": "cividis",
+    "missing_color": "#E6E8EB",
+    "figure_width_in": 7.2,
+    "figure_height_in": 4.5,
+    "output_formats": [
+      "png",
+      "svg"
+    ]
+  },
+  "figures": {
+    "00_height_QC_old_vs_new": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\00_height_QC_old_vs_new.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\00_height_QC_old_vs_new.svg"
+    ],
+    "01_top_height_recurrence_G_E_HE_fixed": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\01_top_height_recurrence_G_E_HE_fixed.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\01_top_height_recurrence_G_E_HE_fixed.svg"
+    ],
+    "02_base_height_recurrence_G_E_HE_fixed": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\02_base_height_recurrence_G_E_HE_fixed.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\02_base_height_recurrence_G_E_HE_fixed.svg"
+    ],
+    "03_inversion_depth_recurrence_G_E_HE_fixed": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\03_inversion_depth_recurrence_G_E_HE_fixed.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\03_inversion_depth_recurrence_G_E_HE_fixed.svg"
+    ],
+    "04_base_vs_top_height_QC_fixed": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\04_base_vs_top_height_QC_fixed.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\04_base_vs_top_height_QC_fixed.svg"
+    ],
+    "05_monthly_top_height_median_IQR_fixed": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\05_monthly_top_height_median_IQR_fixed.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\05_monthly_top_height_median_IQR_fixed.svg"
+    ],
+    "06_monthly_base_height_median_IQR_fixed": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\06_monthly_base_height_median_IQR_fixed.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\06_monthly_base_height_median_IQR_fixed.svg"
+    ],
+    "08_top_height_cdf_00_12_G_E_HE_fixed": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\08_top_height_cdf_00_12_G_E_HE_fixed.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\08_top_height_cdf_00_12_G_E_HE_fixed.svg"
+    ],
+    "09_annual_median_top_height_G_E_HE_fixed": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\09_annual_median_top_height_G_E_HE_fixed.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\09_annual_median_top_height_G_E_HE_fixed.svg"
+    ],
+    "10_top_height_seasonal_quantiles_G_E_HE_fixed": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\10_top_height_seasonal_quantiles_G_E_HE_fixed.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\10_top_height_seasonal_quantiles_G_E_HE_fixed.svg"
+    ],
+    "fig01_completeness_heatmap": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\fig01_completeness_heatmap.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\fig01_completeness_heatmap.svg"
+    ],
+    "fig02_seasonal_temperature_profiles": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\fig02_seasonal_temperature_profiles.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\fig02_seasonal_temperature_profiles.svg"
+    ],
+    "fig03_monthly_inversion_frequency": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\fig03_monthly_inversion_frequency.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\fig03_monthly_inversion_frequency.svg"
+    ],
+    "fig04_annual_inversion_variability": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\fig04_annual_inversion_variability.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\fig04_annual_inversion_variability.svg"
+    ],
+    "extra01_monthly_inversion_intensity": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\extra01_monthly_inversion_intensity.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\extra01_monthly_inversion_intensity.svg"
+    ],
+    "extra02_monthly_inversion_top_height": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\extra02_monthly_inversion_top_height.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\extra02_monthly_inversion_top_height.svg"
+    ],
+    "extra03_profile_qc_summary": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\extra03_profile_qc_summary.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\extra03_profile_qc_summary.svg"
+    ],
+    "extra04_pressure_level_time_series": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\extra04_pressure_level_time_series.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\extra04_pressure_level_time_series.svg"
+    ],
+    "type01_matrix_G": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type01_matrix_G.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type01_matrix_G.svg"
+    ],
+    "type01_matrix_E": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type01_matrix_E.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type01_matrix_E.svg"
+    ],
+    "type01_matrix_HE": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type01_matrix_HE.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type01_matrix_HE.svg"
+    ],
+    "type02_height_bar": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar.svg"
+    ],
+    "type02_height_line": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_line.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_line.svg"
+    ],
+    "type02_height_months_facets": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_months_facets.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_months_facets.svg"
+    ],
+    "type02_height_months_overlay": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_months_overlay.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_months_overlay.svg"
+    ],
+    "type03_gamma_bar": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type03_gamma_bar.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type03_gamma_bar.svg"
+    ],
+    "type03_gamma_line": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type03_gamma_line.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type03_gamma_line.svg"
+    ],
+    "type03_gamma_hist": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type03_gamma_hist.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type03_gamma_hist.svg"
+    ],
+    "type03_gamma_monthly_box": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type03_gamma_monthly_box.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type03_gamma_monthly_box.svg"
+    ],
+    "07_heatmap_top_height_G_fixed": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\07_heatmap_top_height_G_fixed.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\07_heatmap_top_height_G_fixed.svg"
+    ],
+    "type02_height_bar_G": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_G.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_G.svg"
+    ],
+    "07_heatmap_top_height_E_fixed": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\07_heatmap_top_height_E_fixed.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\07_heatmap_top_height_E_fixed.svg"
+    ],
+    "type02_height_bar_E": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_E.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_E.svg"
+    ],
+    "07_heatmap_top_height_HE_fixed": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\07_heatmap_top_height_HE_fixed.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\07_heatmap_top_height_HE_fixed.svg"
+    ],
+    "type02_height_bar_HE": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_HE.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_HE.svg"
+    ],
+    "type02_height_bar_m01": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m01.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m01.svg"
+    ],
+    "type02_height_bar_m02": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m02.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m02.svg"
+    ],
+    "type02_height_bar_m03": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m03.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m03.svg"
+    ],
+    "type02_height_bar_m04": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m04.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m04.svg"
+    ],
+    "type02_height_bar_m05": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m05.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m05.svg"
+    ],
+    "type02_height_bar_m06": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m06.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m06.svg"
+    ],
+    "type02_height_bar_m07": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m07.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m07.svg"
+    ],
+    "type02_height_bar_m08": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m08.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m08.svg"
+    ],
+    "type02_height_bar_m09": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m09.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m09.svg"
+    ],
+    "type02_height_bar_m10": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m10.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m10.svg"
+    ],
+    "type02_height_bar_m11": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m11.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m11.svg"
+    ],
+    "type02_height_bar_m12": [
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m12.png",
+      "Алдан_высоты_инверсий_исправлено\\figures\\type02_height_bar_m12.svg"
+    ]
+  }
+}

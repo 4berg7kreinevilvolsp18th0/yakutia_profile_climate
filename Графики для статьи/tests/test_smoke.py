@@ -95,6 +95,87 @@ def test_typed_layers_and_gamma():
     matrix = frequency_matrix_by_type(flags, inversion_type="G")
     assert float(matrix.loc[2000, 1]) == 50.0
     heights = height_count_table(df_layers, bin_edges=AnalysisConfig().layers.height_bin_edges_m, by_month=False)
-    assert heights["count"].sum() == 1
+    assert int(heights["count"].sum()) == 1
     gammas = gamma_count_table(df_layers, bin_edges=AnalysisConfig().layers.gamma_bin_edges_c_per_100m)
-    assert gammas["days"].sum() == 1
+    assert int(gammas["days"].sum()) == 1
+
+
+def test_height_bins_keep_overflow_and_empty_slots():
+    from gdex_bufr.profile_climate.article_figures.config import AnalysisConfig
+    from gdex_bufr.profile_climate.article_figures.metrics import height_count_table
+
+    layers = pd.DataFrame(
+        [
+            {"top_height_agl_m": 10.0, "month": 1, "position_type": "G"},
+            {"top_height_agl_m": 5000.0, "month": 1, "position_type": "HE"},
+        ]
+    )
+    edges = AnalysisConfig().layers.height_bin_edges_m
+    table = height_count_table(layers, bin_edges=edges, by_month=False)
+    assert int(table["count"].sum()) == 2
+    assert table["count"].iloc[0] == 1
+    assert table["count"].iloc[-1] == 1
+    assert len(table) == len(edges)
+
+
+def test_height_primary_rejects_negative_depth():
+    from gdex_bufr.profile_climate.article_figures.config import AnalysisConfig
+    from gdex_bufr.profile_climate.article_figures.metrics import (
+        compute_inversion_layers,
+        compute_inversion_layers_pressure_order,
+        layer_geometry_qc,
+    )
+    from gdex_bufr.profile_climate.article_figures.data import build_profile_qc
+
+    rows = []
+    for pressure, temp, height in [
+        (1000, -20.0, 0.0),
+        (950, -18.0, 800.0),
+        (900, -16.0, 400.0),  # высота не монотонна относительно P
+        (850, -18.0, 1200.0),
+        (800, -20.0, 1600.0),
+    ]:
+        rows.append(
+            {
+                "profile_id": "p1",
+                "station_id": "31004",
+                "datetime_utc": "2000-01-01T00:00:00",
+                "cycle": "00",
+                "pressure_hpa": pressure,
+                "temperature_c": temp,
+                "height_m": height,
+                "year": 2000,
+                "month": 1,
+            }
+        )
+    df = pd.DataFrame(rows)
+    cfg = AnalysisConfig(strict_surface_qc=False)
+    qc = build_profile_qc(df, cfg)
+    qc["eligible_article"] = True
+    old = compute_inversion_layers_pressure_order(df, qc, cfg)
+    new = compute_inversion_layers(df, qc, cfg)
+    new_qc = layer_geometry_qc(new)
+    assert new_qc["negative_depth"] == 0
+    assert new_qc["top_below_base"] == 0
+    _ = old
+
+
+def test_equal_bar_widths():
+    from gdex_bufr.profile_climate.article_figures.config import FigureStyle
+    from gdex_bufr.profile_climate.article_figures.plots import plot_height_counts_bar
+
+    table = pd.DataFrame(
+        {
+            "month": [0, 0, 0],
+            "bin_left": [0.0, 50.0, 100.0],
+            "bin_right": [50.0, 100.0, 250.0],
+            "bin_center": [25.0, 75.0, 175.0],
+            "count": [3, 5, 8],
+        }
+    )
+    fig = plot_height_counts_bar(table, FigureStyle(show_title=False))
+    widths = [p.get_width() for p in fig.axes[0].patches]
+    assert widths
+    assert max(widths) - min(widths) < 1e-9
+    import matplotlib.pyplot as plt
+    plt.close(fig)

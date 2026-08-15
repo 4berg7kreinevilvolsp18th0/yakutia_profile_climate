@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import importlib.util
+import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 import numpy as np
@@ -8,6 +11,8 @@ import pandas as pd
 from scipy.stats import kendalltau, theilslopes
 
 from .config import AnalysisConfig, InversionConfig, LayerClassConfig
+
+_GAP_V3 = None
 
 
 SEASON_BY_MONTH = {
@@ -463,12 +468,101 @@ def _detect_confirmed_layers_arrays(
     return layers
 
 
+def _gap_v3_detect():
+    """Gap-v3 из основного репозитория: сортировка по height_m, не по давлению."""
+    global _GAP_V3
+    if _GAP_V3 is not None:
+        return _GAP_V3
+    repo = Path(__file__).resolve().parents[4]
+    path = repo / "gdex_bufr" / "profile_climate" / "inversion_layers.py"
+    if path.exists():
+        spec = importlib.util.spec_from_file_location("_project_inversion_layers", path)
+        mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        sys.modules["_project_inversion_layers"] = mod
+        spec.loader.exec_module(mod)
+        _GAP_V3 = mod.detect_inversion_layers_gap_v3
+        return _GAP_V3
+    from gdex_bufr.profile_climate.inversion_layers import detect_inversion_layers_gap_v3
+    _GAP_V3 = detect_inversion_layers_gap_v3
+    return _GAP_V3
+
+
+def _collapse_duplicate_heights(
+    z: np.ndarray,
+    t: np.ndarray,
+    p: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Одинаковая height_m внутри профиля → среднее T и P, затем снизу вверх."""
+    valid = np.isfinite(z) & np.isfinite(t)
+    z = np.asarray(z, dtype=float)[valid]
+    t = np.asarray(t, dtype=float)[valid]
+    p = np.asarray(p, dtype=float)[valid]
+    if z.size == 0:
+        return z, t, p
+    order = np.argsort(z, kind="mergesort")
+    z = z[order]
+    t = t[order]
+    p = p[order]
+    change = np.ones(z.size, dtype=bool)
+    change[1:] = z[1:] != z[:-1]
+    starts = np.flatnonzero(change)
+    ones = np.ones_like(t)
+    counts = np.add.reduceat(ones, starts)
+    t_out = np.add.reduceat(t, starts) / counts
+    p_finite = np.where(np.isfinite(p), p, 0.0)
+    p_ok = np.where(np.isfinite(p), ones, 0.0)
+    p_sum = np.add.reduceat(p_finite, starts)
+    p_n = np.add.reduceat(p_ok, starts)
+    p_out = np.divide(p_sum, p_n, out=np.full(starts.size, np.nan), where=p_n > 0)
+    return z[starts], t_out, p_out
+
+
+def layer_geometry_qc(layers: pd.DataFrame) -> dict[str, int]:
+    """Счётчики физически невозможных границ слоя."""
+    if layers.empty:
+        return {"layers": 0, "negative_depth": 0, "top_below_base": 0, "negative_base_agl": 0}
+    depth = pd.to_numeric(layers["depth_m"], errors="coerce")
+    base = pd.to_numeric(layers["base_height_agl_m"], errors="coerce")
+    top = pd.to_numeric(layers["top_height_agl_m"], errors="coerce")
+    return {
+        "layers": int(len(layers)),
+        "negative_depth": int((depth <= 0).fillna(False).sum()),
+        "top_below_base": int((top <= base).fillna(False).sum()),
+        "negative_base_agl": int((base < -1e-6).fillna(False).sum()),
+    }
+
+
+def compute_inversion_layers_pressure_order(
+    df: pd.DataFrame,
+    profile_qc: pd.DataFrame,
+    config: AnalysisConfig,
+) -> pd.DataFrame:
+    """Старый поиск: сегменты в порядке давления (для QC «до исправления»)."""
+    return _compute_inversion_layers_with_detector(
+        df, profile_qc, config, method="pressure-order v2-layers"
+    )
+
+
 def compute_inversion_layers(
     df: pd.DataFrame,
     profile_qc: pd.DataFrame,
     config: AnalysisConfig,
 ) -> pd.DataFrame:
-    """Подтверждённые слои роста T с классификацией G/E/HE по высоте основания."""
+    """Слои gap-v3: height_m — основная вертикальная координата."""
+    return _compute_inversion_layers_with_detector(
+        df, profile_qc, config, method="height-primary gap-v3"
+    )
+
+
+def _compute_inversion_layers_with_detector(
+    df: pd.DataFrame,
+    profile_qc: pd.DataFrame,
+    config: AnalysisConfig,
+    *,
+    method: str,
+) -> pd.DataFrame:
+    """Слои роста T с классификацией G/E/HE по высоте основания."""
     profile_ids = df["profile_id"].astype(str).to_numpy()
     pressure_all = df["pressure_hpa"].to_numpy(float)
     temperature_all = df["temperature_c"].to_numpy(float)
@@ -483,6 +577,7 @@ def compute_inversion_layers(
     rows: list[dict[str, Any]] = []
     top = config.pressure_top_hpa
     bottom = config.pressure_bottom_hpa
+    detect_v3 = _gap_v3_detect() if method.startswith("height-primary") else None
     for profile_id, idx in group_indices.items():
         q = qc_map[profile_id]
         if not bool(q.get("eligible_article", False)):
@@ -490,13 +585,47 @@ def compute_inversion_layers(
         idx = np.asarray(idx, dtype=int)
         p = pressure_all[idx]
         mask = np.isfinite(p) & (p >= top) & (p <= bottom)
-        layers = _detect_confirmed_layers_arrays(
-            p[mask],
-            temperature_all[idx][mask],
-            height_all[idx][mask],
-            config.inversion,
-            config.layers,
-        )
+        p_use = p[mask]
+        t_use = temperature_all[idx][mask]
+        h_use = height_all[idx][mask]
+        if detect_v3 is not None:
+            z, t, p_col = _collapse_duplicate_heights(h_use, t_use, p_use)
+            detected = detect_v3(
+                z,
+                t,
+                p_col,
+                max_embedded_gap_m=float(config.layers.max_embedded_gap_m),
+                min_strength_c=float(config.layers.min_strength_c),
+                he_threshold_m=float(config.layers.he_threshold_m),
+                surface_tolerance_m=float(config.layers.surface_tolerance_m),
+            )
+            z0 = float(z[0]) if z.size else 0.0
+            layers = []
+            for ly in detected:
+                layers.append(
+                    {
+                        "position_type": ly.position_type,
+                        "base_pressure_hpa": ly.base_pressure_hpa,
+                        "top_pressure_hpa": ly.top_pressure_hpa,
+                        "base_height_m": ly.base_height_m,
+                        "top_height_m": ly.top_height_m,
+                        "base_height_agl_m": ly.base_height_m - z0,
+                        "top_height_agl_m": ly.top_height_m - z0,
+                        "depth_m": ly.depth_m,
+                        "delta_t_c": ly.delta_t_c,
+                        "gamma_c_per_100m": ly.mean_gradient_c_100m,
+                        "confirm_drop_c": np.nan,
+                        "embedded_gap_count": ly.embedded_gap_count,
+                        "embedded_gap_depth_total_m": ly.embedded_gap_depth_total_m,
+                        "method": method,
+                    }
+                )
+        else:
+            layers = _detect_confirmed_layers_arrays(
+                p_use, t_use, h_use, config.inversion, config.layers,
+            )
+            for layer in layers:
+                layer["method"] = method
         for layer_index, layer in enumerate(layers):
             rows.append(
                 {
@@ -516,6 +645,7 @@ def compute_inversion_layers(
                 "position_type", "base_pressure_hpa", "top_pressure_hpa",
                 "base_height_m", "top_height_m", "base_height_agl_m", "top_height_agl_m",
                 "depth_m", "delta_t_c", "gamma_c_per_100m", "confirm_drop_c",
+                "embedded_gap_count", "embedded_gap_depth_total_m", "method",
             ]
         )
     return pd.DataFrame.from_records(rows).sort_values(
@@ -583,24 +713,73 @@ def _bin_edges_table(counts: pd.DataFrame, value_col: str) -> pd.DataFrame:
     return out
 
 
+def _edges_with_overflow(bin_edges: Sequence[float]) -> np.ndarray:
+    edges = np.asarray(tuple(bin_edges), dtype=float)
+    if not np.isfinite(edges[-1]):
+        return edges
+    return np.append(edges, np.inf)
+
+
+def _bin_frame(edges: np.ndarray) -> pd.DataFrame:
+    left = edges[:-1]
+    right = edges[1:]
+    return pd.DataFrame(
+        {
+            "bin_left": left,
+            "bin_right": right,
+            "bin_center": np.where(np.isfinite(right), (left + right) / 2.0, left),
+        }
+    )
+
+
+def _assign_bins(values: pd.Series, edges: np.ndarray) -> pd.Series:
+    return pd.cut(values, bins=edges, right=False, include_lowest=True)
+
+
 def height_count_table(
     layers: pd.DataFrame,
     *,
     bin_edges: Sequence[float],
     by_month: bool = True,
+    by_type: bool = False,
+    value_col: str = "top_height_agl_m",
+    count_name: str = "count",
 ) -> pd.DataFrame:
-    """Число инверсий по бинам высоты верха AGL."""
-    edges = np.asarray(tuple(bin_edges), dtype=float)
-    use = layers.dropna(subset=["top_height_agl_m"]).copy()
+    """Число инверсий по бинам высоты. Все бины на месте, включая overflow ≥ last."""
+    edges = _edges_with_overflow(bin_edges)
+    bins = _bin_frame(edges)
+    use = layers.dropna(subset=[value_col]).copy()
+    months = list(range(1, 13)) if by_month else [0]
+    types = list(INVERSION_TYPES) if by_type else [None]
+    grid_parts = []
+    for month in months:
+        for kind in types:
+            part = bins.copy()
+            part["month"] = month
+            if by_type:
+                part["position_type"] = kind
+            grid_parts.append(part)
+    grid = pd.concat(grid_parts, ignore_index=True)
     if use.empty:
-        return pd.DataFrame(columns=["month", "bin_left", "bin_right", "bin_center", "count"])
-    use["bin"] = pd.cut(use["top_height_agl_m"], bins=edges, right=False, include_lowest=True)
-    group_cols = ["month", "bin"] if by_month else ["bin"]
-    counts = use.groupby(group_cols, observed=True).size().reset_index(name="count")
+        grid[count_name] = 0
+        return grid.sort_values(
+            [c for c in ["month", "position_type", "bin_left"] if c in grid.columns]
+        ).reset_index(drop=True)
+
+    use["bin"] = _assign_bins(use[value_col], edges)
+    use = use[use["bin"].notna()].copy()
     if not by_month:
-        counts["month"] = 0
-    out = _bin_edges_table(counts, "count")
-    return out.sort_values(["month", "bin_left"]).reset_index(drop=True)
+        use["month"] = 0
+    group_cols = ["month"]
+    if by_type:
+        group_cols.append("position_type")
+    group_cols.append("bin")
+    counts = use.groupby(group_cols, observed=False).size().reset_index(name=count_name)
+    counted = _bin_edges_table(counts, count_name)
+    keys = ["month", "position_type", "bin_left"] if by_type else ["month", "bin_left"]
+    out = grid.merge(counted[keys + [count_name]], on=keys, how="left")
+    out[count_name] = out[count_name].fillna(0).astype(int)
+    return out.sort_values(keys).reset_index(drop=True)
 
 
 def gamma_count_table(
@@ -609,21 +788,111 @@ def gamma_count_table(
     bin_edges: Sequence[float],
     by_month: bool = False,
 ) -> pd.DataFrame:
-    """Число дней/слоёв по бинам температурного градиента γ (°C/100 м)."""
-    edges = np.asarray(tuple(bin_edges), dtype=float)
+    """Число дней по бинам γ. Все бины на месте, включая overflow."""
+    edges = _edges_with_overflow(bin_edges)
+    bins = _bin_frame(edges)
     use = layers.dropna(subset=["gamma_c_per_100m"]).copy()
+    months = list(range(1, 13)) if by_month else [0]
+    grid = pd.concat([bins.assign(month=m) for m in months], ignore_index=True)
     if use.empty:
-        return pd.DataFrame(columns=["month", "bin_left", "bin_right", "bin_center", "days"])
-    # один профиль — один день; берём максимальный γ среди слоёв профиля
+        grid["days"] = 0
+        return grid.sort_values(["month", "bin_left"]).reset_index(drop=True)
     per_day = (
         use.groupby(["profile_id", "year", "month"], sort=False)["gamma_c_per_100m"]
         .max()
         .reset_index()
     )
-    per_day["bin"] = pd.cut(per_day["gamma_c_per_100m"], bins=edges, right=False, include_lowest=True)
-    group_cols = ["month", "bin"] if by_month else ["bin"]
-    counts = per_day.groupby(group_cols, observed=True).size().reset_index(name="days")
     if not by_month:
-        counts["month"] = 0
-    out = _bin_edges_table(counts, "days")
+        per_day["month"] = 0
+    per_day["bin"] = _assign_bins(per_day["gamma_c_per_100m"], edges)
+    per_day = per_day[per_day["bin"].notna()]
+    counts = per_day.groupby(["month", "bin"], observed=False).size().reset_index(name="days")
+    counted = _bin_edges_table(counts, "days")
+    out = grid.merge(counted[["month", "bin_left", "days"]], on=["month", "bin_left"], how="left")
+    out["days"] = out["days"].fillna(0).astype(int)
     return out.sort_values(["month", "bin_left"]).reset_index(drop=True)
+
+
+def recurrence_percent_table(
+    layers: pd.DataFrame,
+    profile_qc: pd.DataFrame,
+    *,
+    bin_edges: Sequence[float],
+    value_col: str,
+    by_month: bool = False,
+) -> pd.DataFrame:
+    """Повторяемость слоёв в бине, % от пригодных профилей."""
+    eligible = int(profile_qc["eligible_article"].sum()) if not profile_qc.empty else 0
+    if by_month:
+        eligible_by_month = (
+            profile_qc[profile_qc["eligible_article"]]
+            .groupby("month")
+            .size()
+            .reindex(range(1, 13), fill_value=0)
+        )
+    counts = height_count_table(
+        layers,
+        bin_edges=bin_edges,
+        by_month=by_month,
+        by_type=True,
+        value_col=value_col,
+        count_name="profiles",
+    )
+    if by_month:
+        counts["eligible_profiles"] = counts["month"].map(eligible_by_month).fillna(0).astype(int)
+    else:
+        counts["eligible_profiles"] = eligible
+    denom = counts["eligible_profiles"].replace(0, np.nan)
+    counts["recurrence_percent"] = counts["profiles"] / denom * 100.0
+    counts["recurrence_percent"] = counts["recurrence_percent"].fillna(0.0)
+    return counts
+
+
+def monthly_median_iqr_table(layers: pd.DataFrame, value_col: str) -> pd.DataFrame:
+    use = layers.dropna(subset=[value_col]).copy()
+    if use.empty:
+        return pd.DataFrame(columns=["month", "position_type", "median", "q25", "q75"])
+    rows = []
+    for month in range(1, 13):
+        for kind in INVERSION_TYPES:
+            vals = use.loc[
+                (use["month"] == month) & (use["position_type"] == kind),
+                value_col,
+            ]
+            rows.append(
+                {
+                    "month": month,
+                    "position_type": kind,
+                    "median": float(vals.median()) if len(vals) else np.nan,
+                    "q25": float(vals.quantile(0.25)) if len(vals) else np.nan,
+                    "q75": float(vals.quantile(0.75)) if len(vals) else np.nan,
+                    "n": int(len(vals)),
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def annual_median_table(layers: pd.DataFrame, value_col: str) -> pd.DataFrame:
+    use = layers.dropna(subset=[value_col]).copy()
+    if use.empty:
+        return pd.DataFrame(columns=["year", "position_type", "median", "n"])
+    out = (
+        use.groupby(["year", "position_type"], sort=False)[value_col]
+        .agg(median="median", n="size")
+        .reset_index()
+    )
+    return out.sort_values(["position_type", "year"]).reset_index(drop=True)
+
+
+def year_month_median_matrix(layers: pd.DataFrame, *, inversion_type: str, value_col: str) -> pd.DataFrame:
+    use = layers[layers["position_type"] == inversion_type].dropna(subset=[value_col])
+    if use.empty:
+        return pd.DataFrame(columns=range(1, 13))
+    return (
+        use.groupby(["year", "month"])[value_col]
+        .median()
+        .reset_index()
+        .pivot(index="year", columns="month", values=value_col)
+        .reindex(columns=range(1, 13))
+        .sort_index()
+    )

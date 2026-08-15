@@ -252,6 +252,37 @@ def plot_pressure_level_time_series(series: pd.DataFrame, style: FigureStyle):
         return _finish(fig, style)
 
 
+def _bin_tick_labels(left: np.ndarray, right: np.ndarray) -> list[str]:
+    labels = []
+    for lo, hi in zip(left, right):
+        if not np.isfinite(hi):
+            labels.append(f"≥{int(lo)}" if float(lo).is_integer() else f"≥{lo:g}")
+        else:
+            lo_s = str(int(lo)) if float(lo).is_integer() else f"{lo:g}"
+            hi_s = str(int(hi)) if float(hi).is_integer() else f"{hi:g}"
+            labels.append(f"{lo_s}–{hi_s}")
+    return labels
+
+
+def _equal_width_bars(ax, labels: list[str], values, *, color=None, rotate: bool = True):
+    """Столбцы одинаковой ширины; подписи бинов на категориальной оси."""
+    x = np.arange(len(labels), dtype=float)
+    bars = ax.bar(
+        x,
+        np.asarray(values, dtype=float),
+        width=0.82,
+        align="center",
+        alpha=0.82,
+        color=color or "#2E86C1",
+        edgecolor="#1B4F72",
+        linewidth=0.4,
+    )
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, rotation=45 if rotate else 0, ha="right" if rotate else "center")
+    ax.set_xlim(-0.6, max(len(labels) - 0.4, 0.6))
+    return bars
+
+
 def _type_title(inversion_type: str, style: FigureStyle) -> str:
     from .metrics import TYPE_LABELS_EN, TYPE_LABELS_RU
 
@@ -318,22 +349,15 @@ def plot_height_counts_bar(
 ):
     """Столбчатый: X — высота, Y — число инверсий."""
     data = table[table["month"] == (month or 0)].copy() if "month" in table.columns else table.copy()
+    data = data.sort_values("bin_left") if not data.empty else data
     with article_rc(style):
         fig, ax = plt.subplots(figsize=(style.figure_width_in, style.figure_height_in))
         if data.empty:
             ax.text(0.5, 0.5, "нет данных", ha="center", va="center", transform=ax.transAxes)
         else:
-            widths = (data["bin_right"] - data["bin_left"]).to_numpy(float)
-            ax.bar(
-                data["bin_left"],
-                data["count"],
-                width=widths * 0.92,
-                align="edge",
-                alpha=0.75,
-                edgecolor="#333333",
-                linewidth=0.4,
-            )
-        ax.set_xlabel("Высота верха AGL, м" if style.language == "ru" else "Top height AGL, m")
+            labels = _bin_tick_labels(data["bin_left"].to_numpy(float), data["bin_right"].to_numpy(float))
+            _equal_width_bars(ax, labels, data["count"].to_numpy(float))
+        ax.set_xlabel("Интервал высоты верха AGL, м" if style.language == "ru" else "Top height AGL bin, m")
         ax.set_ylabel("Число инверсий" if style.language == "ru" else "Inversion count")
         ax.grid(True, axis="y", alpha=style.grid_alpha, linewidth=0.5)
         if style.show_title:
@@ -354,6 +378,7 @@ def plot_height_counts_line(
 ):
     """Линейный: X — высота, Y — число инверсий."""
     data = table[table["month"] == (month or 0)].copy() if "month" in table.columns else table.copy()
+    data = data.sort_values("bin_left") if not data.empty else data
     with article_rc(style):
         fig, ax = plt.subplots(figsize=(style.figure_width_in, style.figure_height_in))
         if not data.empty:
@@ -387,16 +412,9 @@ def plot_height_counts_by_month_facets(
         for ax, month in zip(axes.ravel(), range(1, 13)):
             g = monthly_table[monthly_table["month"] == month]
             if not g.empty:
-                widths = (g["bin_right"] - g["bin_left"]).to_numpy(float)
-                ax.bar(
-                    g["bin_left"],
-                    g["count"],
-                    width=widths * 0.9,
-                    align="edge",
-                    alpha=0.8,
-                    edgecolor="#333333",
-                    linewidth=0.3,
-                )
+                g = g.sort_values("bin_left")
+                labels = _bin_tick_labels(g["bin_left"].to_numpy(float), g["bin_right"].to_numpy(float))
+                _equal_width_bars(ax, labels, g["count"].to_numpy(float), rotate=True)
             ax.set_title(months[month - 1], fontsize=style.tick_font_size)
             ax.grid(True, axis="y", alpha=style.grid_alpha, linewidth=0.4)
             if month > 8:
@@ -452,17 +470,9 @@ def plot_gamma_counts_bar(
     with article_rc(style):
         fig, ax = plt.subplots(figsize=(style.figure_width_in, style.figure_height_in))
         if not data.empty:
-            widths = (data["bin_right"] - data["bin_left"]).to_numpy(float)
-            ax.bar(
-                data["bin_left"],
-                data["days"],
-                width=widths * 0.92,
-                align="edge",
-                alpha=0.75,
-                color="#2C7FB8",
-                edgecolor="#1A5276",
-                linewidth=0.4,
-            )
+            data = data.sort_values("bin_left")
+            labels = _bin_tick_labels(data["bin_left"].to_numpy(float), data["bin_right"].to_numpy(float))
+            _equal_width_bars(ax, labels, data["days"].to_numpy(float), color="#2C7FB8")
         ax.set_xlabel("γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m")
         ax.set_ylabel("Число дней" if style.language == "ru" else "Number of days")
         ax.grid(True, axis="y", alpha=style.grid_alpha, linewidth=0.5)
@@ -556,3 +566,220 @@ def plot_gamma_by_month_box(
         if style.show_title:
             ax.set_title(title or ("Сезонный ход γ" if style.language == "ru" else "Seasonal cycle of γ"))
         return _finish(fig, style)
+
+
+TYPE_COLORS = {"G": "#2E86C1", "E": "#E67E22", "HE": "#1E8449"}
+
+
+def plot_qc_old_vs_new(old_qc: dict, new_qc: dict, style: FigureStyle, *, title: str | None = None):
+    labels_ru = ["Толщина ≤ 0", "Верх ≤ основания"]
+    labels_en = ["Depth ≤ 0", "Top ≤ base"]
+    labels = labels_ru if style.language == "ru" else labels_en
+    old_vals = [old_qc.get("negative_depth", 0), old_qc.get("top_below_base", 0)]
+    new_vals = [new_qc.get("negative_depth", 0), new_qc.get("top_below_base", 0)]
+    with article_rc(style):
+        fig, ax = plt.subplots(figsize=(style.figure_width_in * 0.85, style.figure_height_in))
+        x = np.arange(len(labels), dtype=float)
+        width = 0.36
+        b1 = ax.bar(x - width / 2, old_vals, width=width, color="#2E86C1", label="Старая версия" if style.language == "ru" else "Previous")
+        b2 = ax.bar(x + width / 2, new_vals, width=width, color="#E67E22", label="Исправленная" if style.language == "ru" else "Corrected")
+        ax.bar_label(b1, padding=3, fontsize=style.tick_font_size)
+        ax.bar_label(b2, padding=3, fontsize=style.tick_font_size)
+        ax.set_xticks(x, labels)
+        ax.set_ylabel("Число физических противоречий" if style.language == "ru" else "Number of physical inconsistencies")
+        ax.set_ylim(bottom=0)
+        ax.grid(True, axis="y", alpha=style.grid_alpha, linewidth=0.5)
+        ax.legend(frameon=False)
+        if style.show_title:
+            ax.set_title(title or ("Контроль высот инверсий: до и после исправления" if style.language == "ru" else "Inversion height QC: before and after"))
+        return _finish(fig, style)
+
+
+def plot_recurrence_by_type_bars(
+    table: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    value_name: str,
+    title: str | None = None,
+):
+    """Три панели G/E/HE, одинаковая ширина столбцов, все бины."""
+    from .metrics import INVERSION_TYPES
+
+    data = table[table["month"] == 0].copy() if "month" in table.columns else table.copy()
+    with article_rc(style):
+        fig, axes = plt.subplots(1, 3, figsize=(style.figure_width_in * 1.55, style.figure_height_in * 1.05), sharey=True)
+        ycol = "recurrence_percent" if "recurrence_percent" in data.columns else "count"
+        for ax, kind in zip(axes, INVERSION_TYPES):
+            g = data[data["position_type"] == kind].sort_values("bin_left")
+            labels = _bin_tick_labels(g["bin_left"].to_numpy(float), g["bin_right"].to_numpy(float)) if not g.empty else []
+            values = g[ycol].to_numpy(float) if not g.empty else []
+            bars = _equal_width_bars(ax, labels, values, color=TYPE_COLORS[kind]) if len(labels) else []
+            if len(bars):
+                for bar, val in zip(bars, values):
+                    if val >= 0.15:
+                        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f"{val:.1f}", ha="center", va="bottom", fontsize=max(5.5, style.tick_font_size - 2.5))
+            ax.set_title(_type_title(kind, style), fontsize=style.tick_font_size + 0.5)
+            ax.grid(True, axis="y", alpha=style.grid_alpha, linewidth=0.4)
+            ax.set_xlabel("H AGL, м" if style.language == "ru" else "H AGL, m", fontsize=style.tick_font_size)
+        axes[0].set_ylabel(value_name)
+        if style.show_title:
+            fig.suptitle(title or "")
+        fig.tight_layout()
+        return fig
+
+
+def plot_base_vs_top_scatter(layers: pd.DataFrame, style: FigureStyle, *, title: str | None = None):
+    from .metrics import INVERSION_TYPES
+
+    with article_rc(style):
+        fig, axes = plt.subplots(1, 3, figsize=(style.figure_width_in * 1.55, style.figure_height_in * 1.05), sharey=True)
+        for ax, kind in zip(axes, INVERSION_TYPES):
+            g = layers[layers["position_type"] == kind]
+            ax.scatter(g["base_height_agl_m"], g["top_height_agl_m"], s=6, alpha=0.22, color=TYPE_COLORS[kind], linewidths=0)
+            lim = 0.0
+            if not g.empty:
+                lim = float(np.nanmax([g["base_height_agl_m"].max(), g["top_height_agl_m"].max()]))
+            lim = max(lim, 100.0)
+            ax.plot([0, lim], [0, lim], linestyle="--", color="#7F8C8D", linewidth=0.9)
+            ax.set_xlim(0, lim)
+            ax.set_ylim(0, lim)
+            ax.set_title(_type_title(kind, style), fontsize=style.tick_font_size + 0.5)
+            ax.grid(True, alpha=style.grid_alpha, linewidth=0.4)
+            ax.set_xlabel("Основание AGL, м" if style.language == "ru" else "Base AGL, m")
+        axes[0].set_ylabel("Верх AGL, м" if style.language == "ru" else "Top AGL, m")
+        if style.show_title:
+            fig.suptitle(title or ("QC геометрии: верх каждого слоя выше основания" if style.language == "ru" else "Geometry QC: top above base"))
+        fig.tight_layout()
+        return fig
+
+
+def plot_monthly_median_iqr(table: pd.DataFrame, style: FigureStyle, *, ylabel: str, title: str | None = None):
+    from .metrics import INVERSION_TYPES
+
+    with article_rc(style):
+        fig, ax = plt.subplots(figsize=(style.figure_width_in, style.figure_height_in))
+        months = _months(style)
+        x = np.arange(1, 13)
+        for kind in INVERSION_TYPES:
+            g = table[table["position_type"] == kind].set_index("month").reindex(range(1, 13))
+            ax.plot(x, g["median"], marker="o", markersize=style.marker_size, linewidth=style.line_width, color=TYPE_COLORS[kind], label=_type_title(kind, style))
+            ax.fill_between(x, g["q25"], g["q75"], color=TYPE_COLORS[kind], alpha=0.16, linewidth=0)
+        ax.set_xticks(x, labels=months)
+        ax.set_xlabel("Месяц" if style.language == "ru" else "Month")
+        ax.set_ylabel(ylabel)
+        ax.set_ylim(bottom=0)
+        ax.grid(True, axis="y", alpha=style.grid_alpha, linewidth=0.5)
+        ax.legend(frameon=False)
+        if style.show_title and title:
+            ax.set_title(title)
+        return _finish(fig, style)
+
+
+def plot_height_median_heatmap(
+    matrix: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    inversion_type: str,
+    title: str | None = None,
+):
+    """Теплокарта медианной высоты: шкала по данному типу, не глобальная 0–5000."""
+    with article_rc(style):
+        fig, ax = plt.subplots(figsize=(style.figure_width_in, max(style.figure_height_in, 5.2)))
+        values = matrix.to_numpy(float)
+        masked = np.ma.masked_invalid(values)
+        finite = values[np.isfinite(values)]
+        vmax = float(np.nanpercentile(finite, 98)) if finite.size else 1.0
+        vmax = max(vmax, 50.0)
+        cmap = mpl.colormaps["viridis"].copy()
+        cmap.set_bad(style.missing_color)
+        image = ax.imshow(masked, aspect="auto", interpolation="nearest", vmin=0, vmax=vmax, cmap=cmap)
+        ax.set_xticks(np.arange(12), labels=_months(style))
+        ax.set_yticks(np.arange(len(matrix.index)), labels=[str(x) for x in matrix.index])
+        ax.set_xlabel("Месяц" if style.language == "ru" else "Month")
+        ax.set_ylabel("Год" if style.language == "ru" else "Year")
+        ax.set_xticks(np.arange(-0.5, 12, 1), minor=True)
+        ax.set_yticks(np.arange(-0.5, len(matrix.index), 1), minor=True)
+        ax.grid(which="minor", linewidth=0.35, alpha=0.35)
+        ax.tick_params(which="minor", bottom=False, left=False)
+        for spine in ax.spines.values():
+            spine.set_visible(True)
+            spine.set_linewidth(0.6)
+        cbar = fig.colorbar(image, ax=ax, pad=0.025, fraction=0.035)
+        cbar.set_label("Медианная высота верха AGL, м" if style.language == "ru" else "Median top height AGL, m")
+        if style.show_title:
+            ax.set_title(title or f"{_type_title(inversion_type, style)}")
+        return _finish(fig, style)
+
+
+def plot_top_height_cdf_by_cycle(layers: pd.DataFrame, style: FigureStyle, *, title: str | None = None):
+    from .metrics import INVERSION_TYPES
+
+    with article_rc(style):
+        fig, axes = plt.subplots(1, 3, figsize=(style.figure_width_in * 1.55, style.figure_height_in * 1.05), sharey=True)
+        for ax, kind in zip(axes, INVERSION_TYPES):
+            g = layers[layers["position_type"] == kind]
+            for cycle, color, ls in (("00", "#2E86C1", "-"), ("12", "#E67E22", "--")):
+                vals = np.sort(g.loc[g["cycle"] == cycle, "top_height_agl_m"].dropna().to_numpy(float))
+                if vals.size == 0:
+                    continue
+                y = np.linspace(0, 100, vals.size, endpoint=True)
+                ax.plot(vals, y, color=color, linestyle=ls, linewidth=style.line_width, label=f"{cycle} UTC")
+            ax.set_title(_type_title(kind, style), fontsize=style.tick_font_size + 0.5)
+            ax.set_ylim(0, 100)
+            ax.set_xlabel("Высота верха AGL, м" if style.language == "ru" else "Top height AGL, m")
+            ax.grid(True, alpha=style.grid_alpha, linewidth=0.4)
+        axes[0].set_ylabel("Накопленная доля слоёв, %" if style.language == "ru" else "Cumulative share of layers, %")
+        axes[-1].legend(frameon=False)
+        if style.show_title:
+            fig.suptitle(title or ("Распределение высоты верха по срокам" if style.language == "ru" else "Top height CDF by cycle"))
+        fig.tight_layout()
+        return fig
+
+
+def plot_annual_median_top(table: pd.DataFrame, style: FigureStyle, *, title: str | None = None):
+    from .metrics import INVERSION_TYPES
+
+    with article_rc(style):
+        fig, ax = plt.subplots(figsize=(style.figure_width_in, style.figure_height_in))
+        for kind in INVERSION_TYPES:
+            g = table[table["position_type"] == kind].sort_values("year")
+            if g.empty:
+                continue
+            ax.plot(g["year"], g["median"], marker="o", markersize=style.marker_size, linewidth=style.line_width, color=TYPE_COLORS[kind], label=_type_title(kind, style))
+        ax.set_xlabel("Год" if style.language == "ru" else "Year")
+        ax.set_ylabel("Медианная высота верха AGL, м" if style.language == "ru" else "Median top height AGL, m")
+        ax.set_ylim(bottom=0)
+        ax.grid(True, axis="y", alpha=style.grid_alpha, linewidth=0.5)
+        ax.legend(frameon=False)
+        if style.show_title:
+            ax.set_title(title or ("Межгодовая изменчивость высоты верха" if style.language == "ru" else "Interannual top height"))
+        return _finish(fig, style)
+
+
+def plot_seasonal_quantiles(layers: pd.DataFrame, style: FigureStyle, *, title: str | None = None):
+    from .metrics import INVERSION_TYPES, SEASON_BY_MONTH, SEASON_ORDER
+
+    season_colors = {"DJF": "#2E86C1", "MAM": "#E67E22", "JJA": "#1E8449", "SON": "#C0392B"}
+    season_labels = SEASONS_RU if style.language == "ru" else SEASONS_EN
+    with article_rc(style):
+        fig, axes = plt.subplots(1, 3, figsize=(style.figure_width_in * 1.55, style.figure_height_in * 1.05), sharey=True)
+        use = layers.dropna(subset=["top_height_agl_m"]).copy()
+        use["season"] = use["month"].map(SEASON_BY_MONTH)
+        for ax, kind in zip(axes, INVERSION_TYPES):
+            g = use[use["position_type"] == kind]
+            for season in SEASON_ORDER:
+                vals = np.sort(g.loc[g["season"] == season, "top_height_agl_m"].to_numpy(float))
+                if vals.size == 0:
+                    continue
+                y = np.linspace(0, 100, vals.size, endpoint=True)
+                ax.plot(vals, y, color=season_colors[season], linewidth=style.line_width, label=season_labels[season])
+            ax.set_title(_type_title(kind, style), fontsize=style.tick_font_size + 0.5)
+            ax.set_ylim(0, 100)
+            ax.set_xlabel("Высота верха AGL, м" if style.language == "ru" else "Top height AGL, m")
+            ax.grid(True, alpha=style.grid_alpha, linewidth=0.4)
+        axes[0].set_ylabel("Квантиль, %" if style.language == "ru" else "Quantile, %")
+        axes[-1].legend(frameon=False)
+        if style.show_title:
+            fig.suptitle(title or ("Сезонное распределение высоты верха" if style.language == "ru" else "Seasonal top-height distribution"))
+        fig.tight_layout()
+        return fig

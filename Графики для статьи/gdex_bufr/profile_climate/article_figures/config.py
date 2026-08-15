@@ -17,11 +17,17 @@ class InversionConfig:
 
 @dataclass(frozen=True)
 class LayerClassConfig:
-    """Классификация слоёв по высоте основания (как G/E/HE, без изменения V3)."""
+    """Классификация слоёв по высоте основания (G/E/HE) и бины для гистограмм."""
 
     surface_tolerance_m: float = 30.0
     he_threshold_m: float = 250.0
-    height_bin_edges_m: tuple[float, ...] = (0.0, 100.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0)
+    max_embedded_gap_m: float = 100.0
+    min_strength_c: float = 0.3
+    # Последний край конечный: значения выше попадают в overflow-бин ≥ last.
+    height_bin_edges_m: tuple[float, ...] = (
+        0.0, 50.0, 100.0, 150.0, 250.0, 400.0, 600.0, 800.0,
+        1000.0, 1500.0, 2000.0, 3000.0, 4500.0,
+    )
     gamma_bin_edges_c_per_100m: tuple[float, ...] = (
         0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, 20.0,
     )
