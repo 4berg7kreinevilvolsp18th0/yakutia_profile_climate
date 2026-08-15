@@ -713,23 +713,24 @@ def _bin_edges_table(counts: pd.DataFrame, value_col: str) -> pd.DataFrame:
     return out
 
 
-def _edges_with_overflow(bin_edges: Sequence[float]) -> np.ndarray:
+def _edges_with_overflow(bin_edges: Sequence[float], *, both_sides: bool = False) -> np.ndarray:
     edges = np.asarray(tuple(bin_edges), dtype=float)
-    if not np.isfinite(edges[-1]):
-        return edges
-    return np.append(edges, np.inf)
+    if both_sides and np.isfinite(edges[0]):
+        edges = np.insert(edges, 0, -np.inf)
+    if np.isfinite(edges[-1]):
+        edges = np.append(edges, np.inf)
+    return edges
 
 
 def _bin_frame(edges: np.ndarray) -> pd.DataFrame:
     left = edges[:-1]
     right = edges[1:]
-    return pd.DataFrame(
-        {
-            "bin_left": left,
-            "bin_right": right,
-            "bin_center": np.where(np.isfinite(right), (left + right) / 2.0, left),
-        }
+    center = np.where(
+        ~np.isfinite(left),
+        right,
+        np.where(np.isfinite(right), (left + right) / 2.0, left),
     )
+    return pd.DataFrame({"bin_left": left, "bin_right": right, "bin_center": center})
 
 
 def _assign_bins(values: pd.Series, edges: np.ndarray) -> pd.Series:
@@ -782,14 +783,65 @@ def height_count_table(
     return out.sort_values(keys).reset_index(drop=True)
 
 
+def compute_interval_gammas(
+    df: pd.DataFrame,
+    profile_qc: pd.DataFrame,
+    config: AnalysisConfig,
+) -> pd.DataFrame:
+    """γ = 100·dT/dz по всем соседним интервалам пригодного профиля (и + и −)."""
+    profile_ids = df["profile_id"].astype(str).to_numpy()
+    pressure_all = df["pressure_hpa"].to_numpy(float)
+    temperature_all = df["temperature_c"].to_numpy(float)
+    height_all = df["height_m"].to_numpy(float)
+    group_indices = df.assign(_profile_id_str=profile_ids).groupby("_profile_id_str", sort=False).indices
+    qc_map = (
+        profile_qc.assign(profile_id=profile_qc["profile_id"].astype(str))
+        .set_index("profile_id")
+        .to_dict("index")
+    )
+    top = config.pressure_top_hpa
+    bottom = config.pressure_bottom_hpa
+    rows: list[dict[str, Any]] = []
+    for profile_id, idx in group_indices.items():
+        q = qc_map.get(profile_id)
+        if q is None or not bool(q.get("eligible_article", False)):
+            continue
+        idx = np.asarray(idx, dtype=int)
+        p = pressure_all[idx]
+        mask = np.isfinite(p) & (p >= top) & (p <= bottom)
+        z, t, _p = _collapse_duplicate_heights(height_all[idx][mask], temperature_all[idx][mask], p[mask])
+        if z.size < 2:
+            continue
+        dz = np.diff(z)
+        dt = np.diff(t)
+        ok = (dz > 0) & np.isfinite(dz) & np.isfinite(dt)
+        if not ok.any():
+            continue
+        gamma = 100.0 * dt[ok] / dz[ok]
+        month = int(q["month"])
+        year = int(q["year"])
+        for value in gamma:
+            rows.append(
+                {
+                    "profile_id": profile_id,
+                    "year": year,
+                    "month": month,
+                    "gamma_c_per_100m": float(value),
+                }
+            )
+    if not rows:
+        return pd.DataFrame(columns=["profile_id", "year", "month", "gamma_c_per_100m"])
+    return pd.DataFrame.from_records(rows)
+
+
 def gamma_count_table(
     layers: pd.DataFrame,
     *,
     bin_edges: Sequence[float],
     by_month: bool = False,
 ) -> pd.DataFrame:
-    """Число дней по бинам γ. Все бины на месте, включая overflow."""
-    edges = _edges_with_overflow(bin_edges)
+    """Число интервалов по бинам γ, включая отрицательные и overflow с обеих сторон."""
+    edges = _edges_with_overflow(bin_edges, both_sides=True)
     bins = _bin_frame(edges)
     use = layers.dropna(subset=["gamma_c_per_100m"]).copy()
     months = list(range(1, 13)) if by_month else [0]
@@ -797,16 +849,12 @@ def gamma_count_table(
     if use.empty:
         grid["days"] = 0
         return grid.sort_values(["month", "bin_left"]).reset_index(drop=True)
-    per_day = (
-        use.groupby(["profile_id", "year", "month"], sort=False)["gamma_c_per_100m"]
-        .max()
-        .reset_index()
-    )
     if not by_month:
-        per_day["month"] = 0
-    per_day["bin"] = _assign_bins(per_day["gamma_c_per_100m"], edges)
-    per_day = per_day[per_day["bin"].notna()]
-    counts = per_day.groupby(["month", "bin"], observed=False).size().reset_index(name="days")
+        use = use.copy()
+        use["month"] = 0
+    use["bin"] = _assign_bins(use["gamma_c_per_100m"], edges)
+    use = use[use["bin"].notna()]
+    counts = use.groupby(["month", "bin"], observed=False).size().reset_index(name="days")
     counted = _bin_edges_table(counts, "days")
     out = grid.merge(counted[["month", "bin_left", "days"]], on=["month", "bin_left"], how="left")
     out["days"] = out["days"].fillna(0).astype(int)

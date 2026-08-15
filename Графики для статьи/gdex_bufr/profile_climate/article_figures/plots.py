@@ -255,7 +255,9 @@ def plot_pressure_level_time_series(series: pd.DataFrame, style: FigureStyle):
 def _bin_tick_labels(left: np.ndarray, right: np.ndarray) -> list[str]:
     labels = []
     for lo, hi in zip(left, right):
-        if not np.isfinite(hi):
+        if not np.isfinite(lo):
+            labels.append(f"≤{int(hi)}" if float(hi).is_integer() else f"≤{hi:g}")
+        elif not np.isfinite(hi):
             labels.append(f"≥{int(lo)}" if float(lo).is_integer() else f"≥{lo:g}")
         else:
             lo_s = str(int(lo)) if float(lo).is_integer() else f"{lo:g}"
@@ -345,27 +347,37 @@ def plot_height_counts_bar(
     style: FigureStyle,
     *,
     month: int | None = None,
+    inversion_type: str | None = None,
     title: str | None = None,
 ):
     """Столбчатый: X — высота, Y — число инверсий."""
     data = table[table["month"] == (month or 0)].copy() if "month" in table.columns else table.copy()
+    if inversion_type and "position_type" in data.columns:
+        data = data[data["position_type"] == inversion_type]
     data = data.sort_values("bin_left") if not data.empty else data
+    color = TYPE_COLORS.get(inversion_type) if inversion_type else None
     with article_rc(style):
         fig, ax = plt.subplots(figsize=(style.figure_width_in, style.figure_height_in))
         if data.empty:
             ax.text(0.5, 0.5, "нет данных", ha="center", va="center", transform=ax.transAxes)
         else:
             labels = _bin_tick_labels(data["bin_left"].to_numpy(float), data["bin_right"].to_numpy(float))
-            _equal_width_bars(ax, labels, data["count"].to_numpy(float))
+            _equal_width_bars(ax, labels, data["count"].to_numpy(float), color=color)
         ax.set_xlabel("Интервал высоты верха AGL, м" if style.language == "ru" else "Top height AGL bin, m")
         ax.set_ylabel("Число инверсий" if style.language == "ru" else "Inversion count")
         ax.grid(True, axis="y", alpha=style.grid_alpha, linewidth=0.5)
         if style.show_title:
-            if month:
-                label = _months(style)[month - 1]
-                ax.set_title(title or (f"Высоты инверсий — {label}" if style.language == "ru" else f"Inversion heights — {label}"))
+            if title:
+                ax.set_title(title)
             else:
-                ax.set_title(title or ("Распределение высот инверсий" if style.language == "ru" else "Inversion height distribution"))
+                parts = ["Высоты инверсий" if style.language == "ru" else "Inversion heights"]
+                if month:
+                    parts.append(_months(style)[month - 1])
+                if inversion_type:
+                    parts.append(_type_title(inversion_type, style))
+                ax.set_title(" — ".join(parts) if (month or inversion_type) else (
+                    "Распределение высот инверсий" if style.language == "ru" else "Inversion height distribution"
+                ))
         return _finish(fig, style)
 
 
@@ -468,13 +480,16 @@ def plot_gamma_counts_bar(
     """Столбчатый: X — γ (°C/100 м), Y — число дней."""
     data = table[table["month"] == 0].copy() if "month" in table.columns else table.copy()
     with article_rc(style):
-        fig, ax = plt.subplots(figsize=(style.figure_width_in, style.figure_height_in))
+        fig, ax = plt.subplots(figsize=(style.figure_width_in * 1.25, style.figure_height_in))
         if not data.empty:
             data = data.sort_values("bin_left")
             labels = _bin_tick_labels(data["bin_left"].to_numpy(float), data["bin_right"].to_numpy(float))
             _equal_width_bars(ax, labels, data["days"].to_numpy(float), color="#2C7FB8")
+            zero_at = np.flatnonzero(data["bin_left"].to_numpy(float) >= 0)
+            if zero_at.size:
+                ax.axvline(float(zero_at[0]) - 0.5, color="#7F8C8D", linewidth=0.9, linestyle="--")
         ax.set_xlabel("γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m")
-        ax.set_ylabel("Число дней" if style.language == "ru" else "Number of days")
+        ax.set_ylabel("Число интервалов" if style.language == "ru" else "Number of intervals")
         ax.grid(True, axis="y", alpha=style.grid_alpha, linewidth=0.5)
         if style.show_title:
             ax.set_title(title or ("Распределение температурного градиента γ" if style.language == "ru" else "Temperature gradient γ distribution"))
@@ -500,8 +515,9 @@ def plot_gamma_counts_line(
                 color="#117A65",
             )
             ax.fill_between(data["bin_center"], data["days"], alpha=0.18, color="#117A65")
+        ax.axvline(0, color="#7F8C8D", linewidth=0.9, linestyle="--")
         ax.set_xlabel("γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m")
-        ax.set_ylabel("Число дней" if style.language == "ru" else "Number of days")
+        ax.set_ylabel("Число интервалов" if style.language == "ru" else "Number of intervals")
         ax.set_ylim(bottom=0)
         ax.grid(True, alpha=style.grid_alpha, linewidth=0.5)
         if style.show_title:
@@ -516,15 +532,16 @@ def plot_gamma_counts_hist_step(
     bin_edges: Iterable[float],
     title: str | None = None,
 ):
-    """Ступенчатая гистограмма γ по дням (макс. γ профиля)."""
+    """Ступенчатая гистограмма всех интервальных γ, включая отрицательные."""
     use = layers.dropna(subset=["gamma_c_per_100m"]).copy()
     with article_rc(style):
         fig, ax = plt.subplots(figsize=(style.figure_width_in, style.figure_height_in))
         if not use.empty:
-            per_day = use.groupby("profile_id", sort=False)["gamma_c_per_100m"].max().to_numpy(float)
+            vals = use["gamma_c_per_100m"].to_numpy(float)
             edges = np.asarray(tuple(bin_edges), dtype=float)
+            vals = np.clip(vals, edges[0], np.nextafter(edges[-1], -np.inf))
             ax.hist(
-                per_day,
+                vals,
                 bins=edges,
                 histtype="stepfilled",
                 alpha=0.55,
@@ -532,8 +549,9 @@ def plot_gamma_counts_hist_step(
                 edgecolor="#4A235A",
                 linewidth=1.2,
             )
+        ax.axvline(0, color="#7F8C8D", linewidth=0.9, linestyle="--")
         ax.set_xlabel("γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m")
-        ax.set_ylabel("Число дней" if style.language == "ru" else "Number of days")
+        ax.set_ylabel("Число интервалов" if style.language == "ru" else "Number of intervals")
         ax.grid(True, axis="y", alpha=style.grid_alpha, linewidth=0.5)
         if style.show_title:
             ax.set_title(title or ("γ — гистограмма" if style.language == "ru" else "γ — histogram"))
@@ -546,20 +564,16 @@ def plot_gamma_by_month_box(
     *,
     title: str | None = None,
 ):
-    """Дополнительно: boxplot γ по месяцам."""
+    """Boxplot всех интервальных γ по месяцам (и + и −)."""
     use = layers.dropna(subset=["gamma_c_per_100m"]).copy()
-    per_day = (
-        use.groupby(["profile_id", "month"], sort=False)["gamma_c_per_100m"]
-        .max()
-        .reset_index()
-    )
-    values = [per_day.loc[per_day["month"] == m, "gamma_c_per_100m"].to_numpy() for m in range(1, 13)]
+    values = [use.loc[use["month"] == m, "gamma_c_per_100m"].to_numpy() for m in range(1, 13)]
     with article_rc(style):
         fig, ax = plt.subplots(figsize=(style.figure_width_in, style.figure_height_in))
         bp = ax.boxplot(values, tick_labels=_months(style), showfliers=False, patch_artist=True, widths=0.62)
         for patch in bp["boxes"]:
             patch.set_facecolor("#AED6F1")
             patch.set_alpha(0.7)
+        ax.axhline(0, color="#7F8C8D", linewidth=0.9, linestyle="--")
         ax.set_xlabel("Месяц" if style.language == "ru" else "Month")
         ax.set_ylabel("γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m")
         ax.grid(True, axis="y", alpha=style.grid_alpha, linewidth=0.5)

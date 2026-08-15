@@ -18,6 +18,7 @@ from .metrics import (
     compute_inversion_metrics,
     compute_seasonal_climatology,
     frequency_matrix_by_type,
+    compute_interval_gammas,
     gamma_count_table,
     height_count_table,
     layer_geometry_qc,
@@ -112,7 +113,11 @@ def build_all(
     height_by_type = height_count_table(
         layers, bin_edges=analysis.layers.height_bin_edges_m, by_month=False, by_type=True,
     )
-    gamma_all = gamma_count_table(layers, bin_edges=analysis.layers.gamma_bin_edges_c_per_100m, by_month=False)
+    height_monthly_by_type = height_count_table(
+        layers, bin_edges=analysis.layers.height_bin_edges_m, by_month=True, by_type=True,
+    )
+    interval_gammas = compute_interval_gammas(df, qc, analysis)
+    gamma_all = gamma_count_table(interval_gammas, bin_edges=analysis.layers.gamma_bin_edges_c_per_100m, by_month=False)
     top_recurrence = recurrence_percent_table(
         layers, qc, bin_edges=analysis.layers.height_bin_edges_m, value_col="top_height_agl_m", by_month=False,
     )
@@ -153,7 +158,9 @@ def build_all(
         "height_counts_all": height_all,
         "height_counts_monthly": height_monthly,
         "height_counts_by_type": height_by_type,
+        "height_counts_monthly_by_type": height_monthly_by_type,
         "gamma_counts_all": gamma_all,
+        "interval_gammas": interval_gammas,
         "top_height_recurrence_percent": top_recurrence,
         "top_height_month_recurrence_percent": top_recurrence_month,
         "base_height_recurrence_percent": base_recurrence,
@@ -241,10 +248,10 @@ def build_all(
         (
             "type03_gamma_hist",
             lambda: plot_gamma_counts_hist_step(
-                layers, style, bin_edges=analysis.layers.gamma_bin_edges_c_per_100m
+                interval_gammas, style, bin_edges=analysis.layers.gamma_bin_edges_c_per_100m
             ),
         ),
-        ("type03_gamma_monthly_box", lambda: plot_gamma_by_month_box(layers, style)),
+        ("type03_gamma_monthly_box", lambda: plot_gamma_by_month_box(interval_gammas, style)),
     ]
     for kind in INVERSION_TYPES:
         figure_builders.append(
@@ -270,6 +277,15 @@ def build_all(
                 lambda m=month: plot_height_counts_bar(height_monthly, style, month=m),
             )
         )
+        for kind in INVERSION_TYPES:
+            figure_builders.append(
+                (
+                    f"type02_height_bar_m{month:02d}_{kind}",
+                    lambda m=month, k=kind: plot_height_counts_bar(
+                        height_monthly_by_type, style, month=m, inversion_type=k,
+                    ),
+                )
+            )
 
     saved: dict[str, list[str]] = {}
     for name, builder in figure_builders:
