@@ -51,27 +51,6 @@ DEFAULT_LONG_CSV = DEFAULT_DIR / "profiles_long.csv"
 DEFAULT_METRICS_CSV = DEFAULT_DIR / "profile_metrics.csv"
 DEFAULT_OUTPUT = DEFAULT_DIR / "daily_profiles.json"
 
-# #region agent log
-_DEBUG_LOG = ROOT / "debug-f4fd67.log"
-
-
-def _agent_log(hypothesis_id: str, location: str, message: str, data: dict[str, Any]) -> None:
-    try:
-        payload = {
-            "sessionId": "f4fd67",
-            "runId": "post-fix",
-            "hypothesisId": hypothesis_id,
-            "location": location,
-            "message": message,
-            "data": data,
-            "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
-        }
-        with _DEBUG_LOG.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
-    except Exception:
-        pass
-# #endregion
-
 
 def _day_key(dt: str) -> str:
     parsed = datetime.fromisoformat(str(dt).replace("Z", "+00:00"))
@@ -472,30 +451,10 @@ def _make_observation(
     v3_fields: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Единая структура наблюдения — общая для профилей с уровнями и без них."""
-    # #region agent log
-    cycle_raw = cycle
-    cycle_fmt = _format_cycle(cycle)
-    looks_bad = cycle_fmt in {".0", "0."} or (
-        len(cycle_fmt) == 2 and not cycle_fmt.isdigit()
-    )
-    if looks_bad or isinstance(cycle_raw, float) or type(cycle_raw).__name__ == "float64":
-        _agent_log(
-            "A",
-            "build_daily_profiles.py:_make_observation",
-            "cycle_format_result",
-            {
-                "profile_id": profile_id,
-                "cycle_raw": repr(cycle_raw),
-                "cycle_type": type(cycle_raw).__name__,
-                "cycle_fmt": cycle_fmt,
-                "looks_bad": looks_bad,
-            },
-        )
-    # #endregion
     observation: dict[str, Any] = {
         "profile_id": profile_id,
         "datetime_utc": datetime_utc,
-        "cycle": cycle_fmt,
+        "cycle": _format_cycle(cycle),
         "heights_m": heights_m,
         "heights_interp_m": heights_interp_m,
         "heights_baro_m": heights_baro_m,
@@ -596,23 +555,6 @@ def _observation_from_group(
         return None
 
     heights, pressures, temps, heights_interp, heights_baro = _obs_arrays(levels)
-    # #region agent log
-    if len(pressures) >= 2:
-        diffs = [pressures[i] - pressures[i + 1] for i in range(len(pressures) - 1)]
-        if any(d < 0 for d in diffs):
-            _agent_log(
-                "B",
-                "build_daily_profiles.py:_observation_from_group",
-                "non_monotonic_pressure",
-                {
-                    "profile_id": profile_id,
-                    "n_levels": len(pressures),
-                    "pressure_head": pressures[:5],
-                    "pressure_tail": pressures[-5:],
-                    "n_ascents": sum(1 for d in diffs if d < 0),
-                },
-            )
-    # #endregion
     t_surface = None
     inversion = False
     status_text = ""
@@ -746,7 +688,7 @@ def build_daily_profiles(
     level_mode: str = "raw",
     layers_v3_csv: Path | None = None,
     summary_v3_csv: Path | None = None,
-    compute_v3: bool = False,
+    compute_v3: bool = True,
     v3_params: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if level_mode not in LEVEL_MODES:
@@ -762,40 +704,10 @@ def build_daily_profiles(
     )
 
     long_df = long_df.dropna(subset=["temperature_c", "pressure_hpa"]) #long_df - long-таблица, temperature_c - температура, pressure_hpa - давление.
-    # #region agent log
-    n_before_p_filter = int(len(long_df))
-    # #endregion
     long_df = long_df[
         (long_df["pressure_hpa"] <= max_surface_pressure_hpa) #max_surface_pressure_hpa - максимальное давление у поверхности в гПа.
         & (long_df["pressure_hpa"] >= pressure_top_hpa) #pressure_top_hpa - минимальное давление у поверхности в гПа.
     ]
-    # #region agent log
-    _agent_log(
-        "C",
-        "build_daily_profiles.py:build_daily_profiles",
-        "pressure_band_filter",
-        {
-            "level_mode": level_mode,
-            "n_before": n_before_p_filter,
-            "n_after": int(len(long_df)),
-            "n_dropped": int(n_before_p_filter - len(long_df)),
-            "pressure_top_hpa": pressure_top_hpa,
-            "max_surface_pressure_hpa": max_surface_pressure_hpa,
-        },
-    )
-    if "cycle" in long_df.columns:
-        sample_cycles = [repr(x) for x in long_df["cycle"].head(8).tolist()]
-        _agent_log(
-            "A",
-            "build_daily_profiles.py:build_daily_profiles",
-            "cycle_dtype_sample",
-            {
-                "cycle_dtype": str(long_df["cycle"].dtype),
-                "sample": sample_cycles,
-                "unique_types": sorted({type(x).__name__ for x in long_df["cycle"].head(50)}),
-            },
-        )
-    # #endregion
     long_df = fill_long_dataframe_heights(long_df, metrics_df) #long_df - long-таблица, metrics_df - метрики.
 
     metrics_map = { #metrics_map - словарь с метриками.
@@ -825,22 +737,6 @@ def build_daily_profiles(
             p = pd.to_numeric(group["pressure_hpa"], errors="coerce").to_numpy(dtype=float) #p - давления.
             mask = np.isfinite(z) & np.isfinite(t) #mask - маска для высот и температур.
             z, t, p = z[mask], t[mask], p[mask] #z, t, p - высоты, температуры и давления.
-            # #region agent log
-            n_dup_z = int(z.size - np.unique(z).size) if z.size else 0
-            n_nonfinite_p = int((~np.isfinite(p)).sum()) if p.size else 0
-            if n_dup_z or n_nonfinite_p:
-                _agent_log(
-                    "E",
-                    "build_daily_profiles.py:compute_v3",
-                    "v3_input_anomalies",
-                    {
-                        "profile_id": pid,
-                        "n_levels": int(z.size),
-                        "n_dup_z": n_dup_z,
-                        "n_nonfinite_p": n_nonfinite_p,
-                    },
-                )
-            # #endregion
             if z.size < 2:
                 summary_by_profile[pid] = summarize_inversion_layers(pid, [], z0=0.0) #summary_by_profile[pid] - суммаризация уровней инверсии.
                 layers_by_profile[pid] = [] #layers_by_profile[pid] - уровни инверсии. Пустой список.
@@ -854,8 +750,8 @@ def build_daily_profiles(
         layers_by_profile, summary_by_profile = _load_v3_maps_from_csv(layers_v3_csv, summary_v3_csv) #layers_by_profile, summary_by_profile - словари с уровнями и суммарией уровней.
 
     # 2) Собираем наблюдения по дням. Собираем наблюдения по дням из long-таблицы. Вызывается в функции build_daily_profiles. Возвращает словарь с наблюдениями по дням. Например, {'2026-01-01': [{'profile_id': '1234567890', 'datetime_utc': '2026-01-01 12:00:00', 'cycle': '01', 'heights_m': [100.0, 101.0, 102.0], 'heights_interp_m': [100.5, 101.5, 102.5], 'heights_baro_m': [100.2, 101.2, 102.2], 'pressure_hpa': [1000.0, 999.0, 998.0], 'temperature_c': [20.0, 20.1, 20.2], 'n_levels': 3, 't_surface_c': 20.0, 'inversion_detected': True, 'inv_fields': {'inversion_from_top_tops': [100.0, 101.0, 102.0], 'inversion_from_bottom_tops': [100.0, 101.0, 102.0], 'inversion_from_top_bottoms': [100.0, 101.0, 102.0], 'inversion_from_bottom_bottoms': [100.0, 101.0, 102.0]}, 'profile_status': 'good', 'p_surface_hpa': 1000.0, 'station_elevation_m': 100.0, 'height_source_counts': {'level': 10, 'phi': 5, 'interp': 3, 'baro': 2}, 'missing_levels': False, 'v3_fields': {'inversion_layers_v3': [100.0, 101.0, 102.0], 'pattern': 'NONE', 'n_layers': 3, 'strongest_delta_t_c_v3': 1.0}}, ...]}}.
-    by_day: dict[str, list[dict[str, Any]]] = defaultdict(list) #by_day - словарь с наблюдениями по дням.
-    profiles_with_levels: set[str] = set() #profiles_with_levels - множество с id профилей.
+    by_day: dict[str, list[dict[str, Any]]] = defaultdict(list) #by_day - словарь с наблюдениями по дням. Например, {'2026-01-01': [{'profile_id': '1234567890', 'datetime_utc': '2026-01-01 12:00:00', 'cycle': '01', 'heights_m': [100.0, 101.0, 102.0], 'heights_interp_m': [100.5, 101.5, 102.5], 'heights_baro_m': [100.2, 101.2, 102.2], 'pressure_hpa': [1000.0, 999.0, 998.0], 'temperature_c': [20.0, 20.1, 20.2], 'n_levels': 3, 't_surface_c': 20.0, 'inversion_detected': True, 'inv_fields': {'inversion_from_top_tops': [100.0, 101.0, 102.0], 'inversion_from_bottom_tops': [100.0, 101.0, 102.0], 'inversion_from_top_bottoms': [100.0, 101.0, 102.0], 'inversion_from_bottom_bottoms': [100.0, 101.0, 102.0]}, 'profile_status': 'good', 'p_surface_hpa': 1000.0, 'station_elevation_m': 100.0, 'height_source_counts': {'level': 10, 'phi': 5, 'interp': 3, 'baro': 2}, 'missing_levels': False, 'v3_fields': {'inversion_layers_v3': [100.0, 101.0, 102.0], 'pattern': 'NONE', 'n_layers': 3, 'strongest_delta_t_c_v3': 1.0}}, ...]}}.
+    profiles_with_levels: set[str] = set() #profiles_with_levels - множество с id профилей. Например, {'1234567890', '1234567891', '1234567892'}.
     for profile_id, group in long_df.groupby("profile_id"): #profile_id - id профиля, group - группа профилей.
         profile_id = str(profile_id) #profile_id - id профиля.
         profiles_with_levels.add(profile_id) #profiles_with_levels.add(profile_id) - добавляет id профиля в множество.
@@ -890,32 +786,16 @@ def build_daily_profiles(
     station_id = str(long_df["station_id"].iloc[0]) if len(long_df) else "" #station_id - id станции.
     station_z = _station_elevation(long_df, metrics_df, station_id) #station_z - высота станции.
 
-    # #region agent log
-    n_with_v3 = 0
-    for month in months.values():
-        for day in month["days"]:
-            for obs in day["observations"]:
-                if obs.get("inversion_layers_v3"):
-                    n_with_v3 += 1
-    features = list(FEATURES)
-    has_v3_source = bool(compute_v3 or layers_v3_csv or summary_v3_csv or n_with_v3)
-    if not has_v3_source:
-        features = [f for f in features if f != "inversion_v3"]
-    # #region agent log
-    _agent_log(
-        "D",
-        "build_daily_profiles.py:build_daily_profiles",
-        "features_vs_v3_content",
-        {
-            "features_has_inversion_v3": "inversion_v3" in features,
-            "compute_v3": compute_v3,
-            "layers_csv": str(layers_v3_csv) if layers_v3_csv else None,
-            "n_observations": n_observations,
-            "n_with_v3_layers": n_with_v3,
-            "has_v3_source": has_v3_source,
-        },
+    n_with_v3 = sum(
+        1
+        for month in months.values()
+        for day in month["days"]
+        for obs in day["observations"]
+        if obs.get("inversion_layers_v3")
     )
-    # #endregion
+    features = list(FEATURES)
+    if not (compute_v3 or layers_v3_csv or summary_v3_csv or n_with_v3):
+        features = [f for f in features if f != "inversion_v3"]
 
     return { #return - возвращает словарь с ежедневными профилями.
         "schema": SCHEMA,
@@ -965,8 +845,9 @@ def main() -> int:
     )
     parser.add_argument(
         "--compute-v3",
-        action="store_true",
-        help="Посчитать gap-v3 слои из profiles_long и вложить в JSON",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Посчитать gap-v3 слои и вложить в JSON (по умолчанию вкл.; --no-compute-v3 отключает)",
     )
     parser.add_argument("--layers-v3", default=None, help="Готовый inversion_layers_v3.csv")
     parser.add_argument("--summary-v3", default=None, help="Готовый profile_inversion_summary_v3.csv")

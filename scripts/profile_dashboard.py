@@ -189,6 +189,13 @@ def _obs_v3_layers(obs: dict) -> list[dict]:
     return list(layers) if isinstance(layers, list) else []
 
 
+def _primary_type_from_layers(layers: list[dict]) -> str | None:
+    for kind in ("G", "E", "HE"):
+        if any(str(ly.get("position_type") or "") == kind for ly in layers):
+            return kind
+    return None
+
+
 def _obs_has_type(obs: dict, kind: str) -> bool:
     flag = obs.get(f"has_{kind}_v3")
     if flag is not None:
@@ -196,18 +203,26 @@ def _obs_has_type(obs: dict, kind: str) -> bool:
     return any(str(ly.get("position_type") or "") == kind for ly in _obs_v3_layers(obs))
 
 
-def _obs_primary_type(obs: dict) -> str | None:
+def _obs_primary_type(obs: dict, layers: list[dict] | None = None) -> str | None:
     """Один класс для цвета профиля: G → E → HE."""
+    if layers is not None:
+        return _primary_type_from_layers(layers)
     for kind in ("G", "E", "HE"):
         if _obs_has_type(obs, kind):
             return kind
     return None
 
 
-def _obs_profile_color(obs: dict, *, color_by_class: bool, fallback: str) -> str:
+def _obs_profile_color(
+    obs: dict,
+    *,
+    color_by_class: bool,
+    fallback: str,
+    layers: list[dict] | None = None,
+) -> str:
     if not color_by_class:
         return fallback
-    kind = _obs_primary_type(obs)
+    kind = _obs_primary_type(obs, layers=layers)
     if kind is None:
         return NO_CLASS_COLOR
     return V3_TYPE_COLORS.get(kind, NO_CLASS_COLOR)
@@ -711,7 +726,12 @@ def _add_v3_layer_overlays(
     layers: list[dict] | None = None,
     types: set[str] | None = None,
 ) -> None:
-    """Отрезки base→top для слоёв gap-v3 (G/E/HE), цвет фиксирован по классу."""
+    """Отрезки base→top для слоёв gap-v3 (G/E/HE), цвет фиксирован по классу.
+
+    На оси высоты Y берётся из профиля по давлению слоя (как у кривой T–H),
+    а не только из полей base/top_height_m — иначе сегменты «ломаются» при
+    провалах/дублях H(P).
+    """
     use_layers = layers if layers is not None else (obs.get("inversion_layers_v3") or [])
     for layer in use_layers:
         pos = str(layer.get("position_type") or "?")
@@ -720,12 +740,8 @@ def _add_v3_layer_overlays(
         color = V3_TYPE_COLORS.get(pos, "#555555")
         t0 = layer.get("base_temperature_c")
         t1 = layer.get("top_temperature_c")
-        if y_axis == "pressure":
-            y0 = layer.get("base_pressure_hpa")
-            y1 = layer.get("top_pressure_hpa")
-        else:
-            y0 = layer.get("base_height_m")
-            y1 = layer.get("top_height_m")
+        y0 = _layer_endpoint_y(obs, layer, which="base", y_axis=y_axis)
+        y1 = _layer_endpoint_y(obs, layer, which="top", y_axis=y_axis)
         if None in (t0, t1, y0, y1):
             continue
         depth = layer.get("depth_m")
@@ -749,6 +765,47 @@ def _add_v3_layer_overlays(
             showlegend=False,
             hovertemplate=hover,
         ))
+
+
+def _height_at_pressure(obs: dict, pressure_hpa: float) -> float | None:
+    """Высота профиля на ближайшем уровне по давлению (как на кривой графика)."""
+    pressures = obs.get("pressure_hpa") or []
+    heights = obs.get("heights_m") or []
+    best_h: float | None = None
+    best_dp = float("inf")
+    for p_raw, h_raw in zip(pressures, heights):
+        p = _finite(p_raw)
+        h = _finite(h_raw)
+        if p is None or h is None:
+            continue
+        dp = abs(p - pressure_hpa)
+        if dp < best_dp:
+            best_dp = dp
+            best_h = h
+    return best_h
+
+
+def _layer_endpoint_y(
+    obs: dict,
+    layer: dict,
+    *,
+    which: str,
+    y_axis: str,
+) -> float | None:
+    """Y конца слоя: давление или высота, согласованная с кривой профиля."""
+    if which == "base":
+        p = _finite(layer.get("base_pressure_hpa"))
+        h = _finite(layer.get("base_height_m"))
+    else:
+        p = _finite(layer.get("top_pressure_hpa"))
+        h = _finite(layer.get("top_height_m"))
+    if y_axis == "pressure":
+        return p
+    if p is not None:
+        matched = _height_at_pressure(obs, p)
+        if matched is not None:
+            return matched
+    return h
 
 
 def _add_class_legend(fig: go.Figure) -> None:
@@ -859,8 +916,23 @@ def _build_figure(
             day_has_enabled = True
             fallback = OBS_PALETTE[color_idx % len(OBS_PALETTE)]
             color_idx += 1
-            color = _obs_profile_color(obs, color_by_class=color_by_class, fallback=fallback)
-            primary = _obs_primary_type(obs)
+            overlay_layers = None
+            if show_v3_layers:
+                if v3_layers_override is not None:
+                    overlay_layers = list(
+                        v3_layers_override.get(obs["profile_id"]) or []
+                    )
+                else:
+                    overlay_layers = list(obs.get("inversion_layers_v3") or [])
+            color = _obs_profile_color(
+                obs,
+                color_by_class=color_by_class,
+                fallback=fallback,
+                layers=overlay_layers if show_v3_layers else None,
+            )
+            primary = _obs_primary_type(
+                obs, layers=overlay_layers if show_v3_layers else None,
+            )
             name = f"{day_key[8:]}·{obs.get('cycle', '??')}"
             if color_by_class and primary:
                 name = f"{name} · {primary}"
@@ -895,15 +967,12 @@ def _build_figure(
                     fig, obs, y_axis=y_axis, color=color, day_key=day_key,
                 )
             if show_v3_layers:
-                override = None
-                if v3_layers_override is not None:
-                    override = v3_layers_override.get(obs["profile_id"])
                 _add_v3_layer_overlays(
                     fig,
                     obs,
                     y_axis=y_axis,
                     day_key=day_key,
-                    layers=override,
+                    layers=overlay_layers,
                     types=layer_types,
                 )
 
@@ -1293,11 +1362,20 @@ def main() -> None:
     has_v3_data = any(int(o.get("n_inversion_layers_v3") or 0) > 0 for o in observations)
     show_v3_layers = st.sidebar.checkbox(
         "Слои gap-v3 (G/E/HE)",
-        value=has_v3_data,
-        help="Отрезки base→top всех найденных слоёв v3.",
+        value=True if has_v3_data else False,
+        help=(
+            "Отрезки base→top слоёв из daily_profiles.json. "
+            "Если в файле слоёв нет — пересоберите JSON или включите пересчёт по параметрам ниже."
+        ),
     )
+    if show_v3_layers and not has_v3_data:
+        st.sidebar.warning(
+            "В JSON нет слоёв v3. Пересоберите: "
+            "`py -3 scripts/build_daily_profiles.py` "
+            "или включите «Пересчитать слои по параметрам ниже»."
+        )
 
-    st.sidebar.markdown("### Параметры gap-v3 (пересчёт на экране)")
+    st.sidebar.markdown("### Параметры детекции gap-v3")
     v3_gap = st.sidebar.slider(
         "max_embedded_gap_m", 60.0, 140.0, float(_V3_CFG["max_embedded_gap_m"]), 10.0,
     )
@@ -1331,10 +1409,14 @@ def main() -> None:
         0.1,
         disabled=not v3_gap_drop_on,
     )
-    v3_live = st.sidebar.checkbox(
-        "Живой пересчёт v3 по параметрам",
+    v3_use_slider_params = st.sidebar.checkbox(
+        "Пересчитать слои по параметрам ниже",
         value=False,
-        help="Пересчитывает слои для включённых наблюдений в памяти (не пишет CSV).",
+        help=(
+            "Выключено (рекомендуется): слои из daily_profiles.json. "
+            "Включено: заново найти слои для профилей на экране по слайдерам "
+            "(не перезаписывает JSON)."
+        ),
     )
 
     y_axis_label = st.sidebar.radio(
@@ -1527,7 +1609,7 @@ def main() -> None:
         m5.metric("Со слоями v3", n_v3)
 
     v3_override: dict[str, list[dict]] | None = None
-    if show_v3_layers and v3_live:
+    if show_v3_layers and v3_use_slider_params:
         v3_override = {}
         for obs in enabled_plottable:
             v3_override[obs["profile_id"]] = _recompute_v3_layers_for_obs(

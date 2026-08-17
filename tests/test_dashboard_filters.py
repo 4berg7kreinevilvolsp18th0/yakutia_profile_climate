@@ -163,3 +163,31 @@ def test_filter_00_plus_12_excludes_other_cycles():
         inversion_only=False,
     )
     assert {o["profile_id"] for o in all_cycles} == {"c00", "c06", "c12", "c18"}
+
+
+def test_layer_endpoint_y_matches_profile_height():
+    mod = _load_dashboard()
+    obs = {
+        "pressure_hpa": [900.0, 850.0, 800.0],
+        "heights_m": [1000.0, 1500.0, 2000.0],
+        "temperature_c": [-10.0, -5.0, -8.0],
+    }
+    layer = {
+        "base_pressure_hpa": 900.0,
+        "top_pressure_hpa": 850.0,
+        "base_height_m": 9999.0,
+        "top_height_m": 9999.0,
+        "base_temperature_c": -10.0,
+        "top_temperature_c": -5.0,
+        "position_type": "G",
+    }
+    assert mod._layer_endpoint_y(obs, layer, which="base", y_axis="pressure") == 900.0
+    assert mod._layer_endpoint_y(obs, layer, which="top", y_axis="pressure") == 850.0
+    assert mod._layer_endpoint_y(obs, layer, which="base", y_axis="height") == 1000.0
+    assert mod._layer_endpoint_y(obs, layer, which="top", y_axis="height") == 1500.0
+
+
+def test_primary_type_from_layers():
+    mod = _load_dashboard()
+    assert mod._primary_type_from_layers([{"position_type": "E"}]) == "E"
+    assert mod._primary_type_from_layers([]) is None
