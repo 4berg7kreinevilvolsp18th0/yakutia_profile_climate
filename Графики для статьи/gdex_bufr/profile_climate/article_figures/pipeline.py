@@ -19,6 +19,7 @@ from .metrics import (
     compute_seasonal_climatology,
     frequency_matrix_by_type,
     compute_interval_gammas,
+    compute_reference_level_gammas,
     gamma_count_table,
     height_count_table,
     layer_geometry_qc,
@@ -27,6 +28,7 @@ from .metrics import (
     pressure_level_annual_series,
     profile_type_flags,
     interpolate_eligible_profiles,
+    reference_pressure_heights_agl,
     recurrence_percent_table,
     year_month_median_matrix,
 )
@@ -39,6 +41,11 @@ from .plots import (
     plot_gamma_counts_bar,
     plot_gamma_counts_hist_step,
     plot_gamma_counts_line,
+    plot_gamma_line_monthly_facets,
+    plot_gamma_reference_line_monthly_facets,
+    plot_gamma_scatter_hist,
+    GAMMA_YEAR_START,
+    GAMMA_YEAR_COUNT,
     plot_height_counts_bar,
     plot_height_counts_by_month_facets,
     plot_height_counts_line,
@@ -56,6 +63,9 @@ from .plots import (
     plot_seasonal_quantiles,
     plot_seasonal_temperature_profiles,
     plot_top_height_cdf_by_cycle,
+    plot_top_height_vs_depth_boxplots,
+    plot_top_height_vs_depth_joint,
+    plot_top_height_vs_depth_monthly_facets,
 )
 
 
@@ -117,7 +127,33 @@ def build_all(
         layers, bin_edges=analysis.layers.height_bin_edges_m, by_month=True, by_type=True,
     )
     interval_gammas = compute_interval_gammas(df, qc, analysis)
+    reference_gammas = compute_reference_level_gammas(df, qc, analysis)
+    gamma_year_start = GAMMA_YEAR_START
+    gamma_year_end = gamma_year_start + GAMMA_YEAR_COUNT - 1
+    year_label = f"{gamma_year_start}–{gamma_year_end}"
+    interval_gammas_period = interval_gammas[
+        interval_gammas["year"].between(gamma_year_start, gamma_year_end)
+    ].copy()
+    reference_gammas_850_750_500 = compute_reference_level_gammas(
+        df,
+        qc,
+        analysis,
+        reference_levels_hpa=(850.0, 750.0, 500.0),
+        year_start=gamma_year_start,
+        year_end=gamma_year_end,
+    )
     gamma_all = gamma_count_table(interval_gammas, bin_edges=analysis.layers.gamma_bin_edges_c_per_100m, by_month=False)
+    gamma_monthly_all = gamma_count_table(
+        interval_gammas_period,
+        bin_edges=analysis.layers.gamma_bin_edges_c_per_100m,
+        by_month=True,
+    )
+    gamma_monthly_ref = gamma_count_table(
+        reference_gammas_850_750_500,
+        bin_edges=analysis.layers.gamma_bin_edges_c_per_100m,
+        by_month=True,
+        by_pressure=True,
+    )
     top_recurrence = recurrence_percent_table(
         layers, qc, bin_edges=analysis.layers.height_bin_edges_m, value_col="top_height_agl_m", by_month=False,
     )
@@ -141,6 +177,17 @@ def build_all(
         kind: year_month_median_matrix(layers, inversion_type=kind, value_col="top_height_agl_m")
         for kind in INVERSION_TYPES
     }
+    ref_heights = reference_pressure_heights_agl(analysis)
+    ref_heights_table = pd.DataFrame(
+        [
+            {
+                "pressure_hpa": p,
+                "height_agl_m": round(h, 1),
+                "station_elevation_m": analysis.station_elevation_m,
+            }
+            for p, h in sorted(ref_heights.items(), reverse=True)
+        ]
+    )
 
     tables = {
         "profile_qc": qc,
@@ -160,7 +207,11 @@ def build_all(
         "height_counts_by_type": height_by_type,
         "height_counts_monthly_by_type": height_monthly_by_type,
         "gamma_counts_all": gamma_all,
+        "gamma_counts_monthly_1999_2026": gamma_monthly_all,
+        "gamma_counts_monthly_850_750_500_1999_2026": gamma_monthly_ref,
         "interval_gammas": interval_gammas,
+        "reference_level_gammas": reference_gammas,
+        "reference_level_gammas_850_750_500": reference_gammas_850_750_500,
         "top_height_recurrence_percent": top_recurrence,
         "top_height_month_recurrence_percent": top_recurrence_month,
         "base_height_recurrence_percent": base_recurrence,
@@ -168,6 +219,7 @@ def build_all(
         "05_monthly_top_height_median_IQR_fixed": monthly_top_iqr,
         "06_monthly_base_height_median_IQR_fixed": monthly_base_iqr,
         "annual_median_top_height": annual_top,
+        "reference_pressure_heights_agl": ref_heights_table,
         "height_qc_old_vs_new": pd.DataFrame(
             [
                 {"Проверка": "Толщина ≤ 0", "Старая версия": qc_old["negative_depth"], "Исправленная": qc_new["negative_depth"]},
@@ -228,6 +280,30 @@ def build_all(
         ("08_top_height_cdf_00_12_G_E_HE_fixed", lambda: plot_top_height_cdf_by_cycle(layers, height_style)),
         ("09_annual_median_top_height_G_E_HE_fixed", lambda: plot_annual_median_top(annual_top, height_style)),
         ("10_top_height_seasonal_quantiles_G_E_HE_fixed", lambda: plot_seasonal_quantiles(layers, height_style)),
+        (
+            "11_top_height_vs_depth_joint_G",
+            lambda: plot_top_height_vs_depth_joint(layers, height_style, inversion_type="G"),
+        ),
+        (
+            "11_top_height_vs_depth_joint_E",
+            lambda: plot_top_height_vs_depth_joint(layers, height_style, inversion_type="E"),
+        ),
+        (
+            "11_top_height_vs_depth_joint_HE",
+            lambda: plot_top_height_vs_depth_joint(layers, height_style, inversion_type="HE"),
+        ),
+        (
+            "12_top_height_vs_depth_monthly_12panel",
+            lambda: plot_top_height_vs_depth_monthly_facets(layers, height_style),
+        ),
+        (
+            "13_top_height_vs_depth_boxplots",
+            lambda: plot_top_height_vs_depth_boxplots(layers, height_style),
+        ),
+        (
+            "14_gamma_vs_height_joint",
+            lambda: plot_gamma_scatter_hist(reference_gammas, ref_heights, height_style),
+        ),
         ("fig01_completeness_heatmap", lambda: plot_completeness_heatmap(completeness_matrix, style)),
         ("fig02_seasonal_temperature_profiles", lambda: plot_seasonal_temperature_profiles(seasonal, style)),
         ("fig03_monthly_inversion_frequency", lambda: plot_monthly_inversion_frequency(monthly, style)),
@@ -292,6 +368,54 @@ def build_all(
         fig = builder()
         saved[name] = [str(p) for p in save_figure(fig, figures_dir / name, style)]
 
+    gamma_monthly_dir = figures_dir / "gamma_monthly"
+    gamma_ref_dir = figures_dir / "gamma_monthly_850_750_500"
+    gamma_monthly_style = FigureStyle(**{**style.__dict__, "show_title": True})
+    gamma_extra: list[tuple[Path, object]] = [
+        (
+            gamma_monthly_dir / "gamma_line_12months_1999-2025",
+            lambda: plot_gamma_line_monthly_facets(
+                gamma_monthly_all,
+                gamma_monthly_style,
+                year_label=year_label,
+                log_y=False,
+            ),
+        ),
+        (
+            gamma_ref_dir / "gamma_line_850_750_500_12months_1999-2025",
+            lambda: plot_gamma_reference_line_monthly_facets(
+                gamma_monthly_ref,
+                gamma_monthly_style,
+                pressures_hpa=(850.0, 750.0, 500.0),
+                year_label=year_label,
+                log_y=False,
+            ),
+        ),
+    ]
+    for path, builder in gamma_extra:
+        fig = builder()
+        key = str(path.relative_to(figures_dir)).replace("\\", "/")
+        saved[key] = [str(p) for p in save_figure(fig, path, gamma_monthly_style)]
+
+    gamma_by_year_dir = figures_dir / "gamma_by_year"
+    gamma_edges = analysis.layers.gamma_bin_edges_c_per_100m
+    for year in range(gamma_year_start, gamma_year_end + 1):
+        year_slice = interval_gammas_period[interval_gammas_period["year"] == year]
+        if year_slice.empty:
+            continue
+        year_table = gamma_count_table(year_slice, bin_edges=gamma_edges, by_month=True)
+        year_label_one = str(year)
+        fig = plot_gamma_line_monthly_facets(
+            year_table,
+            gamma_monthly_style,
+            year_label=year_label_one,
+            log_y=False,
+            title=f"Распределение γ по месяцам, {year}" if gamma_monthly_style.language == "ru" else f"γ by month, {year}",
+        )
+        rel = gamma_by_year_dir / f"gamma_line_{year}"
+        key = str(rel.relative_to(figures_dir)).replace("\\", "/")
+        saved[key] = [str(p) for p in save_figure(fig, rel, gamma_monthly_style)]
+
     summary = {
         "input": str(input_csv),
         "rows": int(len(df)),
@@ -305,6 +429,7 @@ def build_all(
         },
         "method": "height-primary gap-v3",
         "qc_checks": {"old": qc_old, "new": qc_new},
+        "reference_pressure_heights_agl": ref_heights_table.to_dict(orient="records"),
         "trend": trend_stats,
         "analysis_config": asdict(analysis),
         "figure_style": asdict(style),

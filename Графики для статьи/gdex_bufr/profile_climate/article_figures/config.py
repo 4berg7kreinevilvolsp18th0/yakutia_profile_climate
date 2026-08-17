@@ -32,6 +32,8 @@ class LayerClassConfig:
         -20.0, -12.0, -8.0, -6.0, -4.0, -3.0, -2.0, -1.5, -1.0, -0.5,
         0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, 20.0,
     )
+    # Опорные изобары для вертикальных линий на scatter (высота AGL по барометрии ISA).
+    reference_pressure_levels_hpa: tuple[float, ...] = (850.0, 700.0, 500.0)
 
 
 @dataclass(frozen=True)
@@ -111,6 +113,10 @@ def load_yaml_config(path: str | Path) -> tuple[AnalysisConfig, FigureStyle]:
     if "gamma_bin_edges_c_per_100m" in layers_raw:
         layers_raw["gamma_bin_edges_c_per_100m"] = tuple(
             float(x) for x in layers_raw["gamma_bin_edges_c_per_100m"]
+        )
+    if "reference_pressure_levels_hpa" in layers_raw:
+        layers_raw["reference_pressure_levels_hpa"] = tuple(
+            float(x) for x in layers_raw["reference_pressure_levels_hpa"]
         )
     analysis_raw["inversion"] = InversionConfig(**inversion_raw)
     analysis_raw["layers"] = LayerClassConfig(**layers_raw)

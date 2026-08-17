@@ -26,6 +26,38 @@ INVERSION_TYPES = ("G", "E", "HE")
 TYPE_LABELS_RU = {"G": "Приземная (G)", "E": "Приподнятая (E)", "HE": "Высокая приподнятая (HE)"}
 TYPE_LABELS_EN = {"G": "Surface (G)", "E": "Elevated (E)", "HE": "High elevated (HE)"}
 
+_BARO_SCALE_M = 44330.0
+_BARO_EXP = 0.1903
+_ISA_P0_HPA = 1013.25
+
+
+def barometric_height_agl_m(pressure_hpa: float, surface_pressure_hpa: float) -> float:
+    """Высота AGL по барометрической формуле ISA (относительно P поверхности)."""
+    ratio = max(float(pressure_hpa) / float(surface_pressure_hpa), 1e-6)
+    return _BARO_SCALE_M * (1.0 - ratio ** _BARO_EXP)
+
+
+def estimate_surface_pressure_hpa(
+    station_elevation_m: float,
+    *,
+    p0_hpa: float = _ISA_P0_HPA,
+) -> float:
+    """Оценка P у поверхности станции по её отметке (обратная барометрия ISA)."""
+    z = max(float(station_elevation_m), 0.0)
+    inner = max(1.0 - z / _BARO_SCALE_M, 1e-6)
+    return float(p0_hpa * inner ** (1.0 / _BARO_EXP))
+
+
+def reference_pressure_heights_agl(
+    config: AnalysisConfig,
+    *,
+    pressures_hpa: Sequence[float] | None = None,
+) -> dict[int, float]:
+    """Высоты AGL для опорных изobar (850/700/500 гПа и т.д.)."""
+    levels = pressures_hpa or config.layers.reference_pressure_levels_hpa
+    p_sfc = estimate_surface_pressure_hpa(config.station_elevation_m)
+    return {int(p): barometric_height_agl_m(float(p), p_sfc) for p in levels}
+
 
 @dataclass
 class InversionResult:
@@ -783,6 +815,133 @@ def height_count_table(
     return out.sort_values(keys).reset_index(drop=True)
 
 
+def _interpolate_height_arrays(
+    pressure: np.ndarray,
+    height: np.ndarray,
+    grid: np.ndarray,
+) -> np.ndarray:
+    valid = np.isfinite(pressure) & np.isfinite(height)
+    p = pressure[valid]
+    z = height[valid]
+    if p.size < 2:
+        return np.full(grid.shape, np.nan, dtype=float)
+    order = np.argsort(p, kind="stable")
+    p = p[order]
+    z = z[order]
+    p, unique_idx = np.unique(p, return_index=True)
+    z = z[unique_idx]
+    if p.size < 2:
+        return np.full(grid.shape, np.nan, dtype=float)
+    values = np.interp(grid, p, z)
+    values[(grid < p[0]) | (grid > p[-1])] = np.nan
+    return values
+
+
+def compute_reference_level_gammas(
+    df: pd.DataFrame,
+    profile_qc: pd.DataFrame,
+    config: AnalysisConfig,
+    *,
+    reference_levels_hpa: Sequence[float] | None = None,
+    standard_levels_hpa: Sequence[float] | None = None,
+    year_start: int | None = None,
+    year_end: int | None = None,
+) -> pd.DataFrame:
+    """γ между соседними стандартными изobar; точка привязана к нижней границе (850/750/500 гПа и т.д.).
+
+    Использует пригодные профили (eligible_article) с интерполяцией T и z на стандартную сетку.
+    Не требует полного слоя инверсии — только наличие уровней в профиле.
+    """
+    ref_levels_set = {float(x) for x in (reference_levels_hpa or config.layers.reference_pressure_levels_hpa)}
+    if standard_levels_hpa is not None:
+        standard = tuple(sorted((float(x) for x in standard_levels_hpa), reverse=True))
+    else:
+        standard = tuple(
+            sorted(
+                {float(x) for x in config.standard_pressure_levels_hpa} | ref_levels_set,
+                reverse=True,
+            )
+        )
+    pairs: list[tuple[float, float]] = []
+    for upper, lower in zip(standard[:-1], standard[1:]):
+        if lower in ref_levels_set:
+            pairs.append((upper, lower))
+    if not pairs:
+        return pd.DataFrame(
+            columns=[
+                "profile_id", "year", "month", "cycle",
+                "pressure_hpa", "height_agl_m", "gamma_c_per_100m",
+            ]
+        )
+
+    grid = np.asarray(standard, dtype=float)
+    qc_map = (
+        profile_qc.assign(profile_id=profile_qc["profile_id"].astype(str))
+        .set_index("profile_id")
+        .to_dict("index")
+    )
+    profile_ids = df["profile_id"].astype(str).to_numpy()
+    pressure_all = df["pressure_hpa"].to_numpy(float)
+    temperature_all = df["temperature_c"].to_numpy(float)
+    height_all = df["height_m"].to_numpy(float)
+    group_indices = df.assign(_profile_id_str=profile_ids).groupby("_profile_id_str", sort=False).indices
+
+    rows: list[dict[str, Any]] = []
+    top = config.pressure_top_hpa
+    bottom = config.pressure_bottom_hpa
+    for profile_id, idx in group_indices.items():
+        q = qc_map.get(profile_id)
+        if q is None or not bool(q.get("eligible_article", False)):
+            continue
+        year = int(q["year"])
+        if year_start is not None and year < year_start:
+            continue
+        if year_end is not None and year > year_end:
+            continue
+        idx = np.asarray(idx, dtype=int)
+        p = pressure_all[idx]
+        mask = np.isfinite(p) & (p >= top) & (p <= bottom)
+        p_use = p[mask]
+        if p_use.size < 2:
+            continue
+        t_vals = _interpolate_arrays(p_use, temperature_all[idx][mask], grid)
+        z_vals = _interpolate_height_arrays(p_use, height_all[idx][mask], grid)
+        surface_z = float(q.get("surface_height_m", np.nan))
+        if not np.isfinite(surface_z) and np.isfinite(z_vals[0]):
+            surface_z = float(z_vals[0])
+        for p_upper, p_lower in pairs:
+            i_upper = standard.index(p_upper)
+            i_lower = standard.index(p_lower)
+            t_up, t_lo = t_vals[i_upper], t_vals[i_lower]
+            z_up, z_lo = z_vals[i_upper], z_vals[i_lower]
+            if not all(np.isfinite(v) for v in (t_up, t_lo, z_up, z_lo)):
+                continue
+            dz = z_lo - z_up
+            if dz <= 0:
+                continue
+            gamma = 100.0 * (t_lo - t_up) / dz
+            height_agl = z_lo - surface_z if np.isfinite(surface_z) else np.nan
+            rows.append(
+                {
+                    "profile_id": profile_id,
+                    "year": int(q["year"]),
+                    "month": int(q["month"]),
+                    "cycle": str(q["cycle"]),
+                    "pressure_hpa": p_lower,
+                    "height_agl_m": height_agl,
+                    "gamma_c_per_100m": float(gamma),
+                }
+            )
+    if not rows:
+        return pd.DataFrame(
+            columns=[
+                "profile_id", "year", "month", "cycle",
+                "pressure_hpa", "height_agl_m", "gamma_c_per_100m",
+            ]
+        )
+    return pd.DataFrame.from_records(rows)
+
+
 def compute_interval_gammas(
     df: pd.DataFrame,
     profile_qc: pd.DataFrame,
@@ -839,26 +998,48 @@ def gamma_count_table(
     *,
     bin_edges: Sequence[float],
     by_month: bool = False,
+    by_pressure: bool = False,
 ) -> pd.DataFrame:
     """Число интервалов по бинам γ, включая отрицательные и overflow с обеих сторон."""
     edges = _edges_with_overflow(bin_edges, both_sides=True)
     bins = _bin_frame(edges)
     use = layers.dropna(subset=["gamma_c_per_100m"]).copy()
     months = list(range(1, 13)) if by_month else [0]
-    grid = pd.concat([bins.assign(month=m) for m in months], ignore_index=True)
+    pressures: list[float] = [0.0]
+    if by_pressure:
+        if "pressure_hpa" not in use.columns:
+            raise ValueError("by_pressure=True требует столбец pressure_hpa")
+        pressures = sorted(use["pressure_hpa"].dropna().unique().astype(float).tolist())
+    grid_parts = []
+    for m in months:
+        for p in pressures:
+            part = bins.assign(month=m)
+            if by_pressure:
+                part = part.assign(pressure_hpa=p)
+            grid_parts.append(part)
+    grid = pd.concat(grid_parts, ignore_index=True)
     if use.empty:
         grid["days"] = 0
-        return grid.sort_values(["month", "bin_left"]).reset_index(drop=True)
+        sort_cols = ["month", "pressure_hpa", "bin_left"] if by_pressure else ["month", "bin_left"]
+        return grid.sort_values(sort_cols).reset_index(drop=True)
     if not by_month:
         use = use.copy()
         use["month"] = 0
+    if not by_pressure:
+        use = use.copy()
+        use["pressure_hpa"] = 0.0
     use["bin"] = _assign_bins(use["gamma_c_per_100m"], edges)
     use = use[use["bin"].notna()]
-    counts = use.groupby(["month", "bin"], observed=False).size().reset_index(name="days")
+    group_cols = ["month", "bin"]
+    merge_cols = ["month", "bin_left"]
+    if by_pressure:
+        group_cols = ["month", "pressure_hpa", "bin"]
+        merge_cols = ["month", "pressure_hpa", "bin_left"]
+    counts = use.groupby(group_cols, observed=False).size().reset_index(name="days")
     counted = _bin_edges_table(counts, "days")
-    out = grid.merge(counted[["month", "bin_left", "days"]], on=["month", "bin_left"], how="left")
+    out = grid.merge(counted[merge_cols + ["days"]], on=merge_cols, how="left")
     out["days"] = out["days"].fillna(0).astype(int)
-    return out.sort_values(["month", "bin_left"]).reset_index(drop=True)
+    return out.sort_values(merge_cols).reset_index(drop=True)
 
 
 def recurrence_percent_table(

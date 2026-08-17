@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Iterable
+from typing import Iterable, Mapping, Sequence
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.gridspec import GridSpec
 
-from .config import FigureStyle
+from .config import AnalysisConfig, FigureStyle
 from .metrics import SEASON_ORDER
 
 MONTHS_RU = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"]
@@ -489,7 +490,7 @@ def plot_gamma_counts_bar(
             if zero_at.size:
                 ax.axvline(float(zero_at[0]) - 0.5, color="#7F8C8D", linewidth=0.9, linestyle="--")
         ax.set_xlabel("γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m")
-        ax.set_ylabel("Число интервалов" if style.language == "ru" else "Number of intervals")
+        ax.set_ylabel("Число вертикальных интервалов" if style.language == "ru" else "Number of vertical intervals")
         ax.grid(True, axis="y", alpha=style.grid_alpha, linewidth=0.5)
         if style.show_title:
             ax.set_title(title or ("Распределение температурного градиента γ" if style.language == "ru" else "Temperature gradient γ distribution"))
@@ -517,7 +518,7 @@ def plot_gamma_counts_line(
             ax.fill_between(data["bin_center"], data["days"], alpha=0.18, color="#117A65")
         ax.axvline(0, color="#7F8C8D", linewidth=0.9, linestyle="--")
         ax.set_xlabel("γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m")
-        ax.set_ylabel("Число интервалов" if style.language == "ru" else "Number of intervals")
+        ax.set_ylabel("Число вертикальных интервалов" if style.language == "ru" else "Number of vertical intervals")
         ax.set_ylim(bottom=0)
         ax.grid(True, alpha=style.grid_alpha, linewidth=0.5)
         if style.show_title:
@@ -551,7 +552,7 @@ def plot_gamma_counts_hist_step(
             )
         ax.axvline(0, color="#7F8C8D", linewidth=0.9, linestyle="--")
         ax.set_xlabel("γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m")
-        ax.set_ylabel("Число интервалов" if style.language == "ru" else "Number of intervals")
+        ax.set_ylabel("Число вертикальных интервалов" if style.language == "ru" else "Number of vertical intervals")
         ax.grid(True, axis="y", alpha=style.grid_alpha, linewidth=0.5)
         if style.show_title:
             ax.set_title(title or ("γ — гистограмма" if style.language == "ru" else "γ — histogram"))
@@ -796,4 +797,584 @@ def plot_seasonal_quantiles(layers: pd.DataFrame, style: FigureStyle, *, title: 
         if style.show_title:
             fig.suptitle(title or ("Сезонное распределение высоты верха" if style.language == "ru" else "Seasonal top-height distribution"))
         fig.tight_layout()
+        return fig
+
+
+REF_LINE_COLORS = {850: "#C0392B", 750: "#D68910", 700: "#2980B9", 500: "#1E8449"}
+
+GAMMA_YEAR_START = 1999
+GAMMA_YEAR_COUNT = 27  # 1999–2025 включительно
+
+
+def _gamma_count_ylabel(style: FigureStyle, *, log_y: bool = False) -> str:
+    if log_y:
+        return "N (log)"
+    if style.language == "ru":
+        return "Число вертикальных интервалов"
+    return "Number of vertical intervals"
+
+
+def _gamma_interval_data_note(style: FigureStyle, *, year_label: str) -> str:
+    if style.language == "ru":
+        return (
+            f"γ = 100·ΔT/Δz на каждой паре соседних уровней профиля (500–1000 гПа); "
+            f"профили со статусом eligible_article, запуски 00/12 UTC; период: {year_label}"
+        )
+    return (
+        f"γ = 100·ΔT/Δz for each adjacent level pair (500–1000 hPa); "
+        f"eligible_article profiles, 00/12 UTC launches; period: {year_label}"
+    )
+
+
+def _gamma_reference_data_note(style: FigureStyle, *, year_label: str, pressures: Sequence[float]) -> str:
+    ptxt = "/".join(str(int(p)) for p in pressures)
+    if style.language == "ru":
+        return (
+            f"γ = 100·ΔT/Δz между соседними стандартными изobar ({ptxt} гПа); "
+            f"eligible_article, 00/12 UTC; период: {year_label}"
+        )
+    return (
+        f"γ = 100·ΔT/Δz between standard isobars ({ptxt} hPa); "
+        f"eligible_article, 00/12 UTC; period: {year_label}"
+    )
+
+
+def _maybe_log_y(ax, data: pd.DataFrame, *, enabled: bool) -> None:
+    if not enabled:
+        return
+    if data.empty or float(data["days"].max()) <= 0:
+        ax.set_ylim(bottom=0)
+        return
+    ax.set_yscale("log")
+
+
+def _draw_gamma_line_on_ax(
+    ax,
+    data: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    color: str = "#117A65",
+    label: str | None = None,
+    log_y: bool = False,
+) -> None:
+    if data.empty:
+        return
+    g = data.sort_values("bin_center")
+    y = g["days"].to_numpy(float)
+    if log_y:
+        y = np.where(y > 0, y, np.nan)
+    ax.plot(
+        g["bin_center"],
+        y,
+        marker="s",
+        markersize=max(style.marker_size - 1.5, 2.5),
+        linewidth=style.line_width * 0.85,
+        color=color,
+        label=label,
+    )
+    if not log_y:
+        ax.fill_between(g["bin_center"], g["days"], alpha=0.12, color=color)
+
+
+def plot_gamma_line_monthly_facets(
+    monthly_table: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    year_label: str = "1999–2025",
+    log_y: bool = False,
+    title: str | None = None,
+    data_note: str | None = None,
+):
+    """12 панелей: распределение γ по месяцам (линейная шкала N интервалов)."""
+    months = _months(style)
+    note = data_note or _gamma_interval_data_note(style, year_label=year_label)
+    with article_rc(style):
+        fig, axes = plt.subplots(
+            3, 4,
+            figsize=(style.figure_width_in * 2.35, style.figure_height_in * 2.55),
+            sharex=True,
+        )
+        for ax, month in zip(axes.ravel(), range(1, 13)):
+            g = monthly_table[monthly_table["month"] == month]
+            _draw_gamma_line_on_ax(ax, g, style, log_y=log_y)
+            ax.axvline(0, color="#7F8C8D", linewidth=0.7, linestyle="--", alpha=0.8)
+            n = int(g["days"].sum()) if not g.empty else 0
+            ax.set_title(f"{months[month - 1]} (n={n:,})".replace(",", " "), fontsize=style.tick_font_size)
+            ax.grid(True, alpha=style.grid_alpha, linewidth=0.35)
+            _maybe_log_y(ax, g, enabled=log_y)
+            if not log_y:
+                ax.set_ylim(bottom=0)
+        for ax in axes[2, :]:
+            ax.set_xlabel("γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m", fontsize=style.tick_font_size)
+        for ax in axes[:, 0]:
+            ax.set_ylabel(_gamma_count_ylabel(style, log_y=log_y), fontsize=style.tick_font_size)
+        if style.show_title:
+            fig.suptitle(
+                title or (
+                    f"Распределение γ по месяцам, {year_label}"
+                    if style.language == "ru"
+                    else f"γ distribution by month, {year_label}"
+                ),
+                fontsize=style.title_font_size,
+            )
+            fig.text(0.5, 0.01, note, ha="center", fontsize=style.tick_font_size - 1, color="#566573")
+        fig.subplots_adjust(bottom=0.07)
+        fig.tight_layout()
+        return fig
+
+
+def plot_gamma_reference_line_monthly_facets(
+    monthly_table: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    pressures_hpa: Sequence[float] = (850.0, 750.0, 500.0),
+    year_label: str = "1999–2025",
+    log_y: bool = False,
+    title: str | None = None,
+    data_note: str | None = None,
+):
+    """12 панелей: γ на опорных изobar (850/750/500 гПа) — три линии на каждой панели."""
+    months = _months(style)
+    pressures = [float(p) for p in pressures_hpa]
+    note = data_note or _gamma_reference_data_note(style, year_label=year_label, pressures=pressures)
+    with article_rc(style):
+        fig, axes = plt.subplots(
+            3, 4,
+            figsize=(style.figure_width_in * 2.35, style.figure_height_in * 2.65),
+            sharex=True,
+        )
+        for ax, month in zip(axes.ravel(), range(1, 13)):
+            for pressure in pressures:
+                g = monthly_table[
+                    (monthly_table["month"] == month)
+                    & (monthly_table["pressure_hpa"] == pressure)
+                ]
+                label = f"{int(pressure)} гПа" if style.language == "ru" else f"{int(pressure)} hPa"
+                _draw_gamma_line_on_ax(
+                    ax,
+                    g,
+                    style,
+                    color=REF_LINE_COLORS.get(int(pressure), "#34495E"),
+                    label=label,
+                    log_y=log_y,
+                )
+            ax.axvline(0, color="#7F8C8D", linewidth=0.7, linestyle="--", alpha=0.8)
+            ax.set_title(months[month - 1], fontsize=style.tick_font_size)
+            ax.grid(True, alpha=style.grid_alpha, linewidth=0.35)
+            month_data = monthly_table[monthly_table["month"] == month]
+            _maybe_log_y(ax, month_data, enabled=log_y)
+            if not log_y:
+                ax.set_ylim(bottom=0)
+        for ax in axes[2, :]:
+            ax.set_xlabel("γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m", fontsize=style.tick_font_size)
+        for ax in axes[:, 0]:
+            ax.set_ylabel(_gamma_count_ylabel(style, log_y=log_y), fontsize=style.tick_font_size)
+        handles = [
+            mpl.lines.Line2D(
+                [0], [0],
+                color=REF_LINE_COLORS.get(int(p), "#34495E"),
+                linewidth=style.line_width,
+                label=f"{int(p)} гПа" if style.language == "ru" else f"{int(p)} hPa",
+            )
+            for p in pressures
+        ]
+        axes.ravel()[-1].legend(handles=handles, frameon=False, fontsize=style.legend_font_size - 1, loc="upper right")
+        if style.show_title:
+            ptxt = "/".join(str(int(p)) for p in pressures)
+            fig.suptitle(
+                title or (
+                    f"γ на изobar {ptxt} гПа по месяцам, {year_label}"
+                    if style.language == "ru"
+                    else f"γ at {ptxt} hPa isobars by month, {year_label}"
+                ),
+                fontsize=style.title_font_size,
+            )
+            fig.text(0.5, 0.01, note, ha="center", fontsize=style.tick_font_size - 1, color="#566573")
+        fig.subplots_adjust(bottom=0.07)
+        fig.tight_layout()
+        return fig
+
+
+def _layer_height_depth_frame(layers: pd.DataFrame) -> pd.DataFrame:
+    use = layers.dropna(subset=["top_height_agl_m", "depth_m"]).copy()
+    use = use[(use["depth_m"] > 0) & (use["top_height_agl_m"] >= 0)]
+    return use
+
+
+def _draw_pressure_ref_lines(
+    ax,
+    ref_heights: Mapping[int, float],
+    *,
+    style: FigureStyle,
+    label_in_legend: bool = True,
+) -> None:
+    for pressure_hpa, height_m in sorted(ref_heights.items(), reverse=True):
+        color = REF_LINE_COLORS.get(int(pressure_hpa), "#7F8C8D")
+        label = f"{int(pressure_hpa)} гПа" if style.language == "ru" else f"{int(pressure_hpa)} hPa"
+        ax.axvline(
+            float(height_m),
+            color=color,
+            linestyle="--",
+            linewidth=style.line_width * 0.75,
+            alpha=0.85,
+            label=label if label_in_legend else None,
+        )
+
+
+def _joint_scatter_hist_layers(
+    fig: plt.Figure,
+    gs: GridSpec,
+    use: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    scatter_type: str | None = None,
+    xlabel: str,
+    ylabel: str,
+    title: str | None = None,
+    bins_x: int = 36,
+    bins_y: int = 28,
+    log_hist: bool = False,
+) -> None:
+    """Joint scatter (высота vs толщина) с боковыми гистограммами по типам G/E/HE."""
+    from .metrics import INVERSION_TYPES
+
+    ax_sc = fig.add_subplot(gs[1:4, 0:3])
+    ax_hx = fig.add_subplot(gs[0, 0:3], sharex=ax_sc)
+    ax_hy = fig.add_subplot(gs[1:4, 3], sharey=ax_sc)
+
+    if scatter_type is not None:
+        scatter_df = use[use["position_type"] == scatter_type]
+        color = TYPE_COLORS.get(scatter_type, "#34495E")
+        ax_sc.scatter(
+            scatter_df["top_height_agl_m"],
+            scatter_df["depth_m"],
+            s=8,
+            alpha=0.42,
+            color=color,
+            linewidths=0,
+        )
+    elif "position_type" in use.columns:
+        for kind in INVERSION_TYPES:
+            g = use[use["position_type"] == kind]
+            if g.empty:
+                continue
+            ax_sc.scatter(
+                g["top_height_agl_m"],
+                g["depth_m"],
+                s=8,
+                alpha=0.42,
+                color=TYPE_COLORS[kind],
+                linewidths=0,
+                label=_type_title(kind, style),
+            )
+    else:
+        ax_sc.scatter(
+            use["top_height_agl_m"],
+            use["depth_m"],
+            s=6,
+            alpha=0.28,
+            color="#34495E",
+            linewidths=0,
+        )
+
+    ax_sc.set_xlabel(xlabel)
+    ax_sc.set_ylabel(ylabel)
+    ax_sc.grid(True, alpha=style.grid_alpha, linewidth=0.4)
+    if scatter_type is None and "position_type" in use.columns:
+        ax_sc.legend(frameon=False, fontsize=style.legend_font_size - 1, loc="upper right")
+
+    x_edges = np.histogram_bin_edges(use["top_height_agl_m"].to_numpy(float), bins=bins_x)
+    y_edges = np.histogram_bin_edges(use["depth_m"].to_numpy(float), bins=bins_y)
+    hist_kwargs = {"log": log_hist} if log_hist else {}
+    y_count_label = "N (log)" if log_hist else ("Число" if style.language == "ru" else "Count")
+
+    for kind in INVERSION_TYPES:
+        g = use[use["position_type"] == kind] if "position_type" in use.columns else use.iloc[0:0]
+        if g.empty:
+            continue
+        label = _type_title(kind, style)
+        ax_hx.hist(
+            g["top_height_agl_m"],
+            bins=x_edges,
+            histtype="stepfilled",
+            alpha=0.38,
+            color=TYPE_COLORS[kind],
+            label=label,
+            **hist_kwargs,
+        )
+        ax_hy.hist(
+            g["depth_m"],
+            bins=y_edges,
+            orientation="horizontal",
+            histtype="stepfilled",
+            alpha=0.38,
+            color=TYPE_COLORS[kind],
+            **hist_kwargs,
+        )
+
+    ax_hx.set_ylabel(y_count_label)
+    ax_hy.set_xlabel(y_count_label)
+    plt.setp(ax_hx.get_xticklabels(), visible=False)
+    plt.setp(ax_hy.get_yticklabels(), visible=False)
+    ax_hx.legend(frameon=False, fontsize=style.legend_font_size - 1, loc="upper right", ncol=1)
+    if title:
+        ax_sc.set_title(title, fontsize=style.tick_font_size + 0.5)
+
+
+def _joint_scatter_hist(
+    fig: plt.Figure,
+    gs: GridSpec,
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    ref_heights: Mapping[int, float] | None,
+    style: FigureStyle,
+    color_values: np.ndarray | None = None,
+    point_colors: np.ndarray | None = None,
+    xlabel: str,
+    ylabel: str,
+    title: str | None = None,
+    bins_x: int = 36,
+    bins_y: int = 28,
+    show_legend: bool = True,
+    ylim: tuple[float, float] | None = None,
+    log_hist: bool = False,
+) -> None:
+    ax_sc = fig.add_subplot(gs[1:4, 0:3])
+    ax_hx = fig.add_subplot(gs[0, 0:3], sharex=ax_sc)
+    ax_hy = fig.add_subplot(gs[1:4, 3], sharey=ax_sc)
+
+    if point_colors is not None and len(point_colors) == len(x):
+        ax_sc.scatter(x, y, c=point_colors, s=8, alpha=0.45, linewidths=0)
+    elif color_values is not None and len(color_values) == len(x):
+        sc = ax_sc.scatter(
+            x, y, c=color_values, s=8, alpha=0.45, cmap="coolwarm",
+            linewidths=0, vmin=np.nanpercentile(color_values, 5),
+            vmax=np.nanpercentile(color_values, 95),
+        )
+        fig.colorbar(sc, ax=ax_sc, pad=0.02, fraction=0.035, label="γ, °C/100 м")
+    else:
+        ax_sc.scatter(x, y, s=6, alpha=0.28, color="#34495E", linewidths=0)
+
+    if ref_heights:
+        _draw_pressure_ref_lines(ax_sc, ref_heights, style=style, label_in_legend=show_legend)
+    ax_sc.set_xlabel(xlabel)
+    ax_sc.set_ylabel(ylabel)
+    if ylim is not None:
+        ax_sc.set_ylim(ylim)
+    ax_sc.grid(True, alpha=style.grid_alpha, linewidth=0.4)
+    if show_legend and ref_heights:
+        ax_sc.legend(frameon=False, fontsize=style.legend_font_size - 1, loc="upper right")
+
+    hist_kwargs = {"log": log_hist} if log_hist else {}
+    count_label = "N (log)" if log_hist else ("Число" if style.language == "ru" else "Count")
+    ax_hx.hist(x, bins=bins_x, color="#5D6D7E", alpha=0.75, **hist_kwargs)
+    ax_hy.hist(y, bins=bins_y, orientation="horizontal", color="#5D6D7E", alpha=0.75, **hist_kwargs)
+    ax_hx.set_ylabel(count_label)
+    ax_hy.set_xlabel(count_label)
+    plt.setp(ax_hx.get_xticklabels(), visible=False)
+    plt.setp(ax_hy.get_yticklabels(), visible=False)
+    if title:
+        ax_sc.set_title(title, fontsize=style.tick_font_size + 0.5)
+
+
+def plot_top_height_vs_depth_joint(
+    layers: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    inversion_type: str | None = None,
+    title: str | None = None,
+):
+    """Scatter + marginal histograms: X — высота верха AGL, Y — толщина слоя (полные профили).
+
+    inversion_type: G / E / HE — только этот тип в облаке точек; боковые гистограммы всегда по всем трём.
+    """
+    use = _layer_height_depth_frame(layers)
+    xlabel = "Высота верха над поверхностью, м" if style.language == "ru" else "Top height AGL, m"
+    ylabel = "Толщина инверсионного слоя, м" if style.language == "ru" else "Inversion layer depth, m"
+    if inversion_type is not None:
+        type_title = _type_title(inversion_type, style)
+        default_title = (
+            f"Высота верха vs толщина — {type_title}"
+            if style.language == "ru"
+            else f"Top height vs depth — {type_title}"
+        )
+    else:
+        default_title = (
+            "Высота верха vs толщина инверсии (облако точек + гистограммы)"
+            if style.language == "ru"
+            else "Top height vs inversion depth (scatter + histograms)"
+        )
+    with article_rc(style):
+        fig = plt.figure(figsize=(style.figure_width_in * 1.05, style.figure_height_in * 1.15))
+        gs = GridSpec(4, 4, figure=fig, wspace=0.06, hspace=0.06)
+        _joint_scatter_hist_layers(
+            fig,
+            gs,
+            use,
+            style,
+            scatter_type=inversion_type,
+            xlabel=xlabel,
+            ylabel=ylabel,
+            title=title or default_title,
+            log_hist=False,
+        )
+        if style.show_title:
+            suptitle = title or (
+                f"Инверсии Алдана: {_type_title(inversion_type, style)}"
+                if inversion_type is not None
+                else "Инверсии Алдана: высота и толщина слоя"
+            )
+            fig.suptitle(suptitle, fontsize=style.title_font_size, y=1.02)
+        fig.subplots_adjust(left=0.1, right=0.92, top=0.94, bottom=0.1)
+        return fig
+
+
+def plot_top_height_vs_depth_monthly_facets(
+    layers: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    title: str | None = None,
+):
+    """12 панелей (месяцы): scatter высота vs толщина — только полные данные слоя."""
+    use = _layer_height_depth_frame(layers)
+    months = _months(style)
+    with article_rc(style):
+        fig, axes = plt.subplots(
+            3, 4,
+            figsize=(style.figure_width_in * 2.2, style.figure_height_in * 2.35),
+            sharex=True,
+            sharey=True,
+        )
+        xlabel = "H верха AGL, м" if style.language == "ru" else "Top H AGL, m"
+        ylabel = "Толщина, м" if style.language == "ru" else "Depth, m"
+        for ax, month in zip(axes.ravel(), range(1, 13)):
+            g = use[use["month"] == month]
+            if not g.empty:
+                ax.scatter(
+                    g["top_height_agl_m"],
+                    g["depth_m"],
+                    s=5,
+                    alpha=0.35,
+                    c=g["position_type"].map(TYPE_COLORS) if "position_type" in g.columns else "#34495E",
+                    linewidths=0,
+                )
+            ax.set_title(f"{months[month - 1]} (n={len(g)})", fontsize=style.tick_font_size)
+            ax.grid(True, alpha=style.grid_alpha, linewidth=0.35)
+        for ax in axes[2, :]:
+            ax.set_xlabel(xlabel)
+        for ax in axes[:, 0]:
+            ax.set_ylabel(ylabel)
+        from .metrics import INVERSION_TYPES
+
+        last = axes.ravel()[-1]
+        type_handles = [
+            mpl.lines.Line2D([0], [0], marker="o", color="w", markerfacecolor=TYPE_COLORS[k], markersize=6, label=_type_title(k, style))
+            for k in INVERSION_TYPES
+        ]
+        last.legend(handles=type_handles, frameon=False, fontsize=style.legend_font_size - 1, loc="upper right")
+        if style.show_title:
+            fig.suptitle(
+                title or (
+                    "Высота верха vs толщина инверсии по месяцам (все годы)"
+                    if style.language == "ru"
+                    else "Top height vs depth by month (all years)"
+                ),
+                fontsize=style.title_font_size,
+            )
+        fig.tight_layout()
+        return fig
+
+
+def plot_top_height_vs_depth_boxplots(
+    layers: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    title: str | None = None,
+):
+    """Boxplot: толщина и высота верха по месяцам."""
+    use = _layer_height_depth_frame(layers)
+    months = _months(style)
+    depth_by_month = [use.loc[use["month"] == m, "depth_m"].dropna().to_numpy(float) for m in range(1, 13)]
+    height_by_month = [use.loc[use["month"] == m, "top_height_agl_m"].dropna().to_numpy(float) for m in range(1, 13)]
+    with article_rc(style):
+        fig, axes = plt.subplots(1, 2, figsize=(style.figure_width_in * 1.65, style.figure_height_in * 1.05))
+        for ax, data, ylabel in zip(
+            axes,
+            (depth_by_month, height_by_month),
+            (
+                "Толщина слоя, м" if style.language == "ru" else "Layer depth, m",
+                "Высота верха AGL, м" if style.language == "ru" else "Top height AGL, m",
+            ),
+        ):
+            bp = ax.boxplot(data, tick_labels=months, showfliers=False, patch_artist=True, widths=0.62)
+            for patch in bp["boxes"]:
+                patch.set_facecolor("#AED6F1")
+                patch.set_alpha(0.75)
+            for median in bp["medians"]:
+                median.set_color("#1B4F72")
+                median.set_linewidth(style.line_width)
+            ax.set_xlabel("Месяц" if style.language == "ru" else "Month")
+            ax.set_ylabel(ylabel)
+            ax.grid(True, axis="y", alpha=style.grid_alpha, linewidth=0.5)
+        if style.show_title:
+            fig.suptitle(
+                title or (
+                    "Сезонное распределение толщины и высоты инверсий"
+                    if style.language == "ru"
+                    else "Seasonal distribution of depth and top height"
+                ),
+                fontsize=style.title_font_size,
+            )
+        fig.tight_layout()
+        return fig
+
+
+def plot_gamma_scatter_hist(
+    gammas: pd.DataFrame,
+    ref_heights: Mapping[int, float],
+    style: FigureStyle,
+    *,
+    title: str | None = None,
+):
+    """Scatter γ vs высота AGL на опорных изobar (850/700/500 гПа) + гистограммы (log N)."""
+    use = gammas.dropna(subset=["height_agl_m", "gamma_c_per_100m"]).copy()
+    use = use[use["height_agl_m"] >= 0]
+    xlabel = "Высота AGL, м" if style.language == "ru" else "Height AGL, m"
+    ylabel = "γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m"
+    gamma_vals = use["gamma_c_per_100m"].to_numpy(float)
+    y_hi = float(np.nanpercentile(gamma_vals, 99)) if gamma_vals.size else 20.0
+    y_hi = max(y_hi, 5.0)
+    point_colors = None
+    if "pressure_hpa" in use.columns:
+        point_colors = use["pressure_hpa"].map(
+            lambda p: REF_LINE_COLORS.get(int(round(p)), "#34495E")
+        ).to_numpy()
+    with article_rc(style):
+        fig = plt.figure(figsize=(style.figure_width_in * 1.05, style.figure_height_in * 1.15))
+        gs = GridSpec(4, 4, figure=fig, wspace=0.06, hspace=0.06)
+        _joint_scatter_hist(
+            fig, gs,
+            use["height_agl_m"].to_numpy(float),
+            gamma_vals,
+            ref_heights=ref_heights,
+            style=style,
+            point_colors=point_colors,
+            xlabel=xlabel,
+            ylabel=ylabel,
+            title=None,
+            show_legend=True,
+            ylim=(0.0, y_hi * 1.05),
+        )
+        if style.show_title:
+            fig.suptitle(
+                title or (
+                    "Температурный градиент γ на опорных изobar (850/700/500 гПа)"
+                    if style.language == "ru"
+                    else "Temperature gradient γ at reference isobars (850/700/500 hPa)"
+                ),
+                fontsize=style.title_font_size,
+                y=1.02,
+            )
+        fig.subplots_adjust(left=0.1, right=0.92, top=0.94, bottom=0.1)
         return fig

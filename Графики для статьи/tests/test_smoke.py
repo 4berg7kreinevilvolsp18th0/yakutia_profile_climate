@@ -197,3 +197,75 @@ def test_equal_bar_widths():
     assert max(widths) - min(widths) < 1e-9
     import matplotlib.pyplot as plt
     plt.close(fig)
+
+
+def test_reference_pressure_heights_and_height_depth_plots():
+    from gdex_bufr.profile_climate.article_figures.config import AnalysisConfig, FigureStyle
+    from gdex_bufr.profile_climate.article_figures.metrics import reference_pressure_heights_agl
+    from gdex_bufr.profile_climate.article_figures.plots import (
+        plot_gamma_scatter_hist,
+        plot_top_height_vs_depth_boxplots,
+        plot_top_height_vs_depth_joint,
+        plot_top_height_vs_depth_monthly_facets,
+    )
+    import matplotlib.pyplot as plt
+
+    cfg = AnalysisConfig(station_elevation_m=679.0)
+    refs = reference_pressure_heights_agl(cfg)
+    assert refs[850] < refs[700] < refs[500]
+
+    layers = pd.DataFrame(
+        {
+            "month": [1, 2, 3, 1],
+            "top_height_agl_m": [120.0, 800.0, 1500.0, 200.0],
+            "depth_m": [50.0, 120.0, 200.0, 80.0],
+            "position_type": ["G", "E", "HE", "G"],
+        }
+    )
+    gammas = pd.DataFrame(
+        {
+            "height_agl_m": [790.0, 2370.0, 4970.0],
+            "gamma_c_per_100m": [2.0, 4.0, 6.0],
+            "pressure_hpa": [850.0, 700.0, 500.0],
+        }
+    )
+    style = FigureStyle(show_title=False, dpi=72)
+    for fig in (
+        plot_top_height_vs_depth_joint(layers, style, inversion_type="G"),
+        plot_top_height_vs_depth_joint(layers, style, inversion_type="E"),
+        plot_top_height_vs_depth_joint(layers, style, inversion_type="HE"),
+        plot_top_height_vs_depth_monthly_facets(layers, style),
+        plot_top_height_vs_depth_boxplots(layers, style),
+        plot_gamma_scatter_hist(gammas, refs, style),
+    ):
+        plt.close(fig)
+
+
+def test_gamma_monthly_line_facets():
+    from gdex_bufr.profile_climate.article_figures.config import FigureStyle
+    from gdex_bufr.profile_climate.article_figures.metrics import gamma_count_table
+    from gdex_bufr.profile_climate.article_figures.plots import (
+        plot_gamma_line_monthly_facets,
+        plot_gamma_reference_line_monthly_facets,
+    )
+    import matplotlib.pyplot as plt
+
+    gammas = pd.DataFrame(
+        {
+            "year": [2000, 2000, 2001, 2001],
+            "month": [1, 2, 1, 2],
+            "gamma_c_per_100m": [-1.0, 0.5, -0.5, 2.0],
+            "pressure_hpa": [850.0, 850.0, 750.0, 500.0],
+        }
+    )
+    edges = (-2.0, 0.0, 2.0, 4.0)
+    monthly_all = gamma_count_table(gammas[["year", "month", "gamma_c_per_100m"]], bin_edges=edges, by_month=True)
+    monthly_ref = gamma_count_table(gammas, bin_edges=edges, by_month=True, by_pressure=True)
+    style = FigureStyle(show_title=False, dpi=72)
+    for fig in (
+        plot_gamma_line_monthly_facets(monthly_all, style, year_label="1999–2025", log_y=False),
+        plot_gamma_reference_line_monthly_facets(
+            monthly_ref, style, pressures_hpa=(850.0, 750.0, 500.0), year_label="1999–2025", log_y=False
+        ),
+    ):
+        plt.close(fig)
