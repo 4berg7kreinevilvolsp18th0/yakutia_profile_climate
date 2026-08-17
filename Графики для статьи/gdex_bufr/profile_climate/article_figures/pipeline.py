@@ -370,7 +370,7 @@ def build_all(
 
     gamma_monthly_dir = figures_dir / "gamma_monthly"
     gamma_ref_dir = figures_dir / "gamma_monthly_850_750_500"
-    gamma_monthly_style = FigureStyle(**{**style.__dict__, "show_title": True})
+    gamma_monthly_style = FigureStyle(**{**style.__dict__, "show_title": True, "dpi": 300})
     gamma_extra: list[tuple[Path, object]] = [
         (
             gamma_monthly_dir / "gamma_line_12months_1999-2025",
@@ -399,6 +399,7 @@ def build_all(
 
     gamma_by_year_dir = figures_dir / "gamma_by_year"
     gamma_edges = analysis.layers.gamma_bin_edges_c_per_100m
+    gamma_year_style = FigureStyle(**{**gamma_monthly_style.__dict__, "output_formats": ("png",)})
     for year in range(gamma_year_start, gamma_year_end + 1):
         year_slice = interval_gammas_period[interval_gammas_period["year"] == year]
         if year_slice.empty:
@@ -407,14 +408,14 @@ def build_all(
         year_label_one = str(year)
         fig = plot_gamma_line_monthly_facets(
             year_table,
-            gamma_monthly_style,
+            gamma_year_style,
             year_label=year_label_one,
             log_y=False,
-            title=f"Распределение γ по месяцам, {year}" if gamma_monthly_style.language == "ru" else f"γ by month, {year}",
+            title=f"Распределение γ по месяцам, {year}" if gamma_year_style.language == "ru" else f"γ by month, {year}",
         )
         rel = gamma_by_year_dir / f"gamma_line_{year}"
         key = str(rel.relative_to(figures_dir)).replace("\\", "/")
-        saved[key] = [str(p) for p in save_figure(fig, rel, gamma_monthly_style)]
+        saved[key] = [str(p) for p in save_figure(fig, rel, gamma_year_style)]
 
     summary = {
         "input": str(input_csv),

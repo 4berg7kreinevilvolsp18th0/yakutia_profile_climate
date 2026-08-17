@@ -917,9 +917,8 @@ def plot_gamma_line_monthly_facets(
                 ),
                 fontsize=style.title_font_size,
             )
-            fig.text(0.5, 0.01, note, ha="center", fontsize=style.tick_font_size - 1, color="#566573")
-        fig.subplots_adjust(bottom=0.07)
-        fig.tight_layout()
+            fig.text(0.5, 0.015, note, ha="center", fontsize=style.tick_font_size - 1, color="#566573")
+        fig.tight_layout(rect=(0, 0.04, 1, 0.96) if style.show_title else None)
         return fig
 
 
@@ -989,9 +988,8 @@ def plot_gamma_reference_line_monthly_facets(
                 ),
                 fontsize=style.title_font_size,
             )
-            fig.text(0.5, 0.01, note, ha="center", fontsize=style.tick_font_size - 1, color="#566573")
-        fig.subplots_adjust(bottom=0.07)
-        fig.tight_layout()
+            fig.text(0.5, 0.015, note, ha="center", fontsize=style.tick_font_size - 1, color="#566573")
+        fig.tight_layout(rect=(0, 0.04, 1, 0.96) if style.show_title else None)
         return fig
 
 
