@@ -22,6 +22,87 @@ HEIGHT_AGL_EDGES_M = (
     0.0, 100.0, 200.0, 400.0, 600.0, 800.0, 1000.0, 1500.0, 2000.0, 3000.0, 4000.0,
 )
 DEPTH_EDGES_M = (0.0, 50.0, 100.0, 150.0, 250.0, 400.0, 600.0, 800.0, 1200.0, 2000.0)
+GAMMA_EXTREME_ABS_THRESHOLD_C_PER_100M = 15.0
+
+
+def _profile_datetime_fields(q: dict) -> dict[str, object]:
+    dt = q.get("datetime_utc")
+    if dt is None or (isinstance(dt, float) and np.isnan(dt)):
+        return {"datetime_utc": pd.NaT, "date": pd.NaT}
+    ts = pd.Timestamp(dt)
+    return {"datetime_utc": ts, "date": ts.normalize()}
+
+
+def filter_extreme_gamma_local(
+    local: pd.DataFrame,
+    *,
+    threshold: float = GAMMA_EXTREME_ABS_THRESHOLD_C_PER_100M,
+) -> pd.DataFrame:
+    """Интервалы с |γ_local| ≥ порога; дата профиля для QC экстремумов."""
+    if local.empty:
+        return pd.DataFrame(
+            columns=[
+                "profile_id",
+                "datetime_utc",
+                "date",
+                "year",
+                "month",
+                "cycle",
+                "season",
+                "gamma_local_c_100m",
+                "z_mid_agl_m",
+                "dz_m",
+                "dt_c",
+            ]
+        )
+    use = local.copy()
+    gamma = pd.to_numeric(use["gamma_local_c_100m"], errors="coerce")
+    out = use.loc[gamma.abs() >= threshold].copy()
+    cols = [
+        "profile_id",
+        "datetime_utc",
+        "date",
+        "year",
+        "month",
+        "cycle",
+        "season",
+        "gamma_local_c_100m",
+        "z_mid_agl_m",
+        "dz_m",
+        "dt_c",
+    ]
+    out = out[[c for c in cols if c in out.columns]]
+    sort_cols = [c for c in ("date", "datetime_utc", "profile_id") if c in out.columns]
+    return out.sort_values(sort_cols).reset_index(drop=True)
+
+
+def filter_extreme_gamma_sfc(
+    sfc: pd.DataFrame,
+    *,
+    threshold: float = GAMMA_EXTREME_ABS_THRESHOLD_C_PER_100M,
+    levels_hpa: Sequence[float] = STANDARD_LEVELS_HPA,
+) -> pd.DataFrame:
+    """Профиль × изобара, где |γ_sfc-P| ≥ порога."""
+    rows: list[pd.DataFrame] = []
+    base_cols = ["profile_id", "datetime_utc", "date", "year", "month", "cycle", "season"]
+    for level in levels_hpa:
+        col = f"gamma_sfc_{int(level)}"
+        if col not in sfc.columns:
+            continue
+        vals = pd.to_numeric(sfc[col], errors="coerce")
+        chunk = sfc.loc[vals.abs() >= threshold, [c for c in base_cols if c in sfc.columns] + [col]].copy()
+        if chunk.empty:
+            continue
+        chunk = chunk.rename(columns={col: "gamma_sfc_c_100m"})
+        chunk["pressure_hpa"] = float(level)
+        rows.append(chunk)
+    if not rows:
+        return pd.DataFrame(
+            columns=base_cols + ["pressure_hpa", "gamma_sfc_c_100m"]
+        )
+    out = pd.concat(rows, ignore_index=True)
+    sort_cols = [c for c in ("date", "datetime_utc", "pressure_hpa", "profile_id") if c in out.columns]
+    return out.sort_values(sort_cols).reset_index(drop=True)
 
 
 def valid_layers(layers: pd.DataFrame) -> pd.DataFrame:
@@ -131,6 +212,7 @@ def compute_sfc_level_gamma(
         p_max = float(np.nanmax(p))
         rec: dict = {
             "profile_id": pid,
+            **_profile_datetime_fields(q),
             "year": int(q["year"]),
             "month": int(q["month"]),
             "cycle": str(q["cycle"]),
@@ -236,6 +318,7 @@ def compute_local_gammas(
             rows.append(
                 {
                     "profile_id": pid,
+                    **_profile_datetime_fields(q),
                     "year": year,
                     "month": month,
                     "cycle": cycle,
@@ -469,6 +552,8 @@ def prepare_revision_tables(
         "sfc_gamma_monthly": sfc_gamma_monthly(sfc),
         "sfc_gamma_year_month": sfc_gamma_year_month(sfc),
         "local_gamma": local,
+        "local_gamma_extreme_ge_15": filter_extreme_gamma_local(local),
+        "sfc_gamma_extreme_ge_15": filter_extreme_gamma_sfc(sfc),
         "local_median_heatmap": month_height_gamma_heatmap(local, stat="median"),
         "local_ppos_heatmap": month_height_gamma_heatmap(local, stat="p_positive"),
         "local_pneg_heatmap": month_height_gamma_heatmap(local, stat="p_negative"),

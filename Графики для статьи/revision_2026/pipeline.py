@@ -138,6 +138,8 @@ def build_revision(
         "gamma_sfc_monthly": tables["sfc_gamma_monthly"],
         "gamma_sfc_year_month": tables["sfc_gamma_year_month"],
         "gamma_local_intervals": local,
+        "gamma_local_extreme_abs_ge_15": tables["local_gamma_extreme_ge_15"],
+        "gamma_sfc_extreme_abs_ge_15": tables["sfc_gamma_extreme_ge_15"],
         "local_median_heatmap": tables["local_median_heatmap"],
         "local_ppos_heatmap": tables["local_ppos_heatmap"],
         "local_pneg_heatmap": tables["local_pneg_heatmap"],

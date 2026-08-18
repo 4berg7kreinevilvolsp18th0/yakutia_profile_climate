@@ -43,6 +43,51 @@ def _density_colors(x: np.ndarray, y: np.ndarray, bins: int = 60) -> tuple[np.nd
     return z, float(z.max() if z.size else 1.0)
 
 
+def _valid_depth_base_layers(layers: pd.DataFrame) -> pd.DataFrame:
+    use = layers.copy()
+    x = pd.to_numeric(use["base_height_agl_m"], errors="coerce")
+    y = pd.to_numeric(use["depth_m"], errors="coerce")
+    mask = np.isfinite(x) & np.isfinite(y) & (x >= 0) & (y > 0)
+    return use.loc[mask]
+
+
+def _typed_marginal_histograms(
+    ax_histx: plt.Axes,
+    ax_histy: plt.Axes,
+    layers: pd.DataFrame,
+    *,
+    xlim: tuple[float, float],
+    ylim: tuple[float, float],
+    n_bins: int = 40,
+    alpha: float = 0.55,
+) -> None:
+    for kind in INVERSION_TYPES:
+        g = layers[layers["position_type"] == kind]
+        if g.empty:
+            continue
+        x = g["base_height_agl_m"].to_numpy(float)
+        y = g["depth_m"].to_numpy(float)
+        color = TYPE_COLORS[kind]
+        ax_histx.hist(
+            x,
+            bins=n_bins,
+            range=xlim,
+            color=color,
+            alpha=alpha,
+            log=True,
+            label=TYPE_LABELS[kind],
+        )
+        ax_histy.hist(
+            y,
+            bins=n_bins,
+            range=ylim,
+            orientation="horizontal",
+            color=color,
+            alpha=alpha,
+            log=True,
+        )
+
+
 def plot_joint_depth_vs_base(
     layers: pd.DataFrame,
     style: FigureStyle,
@@ -52,12 +97,9 @@ def plot_joint_depth_vs_base(
     ylim: tuple[float, float] | None = None,
     vmax: float | None = None,
 ) -> plt.Figure:
-    x = layers["base_height_agl_m"].to_numpy(float)
-    y = layers["depth_m"].to_numpy(float)
-    finite = np.isfinite(x) & np.isfinite(y) & (x >= 0) & (y > 0)
-    x, y = x[finite], y[finite]
-    z, zmax = _density_colors(x, y)
-    vmax = zmax if vmax is None else vmax
+    use = _valid_depth_base_layers(layers)
+    x = use["base_height_agl_m"].to_numpy(float)
+    y = use["depth_m"].to_numpy(float)
     if xlim is None:
         xlim = (0.0, float(np.nanpercentile(x, 99.5)) if x.size else 1.0)
     if ylim is None:
@@ -67,6 +109,11 @@ def plot_joint_depth_vs_base(
     med_y = float(np.median(y)) if y.size else np.nan
     q25x, q75x = (np.nanpercentile(x, [25, 75]) if x.size else (np.nan, np.nan))
     q25y, q75y = (np.nanpercentile(y, [25, 75]) if y.size else (np.nan, np.nan))
+    type_lines = []
+    for kind in INVERSION_TYPES:
+        n_kind = int((use["position_type"] == kind).sum())
+        if n_kind:
+            type_lines.append(f"{kind}: {n_kind}")
 
     with revision_rc(style):
         fig = plt.figure(figsize=(style.figure_width_in, style.figure_height_in * 1.25))
@@ -74,10 +121,20 @@ def plot_joint_depth_vs_base(
         ax_histx = fig.add_subplot(gs[0, 0])
         ax = fig.add_subplot(gs[1, 0], sharex=ax_histx)
         ax_histy = fig.add_subplot(gs[1, 1], sharey=ax)
-        sc = ax.scatter(
-            x, y, c=z, s=6, cmap="magma", vmin=0, vmax=max(vmax, 0.3),
-            alpha=0.55, linewidths=0, rasterized=True,
-        )
+        for kind in INVERSION_TYPES:
+            g = use[use["position_type"] == kind]
+            if g.empty:
+                continue
+            ax.scatter(
+                g["base_height_agl_m"],
+                g["depth_m"],
+                c=TYPE_COLORS[kind],
+                s=6,
+                alpha=0.42,
+                linewidths=0,
+                rasterized=True,
+                label=TYPE_LABELS[kind],
+            )
         ax.axvline(med_x, color="#1C2833", linewidth=0.9, linestyle="--")
         ax.axhline(med_y, color="#1C2833", linewidth=0.9, linestyle="--")
         ax.set_xlim(*xlim)
@@ -85,24 +142,30 @@ def plot_joint_depth_vs_base(
         ax.set_xlabel("Высота основания AGL, м")
         ax.set_ylabel("Толщина слоя depth_m, м")
         ax.grid(True, alpha=style.grid_alpha, linewidth=0.4)
-        ax.text(
-            0.98, 0.97,
+        stats = (
             f"N = {x.size}\n"
             f"med base = {med_x:.0f} м (Q25–Q75 {q25x:.0f}–{q75x:.0f})\n"
-            f"med depth = {med_y:.0f} м (Q25–Q75 {q25y:.0f}–{q75y:.0f})",
-            transform=ax.transAxes, ha="right", va="top", fontsize=7.5,
+            f"med depth = {med_y:.0f} м (Q25–Q75 {q25y:.0f}–{q75y:.0f})"
+        )
+        if type_lines:
+            stats += "\n" + ", ".join(type_lines)
+        ax.text(
+            0.98,
+            0.97,
+            stats,
+            transform=ax.transAxes,
+            ha="right",
+            va="top",
+            fontsize=7.5,
             bbox=dict(boxstyle="round,pad=0.25", facecolor="white", edgecolor="#D5D8DC", alpha=0.9),
         )
         if x.size:
-            ax_histx.hist(x, bins=40, range=xlim, color="#5D6D7E", log=True)
-            ax_histy.hist(y, bins=40, range=ylim, orientation="horizontal", color="#5D6D7E", log=True)
+            _typed_marginal_histograms(ax_histx, ax_histy, use, xlim=xlim, ylim=ylim)
         ax_histx.tick_params(labelbottom=False)
         ax_histy.tick_params(labelleft=False)
         ax_histx.set_ylabel("N")
         ax_histy.set_xlabel("N")
-        cax = fig.add_axes([0.88, 0.62, 0.018, 0.22])
-        cbar = fig.colorbar(sc, cax=cax)
-        cbar.set_label("log10(N)")
+        ax.legend(loc="upper left", framealpha=0.92, borderpad=0.35, handletextpad=0.35)
         return finish(fig, style, caption)
 
 
@@ -112,36 +175,41 @@ def plot_monthly_depth_vs_base_12(
     *,
     caption: str | None = None,
 ) -> tuple[plt.Figure, tuple[float, float], tuple[float, float], float]:
-    x_all = layers["base_height_agl_m"].to_numpy(float)
-    y_all = layers["depth_m"].to_numpy(float)
-    ok = np.isfinite(x_all) & np.isfinite(y_all) & (x_all >= 0) & (y_all > 0)
-    xlim = (0.0, float(np.nanpercentile(x_all[ok], 99.5)) if ok.any() else 1000.0)
-    ylim = (0.0, float(np.nanpercentile(y_all[ok], 99.5)) if ok.any() else 1000.0)
-    _, vmax = _density_colors(x_all[ok], y_all[ok])
+    use = _valid_depth_base_layers(layers)
+    x_all = use["base_height_agl_m"].to_numpy(float)
+    y_all = use["depth_m"].to_numpy(float)
+    xlim = (0.0, float(np.nanpercentile(x_all, 99.5)) if x_all.size else 1000.0)
+    ylim = (0.0, float(np.nanpercentile(y_all, 99.5)) if y_all.size else 1000.0)
+    _, vmax = _density_colors(x_all, y_all)
     with revision_rc(style):
         fig, axes = plt.subplots(4, 3, figsize=(style.figure_width_in * 1.45, style.figure_height_in * 2.05), sharex=True, sharey=True)
-        last = None
         for ax, month in zip(axes.ravel(), range(1, 13)):
-            g = layers[layers["month"] == month]
-            x = g["base_height_agl_m"].to_numpy(float)
-            y = g["depth_m"].to_numpy(float)
-            finite = np.isfinite(x) & np.isfinite(y) & (x >= 0) & (y > 0)
-            x, y = x[finite], y[finite]
-            z, _ = _density_colors(x, y) if x.size else (np.array([]), 1.0)
-            last = ax.scatter(
-                x, y, c=z if z.size else None, s=4, cmap="magma", vmin=0, vmax=max(vmax, 0.3),
-                alpha=0.55, linewidths=0, rasterized=True,
-            )
+            g = use[use["month"] == month]
+            for kind in INVERSION_TYPES:
+                gt = g[g["position_type"] == kind]
+                if gt.empty:
+                    continue
+                ax.scatter(
+                    gt["base_height_agl_m"],
+                    gt["depth_m"],
+                    c=TYPE_COLORS[kind],
+                    s=4,
+                    alpha=0.42,
+                    linewidths=0,
+                    rasterized=True,
+                    label=TYPE_LABELS[kind] if month == 1 else None,
+                )
             ax.set_xlim(*xlim)
             ax.set_ylim(*ylim)
             ax.set_title(MONTHS_RU[month - 1], fontsize=style.tick_font_size)
             ax.grid(True, alpha=0.2, linewidth=0.3)
-            ax.text(0.97, 0.95, f"N={x.size}", transform=ax.transAxes, ha="right", va="top", fontsize=6.5)
+            ax.text(0.97, 0.95, f"N={len(g)}", transform=ax.transAxes, ha="right", va="top", fontsize=6.5)
         axes[3, 1].set_xlabel("Основание AGL, м")
         axes[1, 0].set_ylabel("Толщина depth_m, м")
-        if last is not None:
-            fig.colorbar(last, ax=axes.ravel().tolist(), fraction=0.02, pad=0.02, label="log10(N)")
-        fig.subplots_adjust(bottom=0.08, right=0.9)
+        handles, labels = axes[0, 0].get_legend_handles_labels()
+        if handles:
+            fig.legend(handles, labels, loc="upper center", ncol=3, framealpha=0.92, bbox_to_anchor=(0.5, 0.995))
+        fig.subplots_adjust(bottom=0.08, top=0.94, right=0.96)
         if caption:
             fig.text(0.5, 0.01, caption, ha="center", fontsize=7.5, color="#4D4D4D")
         return fig, xlim, ylim, vmax

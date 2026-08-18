@@ -19,8 +19,11 @@ import pandas as pd
 from gdex_bufr.profile_climate.article_figures.config import AnalysisConfig, FigureStyle
 from gdex_bufr.profile_climate.article_figures.data import build_profile_qc
 from revision_2026.metrics import (
+    GAMMA_EXTREME_ABS_THRESHOLD_C_PER_100M,
     compute_local_gammas,
     compute_sfc_level_gamma,
+    filter_extreme_gamma_local,
+    filter_extreme_gamma_sfc,
     frequency_percent,
     gamma_local_interval,
     gamma_sfc_to_level,
@@ -221,6 +224,63 @@ def test_shared_axis_and_color_limits():
     assert len(vmaxs) == 1
     assert list(vmaxs)[0] == 80.0
     plt.close(fig2)
+
+
+def test_local_gamma_includes_datetime_and_extreme_table():
+    rows = []
+    for p, t, h in [
+        (930.0, 0.0, 0.0),
+        (900.0, 20.0, 100.0),
+        (850.0, 0.0, 200.0),
+    ]:
+        rows.append(
+            {
+                "profile_id": "p1",
+                "station_id": "31004",
+                "datetime_utc": "2000-01-04 12:00:00",
+                "cycle": "12",
+                "pressure_hpa": p,
+                "temperature_c": t,
+                "height_m": h,
+                "year": 2000,
+                "month": 1,
+            }
+        )
+    df = pd.DataFrame(rows)
+    cfg = AnalysisConfig(strict_surface_qc=False, max_surface_pressure_hpa=1000.0)
+    qc = build_profile_qc(df, cfg)
+    qc["eligible_article"] = True
+    local = compute_local_gammas(df, qc, cfg)
+    assert "datetime_utc" in local.columns
+    assert "date" in local.columns
+    assert pd.Timestamp(local.loc[0, "datetime_utc"]) == pd.Timestamp("2000-01-04 12:00:00")
+    extreme = filter_extreme_gamma_local(local, threshold=15.0)
+    assert len(extreme) == 2
+    assert {round(float(v), 1) for v in extreme["gamma_local_c_100m"]} == {20.0, -20.0}
+    assert pd.Timestamp(extreme.iloc[0]["date"]) == pd.Timestamp("2000-01-04")
+
+
+def test_sfc_gamma_extreme_table_structure():
+    sfc = pd.DataFrame(
+        [
+            {
+                "profile_id": "p1",
+                "datetime_utc": "2000-01-01 00:00:00",
+                "date": pd.Timestamp("2000-01-01"),
+                "year": 2000,
+                "month": 1,
+                "cycle": "00",
+                "season": "DJF",
+                "gamma_sfc_850": 16.0,
+                "gamma_sfc_700": 1.0,
+                "gamma_sfc_500": -20.0,
+            }
+        ]
+    )
+    extreme = filter_extreme_gamma_sfc(sfc, threshold=GAMMA_EXTREME_ABS_THRESHOLD_C_PER_100M)
+    assert len(extreme) == 2
+    assert set(extreme["pressure_hpa"]) == {850.0, 500.0}
+    assert pd.Timestamp(extreme.iloc[0]["date"]) == pd.Timestamp("2000-01-01")
 
 
 def test_profile_layer_counts_include_zero():
