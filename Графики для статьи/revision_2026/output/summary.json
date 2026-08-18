@@ -1,0 +1,260 @@
+{
+  "input": "../gdex_outputs/far_east/stations/aldan/profiles_long.csv",
+  "eligible_profiles": 17991,
+  "valid_layers": 19996,
+  "geometry_qc": {
+    "layers": 19996,
+    "negative_depth": 0,
+    "top_below_base": 0,
+    "negative_base_agl": 0
+  },
+  "year_from": 1999,
+  "year_to": 2026,
+  "figures": {
+    "fig01_completeness_heatmap": [
+      "revision_2026\\output\\figures\\updated\\fig01_completeness_heatmap.png",
+      "revision_2026\\output\\figures\\updated\\fig01_completeness_heatmap.svg"
+    ],
+    "fig02_seasonal_temperature_profiles": [
+      "revision_2026\\output\\figures\\updated\\fig02_seasonal_temperature_profiles.png",
+      "revision_2026\\output\\figures\\updated\\fig02_seasonal_temperature_profiles.svg"
+    ],
+    "fig03_monthly_inversion_frequency_v2": [
+      "revision_2026\\output\\figures\\updated\\fig03_monthly_inversion_frequency_v2.png",
+      "revision_2026\\output\\figures\\updated\\fig03_monthly_inversion_frequency_v2.svg"
+    ],
+    "fig04_annual_inversion_variability_v2": [
+      "revision_2026\\output\\figures\\updated\\fig04_annual_inversion_variability_v2.png",
+      "revision_2026\\output\\figures\\updated\\fig04_annual_inversion_variability_v2.svg"
+    ],
+    "type01_matrix_G_E_HE_shared_scale": [
+      "revision_2026\\output\\figures\\updated\\type01_matrix_G_E_HE_shared_scale.png",
+      "revision_2026\\output\\figures\\updated\\type01_matrix_G_E_HE_shared_scale.svg"
+    ],
+    "inversion_depth_vs_base_joint": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_joint.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_joint.svg"
+    ],
+    "inversion_depth_vs_base_monthly_12panel": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_monthly_12panel.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_monthly_12panel.svg"
+    ],
+    "inversion_depth_vs_base_month_01": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_01.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_01.svg"
+    ],
+    "inversion_depth_vs_base_month_02": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_02.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_02.svg"
+    ],
+    "inversion_depth_vs_base_month_03": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_03.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_03.svg"
+    ],
+    "inversion_depth_vs_base_month_04": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_04.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_04.svg"
+    ],
+    "inversion_depth_vs_base_month_05": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_05.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_05.svg"
+    ],
+    "inversion_depth_vs_base_month_06": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_06.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_06.svg"
+    ],
+    "inversion_depth_vs_base_month_07": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_07.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_07.svg"
+    ],
+    "inversion_depth_vs_base_month_08": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_08.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_08.svg"
+    ],
+    "inversion_depth_vs_base_month_09": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_09.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_09.svg"
+    ],
+    "inversion_depth_vs_base_month_10": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_10.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_10.svg"
+    ],
+    "inversion_depth_vs_base_month_11": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_11.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_11.svg"
+    ],
+    "inversion_depth_vs_base_month_12": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_12.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_month_12.svg"
+    ],
+    "inversion_depth_boxplots": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_boxplots.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_boxplots.svg"
+    ],
+    "type03_gamma_annual_cycle_850_700_500": [
+      "revision_2026\\output\\figures\\article\\02_gamma_sfc_P\\type03_gamma_annual_cycle_850_700_500.png",
+      "revision_2026\\output\\figures\\article\\02_gamma_sfc_P\\type03_gamma_annual_cycle_850_700_500.svg"
+    ],
+    "type03_gamma_monthly_850_700_500": [
+      "revision_2026\\output\\figures\\article\\02_gamma_sfc_P\\type03_gamma_monthly_850_700_500.png",
+      "revision_2026\\output\\figures\\article\\02_gamma_sfc_P\\type03_gamma_monthly_850_700_500.svg"
+    ],
+    "gamma_local_histogram": [
+      "revision_2026\\output\\figures\\article\\03_gamma_local\\gamma_local_histogram.png",
+      "revision_2026\\output\\figures\\article\\03_gamma_local\\gamma_local_histogram.svg"
+    ],
+    "gamma_local_histogram_seasons": [
+      "revision_2026\\output\\figures\\article\\03_gamma_local\\gamma_local_histogram_seasons.png",
+      "revision_2026\\output\\figures\\article\\03_gamma_local\\gamma_local_histogram_seasons.svg"
+    ],
+    "gamma_local_month_height_median": [
+      "revision_2026\\output\\figures\\article\\03_gamma_local\\gamma_local_month_height_median.png",
+      "revision_2026\\output\\figures\\article\\03_gamma_local\\gamma_local_month_height_median.svg"
+    ],
+    "gamma_local_month_height_p_positive": [
+      "revision_2026\\output\\figures\\article\\03_gamma_local\\gamma_local_month_height_p_positive.png",
+      "revision_2026\\output\\figures\\article\\03_gamma_local\\gamma_local_month_height_p_positive.svg"
+    ],
+    "gamma_local_month_height_p_negative": [
+      "revision_2026\\output\\figures\\article\\03_gamma_local\\gamma_local_month_height_p_negative.png",
+      "revision_2026\\output\\figures\\article\\03_gamma_local\\gamma_local_month_height_p_negative.svg"
+    ],
+    "gamma_local_00_vs_12": [
+      "revision_2026\\output\\figures\\article\\03_gamma_local\\gamma_local_00_vs_12.png",
+      "revision_2026\\output\\figures\\article\\03_gamma_local\\gamma_local_00_vs_12.svg"
+    ],
+    "gamma_local_monthly_box": [
+      "revision_2026\\output\\figures\\article\\03_gamma_local\\gamma_local_monthly_box.png",
+      "revision_2026\\output\\figures\\article\\03_gamma_local\\gamma_local_monthly_box.svg"
+    ],
+    "gamma_local_seasonal_profiles": [
+      "revision_2026\\output\\figures\\article\\03_gamma_local\\gamma_local_seasonal_profiles.png",
+      "revision_2026\\output\\figures\\article\\03_gamma_local\\gamma_local_seasonal_profiles.svg"
+    ],
+    "hexbin_depth_vs_delta_t": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\hexbin_depth_vs_delta_t.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\hexbin_depth_vs_delta_t.svg"
+    ],
+    "n_layers_histogram": [
+      "revision_2026\\output\\figures\\article\\04_multilayer\\n_layers_histogram.png",
+      "revision_2026\\output\\figures\\article\\04_multilayer\\n_layers_histogram.svg"
+    ],
+    "n_layers_monthly_percent": [
+      "revision_2026\\output\\figures\\article\\04_multilayer\\n_layers_monthly_percent.png",
+      "revision_2026\\output\\figures\\article\\04_multilayer\\n_layers_monthly_percent.svg"
+    ],
+    "n_layers_seasonal_stack": [
+      "revision_2026\\output\\figures\\article\\04_multilayer\\n_layers_seasonal_stack.png",
+      "revision_2026\\output\\figures\\article\\04_multilayer\\n_layers_seasonal_stack.svg"
+    ],
+    "heatmap_p_multilayer": [
+      "revision_2026\\output\\figures\\article\\04_multilayer\\heatmap_p_multilayer.png",
+      "revision_2026\\output\\figures\\article\\04_multilayer\\heatmap_p_multilayer.svg"
+    ],
+    "p_multilayer_00_12": [
+      "revision_2026\\output\\figures\\article\\04_multilayer\\p_multilayer_00_12.png",
+      "revision_2026\\output\\figures\\article\\04_multilayer\\p_multilayer_00_12.svg"
+    ],
+    "mean_layers_per_profile_month": [
+      "revision_2026\\output\\figures\\article\\04_multilayer\\mean_layers_per_profile_month.png",
+      "revision_2026\\output\\figures\\article\\04_multilayer\\mean_layers_per_profile_month.svg"
+    ],
+    "GEHE_summary_three_columns": [
+      "revision_2026\\output\\figures\\article\\05_GEHE\\GEHE_summary_three_columns.png",
+      "revision_2026\\output\\figures\\article\\05_GEHE\\GEHE_summary_three_columns.svg"
+    ],
+    "heatmap_any_inversion_year_month": [
+      "revision_2026\\output\\figures\\article\\05_GEHE\\heatmap_any_inversion_year_month.png",
+      "revision_2026\\output\\figures\\article\\05_GEHE\\heatmap_any_inversion_year_month.svg"
+    ],
+    "hexbin_base_vs_depth": [
+      "revision_2026\\output\\figures\\article\\06_extra\\hexbin_base_vs_depth.png",
+      "revision_2026\\output\\figures\\article\\06_extra\\hexbin_base_vs_depth.svg"
+    ],
+    "hexbin_layer_gamma_vs_depth": [
+      "revision_2026\\output\\figures\\article\\06_extra\\hexbin_layer_gamma_vs_depth.png",
+      "revision_2026\\output\\figures\\article\\06_extra\\hexbin_layer_gamma_vs_depth.svg"
+    ],
+    "scatter_base_vs_delta_t_by_type": [
+      "revision_2026\\output\\figures\\article\\06_extra\\scatter_base_vs_delta_t_by_type.png",
+      "revision_2026\\output\\figures\\article\\06_extra\\scatter_base_vs_delta_t_by_type.svg"
+    ],
+    "violin_delta_t_by_type": [
+      "revision_2026\\output\\figures\\article\\06_extra\\violin_delta_t_by_type.png",
+      "revision_2026\\output\\figures\\article\\06_extra\\violin_delta_t_by_type.svg"
+    ],
+    "violin_depth_by_month": [
+      "revision_2026\\output\\figures\\article\\06_extra\\violin_depth_by_month.png",
+      "revision_2026\\output\\figures\\article\\06_extra\\violin_depth_by_month.svg"
+    ],
+    "ridgeline_depth_by_month": [
+      "revision_2026\\output\\figures\\article\\06_extra\\ridgeline_depth_by_month.png",
+      "revision_2026\\output\\figures\\article\\06_extra\\ridgeline_depth_by_month.svg"
+    ],
+    "ridgeline_delta_t_by_month": [
+      "revision_2026\\output\\figures\\article\\06_extra\\ridgeline_delta_t_by_month.png",
+      "revision_2026\\output\\figures\\article\\06_extra\\ridgeline_delta_t_by_month.svg"
+    ],
+    "heatmap_month_type_frequency": [
+      "revision_2026\\output\\figures\\article\\06_extra\\heatmap_month_type_frequency.png",
+      "revision_2026\\output\\figures\\article\\06_extra\\heatmap_month_type_frequency.svg"
+    ],
+    "bubble_year_month_freq_delta_t": [
+      "revision_2026\\output\\figures\\article\\06_extra\\bubble_year_month_freq_delta_t.png",
+      "revision_2026\\output\\figures\\article\\06_extra\\bubble_year_month_freq_delta_t.svg"
+    ],
+    "seasonal_phase_depth_delta_t": [
+      "revision_2026\\output\\figures\\article\\06_extra\\seasonal_phase_depth_delta_t.png",
+      "revision_2026\\output\\figures\\article\\06_extra\\seasonal_phase_depth_delta_t.svg"
+    ],
+    "density_depth_delta_t_by_type": [
+      "revision_2026\\output\\figures\\article\\06_extra\\density_depth_delta_t_by_type.png",
+      "revision_2026\\output\\figures\\article\\06_extra\\density_depth_delta_t_by_type.svg"
+    ],
+    "ecdf_depth_by_type": [
+      "revision_2026\\output\\figures\\article\\06_extra\\ecdf_depth_by_type.png",
+      "revision_2026\\output\\figures\\article\\06_extra\\ecdf_depth_by_type.svg"
+    ],
+    "ecdf_delta_t_by_type": [
+      "revision_2026\\output\\figures\\article\\06_extra\\ecdf_delta_t_by_type.png",
+      "revision_2026\\output\\figures\\article\\06_extra\\ecdf_delta_t_by_type.svg"
+    ],
+    "heatmap_month_base_bin_frequency": [
+      "revision_2026\\output\\figures\\article\\06_extra\\heatmap_month_base_bin_frequency.png",
+      "revision_2026\\output\\figures\\article\\06_extra\\heatmap_month_base_bin_frequency.svg"
+    ],
+    "heatmap_month_depth_bin_frequency": [
+      "revision_2026\\output\\figures\\article\\06_extra\\heatmap_month_depth_bin_frequency.png",
+      "revision_2026\\output\\figures\\article\\06_extra\\heatmap_month_depth_bin_frequency.svg"
+    ],
+    "qc_base_vs_top_yeqx": [
+      "revision_2026\\output\\figures\\diagnostic\\qc_base_vs_top_yeqx.png",
+      "revision_2026\\output\\figures\\diagnostic\\qc_base_vs_top_yeqx.svg"
+    ],
+    "qc_depth_histogram": [
+      "revision_2026\\output\\figures\\diagnostic\\qc_depth_histogram.png",
+      "revision_2026\\output\\figures\\diagnostic\\qc_depth_histogram.svg"
+    ],
+    "qc_dz_histogram": [
+      "revision_2026\\output\\figures\\diagnostic\\qc_dz_histogram.png",
+      "revision_2026\\output\\figures\\diagnostic\\qc_dz_histogram.svg"
+    ],
+    "qc_embedded_gap_depth": [
+      "revision_2026\\output\\figures\\diagnostic\\qc_embedded_gap_depth.png",
+      "revision_2026\\output\\figures\\diagnostic\\qc_embedded_gap_depth.svg"
+    ],
+    "qc_embedded_gap_fraction": [
+      "revision_2026\\output\\figures\\diagnostic\\qc_embedded_gap_fraction.png",
+      "revision_2026\\output\\figures\\diagnostic\\qc_embedded_gap_fraction.svg"
+    ],
+    "qc_delta_t_vs_source_segments": [
+      "revision_2026\\output\\figures\\diagnostic\\qc_delta_t_vs_source_segments.png",
+      "revision_2026\\output\\figures\\diagnostic\\qc_delta_t_vs_source_segments.svg"
+    ],
+    "qc_eligible_counts_year_month": [
+      "revision_2026\\output\\figures\\diagnostic\\qc_eligible_counts_year_month.png",
+      "revision_2026\\output\\figures\\diagnostic\\qc_eligible_counts_year_month.svg"
+    ]
+  },
+  "note": "γ_sfc-P и γ_local считаются раздельно. Старый sample_output не перезаписывался."
+}
