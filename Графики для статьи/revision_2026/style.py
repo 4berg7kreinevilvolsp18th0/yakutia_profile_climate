@@ -16,6 +16,11 @@ TYPE_LABELS = {
     "HE": "Высокоприподнятая (HE)",
 }
 LEVEL_COLORS = {850.0: "#1A5276", 700.0: "#B9770E", 500.0: "#196F3D"}
+DIAG_HIST_COLOR = "#2471A3"
+DIAG_HEXBIN_CMAP = "YlOrRd"
+DIAG_HEATMAP_CMAP = "YlOrRd"
+NEUTRAL_LINE = "#7F8C8D"
+REFERENCE_LINE = "#1C2833"
 LEVEL_LABELS = {850.0: "850 гПа", 700.0: "700 гПа", 500.0: "500 гПа"}
 MONTHS_RU = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"]
 SEASONS_RU = {"DJF": "Зима (DJF)", "MAM": "Весна (MAM)", "JJA": "Лето (JJA)", "SON": "Осень (SON)"}

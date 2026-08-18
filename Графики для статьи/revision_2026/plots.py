@@ -15,9 +15,13 @@ from gdex_bufr.profile_climate.article_figures.metrics import INVERSION_TYPES
 
 from .metrics import heatmap_matrix, shared_abs_limit
 from .style import (
+    DIAG_HEXBIN_CMAP,
+    DIAG_HIST_COLOR,
+    DIAG_HEATMAP_CMAP,
     LEVEL_COLORS,
     LEVEL_LABELS,
     MONTHS_RU,
+    NEUTRAL_LINE,
     SEASON_ORDER,
     SEASONS_RU,
     TYPE_COLORS,
@@ -27,6 +31,17 @@ from .style import (
 )
 
 STANDARD_LEVELS = (850.0, 700.0, 500.0)
+JOINT_DEPTH_AXIS_MAX_M = 3000.0
+JOINT_BASE_AXIS_MAX_M = 5000.0
+JOINT_DEPTH_AXIS_TICK_M = 250.0
+
+
+def _joint_depth_ticks() -> np.ndarray:
+    return np.arange(0.0, JOINT_DEPTH_AXIS_MAX_M + JOINT_DEPTH_AXIS_TICK_M * 0.5, JOINT_DEPTH_AXIS_TICK_M)
+
+
+def _joint_depth_bins() -> np.ndarray:
+    return np.arange(0.0, JOINT_DEPTH_AXIS_MAX_M + JOINT_DEPTH_AXIS_TICK_M, JOINT_DEPTH_AXIS_TICK_M)
 
 
 def _density_colors(x: np.ndarray, y: np.ndarray, bins: int = 60) -> tuple[np.ndarray, float]:
@@ -56,31 +71,32 @@ def _typed_marginal_histograms(
     ax_histy: plt.Axes,
     layers: pd.DataFrame,
     *,
-    xlim: tuple[float, float],
-    ylim: tuple[float, float],
+    depth_lim: tuple[float, float],
+    base_lim: tuple[float, float],
     n_bins: int = 40,
     alpha: float = 0.55,
 ) -> None:
+    """Верх: толщина (X); справа: основание AGL (Y)."""
     for kind in INVERSION_TYPES:
         g = layers[layers["position_type"] == kind]
         if g.empty:
             continue
-        x = g["base_height_agl_m"].to_numpy(float)
-        y = g["depth_m"].to_numpy(float)
+        depth = g["depth_m"].to_numpy(float)
+        base = g["base_height_agl_m"].to_numpy(float)
         color = TYPE_COLORS[kind]
         ax_histx.hist(
-            x,
-            bins=n_bins,
-            range=xlim,
+            depth,
+            bins=_joint_depth_bins(),
+            range=depth_lim,
             color=color,
             alpha=alpha,
             log=True,
             label=TYPE_LABELS[kind],
         )
         ax_histy.hist(
-            y,
+            base,
             bins=n_bins,
-            range=ylim,
+            range=base_lim,
             orientation="horizontal",
             color=color,
             alpha=alpha,
@@ -98,17 +114,14 @@ def plot_joint_depth_vs_base(
     vmax: float | None = None,
 ) -> plt.Figure:
     use = _valid_depth_base_layers(layers)
-    x = use["base_height_agl_m"].to_numpy(float)
-    y = use["depth_m"].to_numpy(float)
-    if xlim is None:
-        xlim = (0.0, float(np.nanpercentile(x, 99.5)) if x.size else 1.0)
-    if ylim is None:
-        hi = float(np.nanpercentile(y, 99.5)) if y.size else 10.0
-        ylim = (0.0, max(hi, 1.0))
-    med_x = float(np.median(x)) if x.size else np.nan
-    med_y = float(np.median(y)) if y.size else np.nan
-    q25x, q75x = (np.nanpercentile(x, [25, 75]) if x.size else (np.nan, np.nan))
-    q25y, q75y = (np.nanpercentile(y, [25, 75]) if y.size else (np.nan, np.nan))
+    base = use["base_height_agl_m"].to_numpy(float)
+    depth = use["depth_m"].to_numpy(float)
+    depth_lim = xlim if xlim is not None else (0.0, JOINT_DEPTH_AXIS_MAX_M)
+    base_lim = ylim if ylim is not None else (0.0, JOINT_BASE_AXIS_MAX_M)
+    med_base = float(np.median(base)) if base.size else np.nan
+    med_depth = float(np.median(depth)) if depth.size else np.nan
+    q25_base, q75_base = (np.nanpercentile(base, [25, 75]) if base.size else (np.nan, np.nan))
+    q25_depth, q75_depth = (np.nanpercentile(depth, [25, 75]) if depth.size else (np.nan, np.nan))
     type_lines = []
     for kind in INVERSION_TYPES:
         n_kind = int((use["position_type"] == kind).sum())
@@ -126,8 +139,8 @@ def plot_joint_depth_vs_base(
             if g.empty:
                 continue
             ax.scatter(
-                g["base_height_agl_m"],
                 g["depth_m"],
+                g["base_height_agl_m"],
                 c=TYPE_COLORS[kind],
                 s=6,
                 alpha=0.42,
@@ -135,17 +148,18 @@ def plot_joint_depth_vs_base(
                 rasterized=True,
                 label=TYPE_LABELS[kind],
             )
-        ax.axvline(med_x, color="#1C2833", linewidth=0.9, linestyle="--")
-        ax.axhline(med_y, color="#1C2833", linewidth=0.9, linestyle="--")
-        ax.set_xlim(*xlim)
-        ax.set_ylim(*ylim)
-        ax.set_xlabel("Высота основания AGL, м")
-        ax.set_ylabel("Толщина слоя depth_m, м")
+        ax.axvline(med_depth, color="#1C2833", linewidth=0.9, linestyle="--")
+        ax.axhline(med_base, color="#1C2833", linewidth=0.9, linestyle="--")
+        ax.set_xlim(*depth_lim)
+        ax.set_ylim(*base_lim)
+        ax.set_xticks(_joint_depth_ticks())
+        ax.set_xlabel("Толщина слоя depth_m, м")
+        ax.set_ylabel("Высота основания AGL, м")
         ax.grid(True, alpha=style.grid_alpha, linewidth=0.4)
         stats = (
-            f"N = {x.size}\n"
-            f"med base = {med_x:.0f} м (Q25–Q75 {q25x:.0f}–{q75x:.0f})\n"
-            f"med depth = {med_y:.0f} м (Q25–Q75 {q25y:.0f}–{q75y:.0f})"
+            f"N = {depth.size}\n"
+            f"med depth = {med_depth:.0f} м (Q25–Q75 {q25_depth:.0f}–{q75_depth:.0f})\n"
+            f"med base = {med_base:.0f} м (Q25–Q75 {q25_base:.0f}–{q75_base:.0f})"
         )
         if type_lines:
             stats += "\n" + ", ".join(type_lines)
@@ -159,8 +173,10 @@ def plot_joint_depth_vs_base(
             fontsize=7.5,
             bbox=dict(boxstyle="round,pad=0.25", facecolor="white", edgecolor="#D5D8DC", alpha=0.9),
         )
-        if x.size:
-            _typed_marginal_histograms(ax_histx, ax_histy, use, xlim=xlim, ylim=ylim)
+        if depth.size:
+            _typed_marginal_histograms(
+                ax_histx, ax_histy, use, depth_lim=depth_lim, base_lim=base_lim
+            )
         ax_histx.tick_params(labelbottom=False)
         ax_histy.tick_params(labelleft=False)
         ax_histx.set_ylabel("N")
@@ -176,11 +192,11 @@ def plot_monthly_depth_vs_base_12(
     caption: str | None = None,
 ) -> tuple[plt.Figure, tuple[float, float], tuple[float, float], float]:
     use = _valid_depth_base_layers(layers)
-    x_all = use["base_height_agl_m"].to_numpy(float)
-    y_all = use["depth_m"].to_numpy(float)
-    xlim = (0.0, float(np.nanpercentile(x_all, 99.5)) if x_all.size else 1000.0)
-    ylim = (0.0, float(np.nanpercentile(y_all, 99.5)) if y_all.size else 1000.0)
-    _, vmax = _density_colors(x_all, y_all)
+    depth_lim = (0.0, JOINT_DEPTH_AXIS_MAX_M)
+    base_lim = (0.0, JOINT_BASE_AXIS_MAX_M)
+    depth_all = use["depth_m"].to_numpy(float)
+    base_all = use["base_height_agl_m"].to_numpy(float)
+    _, vmax = _density_colors(depth_all, base_all)
     with revision_rc(style):
         fig, axes = plt.subplots(4, 3, figsize=(style.figure_width_in * 1.45, style.figure_height_in * 2.05), sharex=True, sharey=True)
         for ax, month in zip(axes.ravel(), range(1, 13)):
@@ -190,8 +206,8 @@ def plot_monthly_depth_vs_base_12(
                 if gt.empty:
                     continue
                 ax.scatter(
-                    gt["base_height_agl_m"],
                     gt["depth_m"],
+                    gt["base_height_agl_m"],
                     c=TYPE_COLORS[kind],
                     s=4,
                     alpha=0.42,
@@ -199,20 +215,22 @@ def plot_monthly_depth_vs_base_12(
                     rasterized=True,
                     label=TYPE_LABELS[kind] if month == 1 else None,
                 )
-            ax.set_xlim(*xlim)
-            ax.set_ylim(*ylim)
+            ax.set_xlim(*depth_lim)
+            ax.set_ylim(*base_lim)
             ax.set_title(MONTHS_RU[month - 1], fontsize=style.tick_font_size)
             ax.grid(True, alpha=0.2, linewidth=0.3)
             ax.text(0.97, 0.95, f"N={len(g)}", transform=ax.transAxes, ha="right", va="top", fontsize=6.5)
-        axes[3, 1].set_xlabel("Основание AGL, м")
-        axes[1, 0].set_ylabel("Толщина depth_m, м")
+        for ax in axes[-1, :]:
+            ax.set_xticks(_joint_depth_ticks())
+        axes[3, 1].set_xlabel("Толщина depth_m, м")
+        axes[1, 0].set_ylabel("Основание AGL, м")
         handles, labels = axes[0, 0].get_legend_handles_labels()
         if handles:
             fig.legend(handles, labels, loc="upper center", ncol=3, framealpha=0.92, bbox_to_anchor=(0.5, 0.995))
         fig.subplots_adjust(bottom=0.08, top=0.94, right=0.96)
         if caption:
             fig.text(0.5, 0.01, caption, ha="center", fontsize=7.5, color="#4D4D4D")
-        return fig, xlim, ylim, vmax
+        return fig, depth_lim, base_lim, vmax
 
 
 def plot_depth_boxplots(layers: pd.DataFrame, style: FigureStyle, *, caption: str | None = None) -> plt.Figure:
@@ -238,7 +256,7 @@ def plot_depth_boxplots(layers: pd.DataFrame, style: FigureStyle, *, caption: st
         fig.tight_layout()
         if caption:
             fig.subplots_adjust(bottom=0.08)
-            fig.text(0.5, 0.01, caption, ha="center", fontsize=7.5, color="#4D4D4D")
+            fig.text(0.5, 0.01, caption, ha="center", fontsize=7.5, color="#65695A")
         return fig
 
 
@@ -254,7 +272,7 @@ def _box(ax, groups, labels, xlabel, *, log=False, colors=None, rotate=False, sm
         widths=0.65 if not small else 0.55,
     )
     for i, patch in enumerate(bp["boxes"]):
-        patch.set_facecolor((colors[i] if colors else "#AED6F1"))
+        patch.set_facecolor((colors[i] if colors else "#94D4FF"))
         patch.set_alpha(0.75)
     if log:
         ax.set_yscale("log")
@@ -263,7 +281,7 @@ def _box(ax, groups, labels, xlabel, *, log=False, colors=None, rotate=False, sm
     ax.tick_params(axis="x", rotation=90 if rotate else 0, labelsize=6 if small else 8)
     ymin = ax.get_ylim()[0]
     for i, g in enumerate(data, start=1):
-        ax.text(i, ymin, str(len(g)), ha="center", va="bottom", fontsize=5.5, color="#566573")
+        ax.text(i, ymin, str(len(g)), ha="center", va="bottom", fontsize=5.5, color="#4D6174")
 
 
 def plot_gamma_sfc_annual_cycle(monthly: pd.DataFrame, style: FigureStyle, *, caption: str | None = None) -> plt.Figure:
@@ -326,7 +344,7 @@ def plot_local_gamma_hist(local: pd.DataFrame, style: FigureStyle, *, caption: s
     with revision_rc(style):
         fig, ax = plt.subplots(figsize=(style.figure_width_in, style.figure_height_in))
         ax.hist(vals, bins=np.linspace(-15, 15, 61), color="#5B2C6F", alpha=0.75)
-        ax.axvline(0, color="#7F8C8D", linestyle="--", linewidth=0.9)
+        ax.axvline(0, color="#6F9172", linestyle="--", linewidth=0.9)
         ax.set_xlabel("γ_local, °C/100 м")
         ax.set_ylabel("Число интервалов")
         ax.text(0.98, 0.95, f"N = {vals.size}", transform=ax.transAxes, ha="right", va="top", fontsize=8)
@@ -434,13 +452,23 @@ def plot_seasonal_gamma_z(local: pd.DataFrame, style: FigureStyle, *, caption: s
         return finish(fig, style, caption)
 
 
-def plot_hexbin(x, y, style, xlabel, ylabel, caption=None, gridsize=35) -> plt.Figure:
+def plot_hexbin(
+    x,
+    y,
+    style,
+    xlabel,
+    ylabel,
+    caption=None,
+    gridsize=35,
+    *,
+    cmap: str = DIAG_HEXBIN_CMAP,
+) -> plt.Figure:
     xf = np.asarray(x, float)
     yf = np.asarray(y, float)
     ok = np.isfinite(xf) & np.isfinite(yf)
     with revision_rc(style):
         fig, ax = plt.subplots(figsize=(style.figure_width_in, style.figure_height_in))
-        hb = ax.hexbin(xf[ok], yf[ok], gridsize=gridsize, bins="log", cmap="magma", mincnt=1, rasterized=True)
+        hb = ax.hexbin(xf[ok], yf[ok], gridsize=gridsize, bins="log", cmap=cmap, mincnt=1, rasterized=True)
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
         fig.colorbar(hb, ax=ax, fraction=0.035, pad=0.02, label="log10(N)")
@@ -754,15 +782,27 @@ def plot_mean_layers_month(counts: pd.DataFrame, style: FigureStyle, caption=Non
 def plot_qc_base_top(layers: pd.DataFrame, style: FigureStyle, caption=None) -> plt.Figure:
     with revision_rc(style):
         fig, ax = plt.subplots(figsize=(style.figure_width_in * 0.85, style.figure_height_in))
-        ax.scatter(layers["base_height_agl_m"], layers["top_height_agl_m"], s=6, alpha=0.2, rasterized=True, color="#1A5276", linewidths=0)
+        for kind in INVERSION_TYPES:
+            g = layers[layers["position_type"] == kind]
+            ax.scatter(
+                g["base_height_agl_m"],
+                g["top_height_agl_m"],
+                s=6,
+                alpha=0.28,
+                rasterized=True,
+                color=TYPE_COLORS[kind],
+                label=TYPE_LABELS[kind],
+                linewidths=0,
+            )
         lim = float(np.nanmax([layers["base_height_agl_m"].max(), layers["top_height_agl_m"].max()]))
-        ax.plot([0, lim], [0, lim], "--", color="#7F8C8D", linewidth=0.9)
+        ax.plot([0, lim], [0, lim], "--", color=NEUTRAL_LINE, linewidth=0.9)
         ax.set_xlabel("base AGL, м")
         ax.set_ylabel("top AGL, м")
         ax.set_xlim(0, lim)
         ax.set_ylim(0, lim)
         n_bad = int((layers["top_height_agl_m"] <= layers["base_height_agl_m"]).sum())
         ax.text(0.05, 0.95, f"top ≤ base: {n_bad}", transform=ax.transAxes, va="top")
+        ax.legend(frameon=False, loc="lower right", fontsize=7.5)
         return finish(fig, style, caption)
 
 
@@ -771,7 +811,7 @@ def plot_simple_hist(values, xlabel, style, caption=None, logy=False) -> plt.Fig
     v = v[np.isfinite(v)]
     with revision_rc(style):
         fig, ax = plt.subplots(figsize=(style.figure_width_in, style.figure_height_in))
-        ax.hist(v, bins=40, color="#5D6D7E")
+        ax.hist(v, bins=40, color=DIAG_HIST_COLOR, alpha=0.82, edgecolor="white", linewidth=0.4)
         if logy:
             ax.set_yscale("log")
         ax.set_xlabel(xlabel)
@@ -783,4 +823,12 @@ def plot_simple_hist(values, xlabel, style, caption=None, logy=False) -> plt.Fig
 def plot_counts_year_month(qc: pd.DataFrame, style: FigureStyle, caption=None) -> plt.Figure:
     use = qc[qc["eligible_article"]]
     mat = use.groupby(["year", "month"]).size().reset_index(name="n").pivot(index="year", columns="month", values="n").reindex(columns=range(1, 13))
-    return plot_year_month_heatmap(mat, style, label="Число пригодных профилей", vmin=0, vmax=float(np.nanmax(mat.to_numpy())), caption=caption, cmap="cividis")
+    return plot_year_month_heatmap(
+        mat,
+        style,
+        label="Число пригодных профилей",
+        vmin=0,
+        vmax=float(np.nanmax(mat.to_numpy())),
+        caption=caption,
+        cmap=DIAG_HEATMAP_CMAP,
+    )
