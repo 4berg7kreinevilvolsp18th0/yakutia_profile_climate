@@ -10,7 +10,7 @@ import pandas as pd
 from matplotlib.gridspec import GridSpec
 
 from .config import AnalysisConfig, FigureStyle
-from .metrics import SEASON_ORDER
+from .metrics import SEASON_BY_MONTH, SEASON_ORDER
 
 MONTHS_RU = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"]
 MONTHS_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -584,6 +584,49 @@ def plot_gamma_by_month_box(
 
 
 TYPE_COLORS = {"G": "#2E86C1", "E": "#E67E22", "HE": "#1E8449"}
+CYCLE_COLORS = {"00": "#2E86C1", "12": "#E67E22"}
+SEASON_COLORS_3D = {"DJF": "#2E86C1", "MAM": "#E67E22", "JJA": "#1E8449", "SON": "#C0392B"}
+
+LAYER_3D_PRESETS: tuple[dict[str, str], ...] = (
+    {
+        "id": "top_height_depth_gamma",
+        "x": "top_height_agl_m",
+        "y": "depth_m",
+        "z": "gamma_c_per_100m",
+        "xlabel_ru": "Высота верха AGL, м",
+        "ylabel_ru": "Толщина слоя, м",
+        "zlabel_ru": "γ, °C/100 м",
+        "xlabel_en": "Top height AGL, m",
+        "ylabel_en": "Layer depth, m",
+        "zlabel_en": "γ, °C/100 m",
+    },
+    {
+        "id": "base_height_depth_deltaT",
+        "x": "base_height_agl_m",
+        "y": "depth_m",
+        "z": "delta_t_c",
+        "xlabel_ru": "Высота основания AGL, м",
+        "ylabel_ru": "Толщина слоя, м",
+        "zlabel_ru": "ΔT, °C",
+        "xlabel_en": "Base height AGL, m",
+        "ylabel_en": "Layer depth, m",
+        "zlabel_en": "ΔT, °C",
+    },
+    {
+        "id": "base_top_depth",
+        "x": "base_height_agl_m",
+        "y": "top_height_agl_m",
+        "z": "depth_m",
+        "xlabel_ru": "Высота основания AGL, м",
+        "ylabel_ru": "Высота верха AGL, м",
+        "zlabel_ru": "Толщина слоя, м",
+        "xlabel_en": "Base height AGL, m",
+        "ylabel_en": "Top height AGL, m",
+        "zlabel_en": "Layer depth, m",
+    },
+)
+
+REFERENCE_GAMMA_3D_PRESSURES = (850.0, 750.0, 500.0)
 
 
 def plot_qc_old_vs_new(old_qc: dict, new_qc: dict, style: FigureStyle, *, title: str | None = None):
@@ -1311,9 +1354,72 @@ def plot_top_height_depth_gamma_3d(
 
     if inversion_type not in INVERSION_TYPES:
         raise ValueError(f"inversion_type must be one of {INVERSION_TYPES}")
+    preset = LAYER_3D_PRESETS[0]
+    return plot_layers_scatter_3d(
+        layers,
+        style,
+        x_col=preset["x"],
+        y_col=preset["y"],
+        z_col=preset["z"],
+        xlabel=preset["xlabel_ru"] if style.language == "ru" else preset["xlabel_en"],
+        ylabel=preset["ylabel_ru"] if style.language == "ru" else preset["ylabel_en"],
+        zlabel=preset["zlabel_ru"] if style.language == "ru" else preset["zlabel_en"],
+        filter_col="position_type",
+        filter_value=inversion_type,
+        color=TYPE_COLORS.get(inversion_type, "#34495E"),
+        title=title or f"3D: {_type_title(inversion_type, style)}",
+        note=(
+            "Слои инверсии (eligible_article); оси — геометрия и γ слоя"
+            if style.language == "ru"
+            else "Inversion layers (eligible_article); geometry and layer γ"
+        ),
+        elev=elev,
+        azim=azim,
+    )
 
-    use = _layer_height_depth_frame(layers)
-    use = use[use["position_type"] == inversion_type].dropna(subset=["gamma_c_per_100m"]).copy()
+
+def _layer_3d_frame(layers: pd.DataFrame, x_col: str, y_col: str, z_col: str) -> pd.DataFrame:
+    use = layers.dropna(subset=[x_col, y_col, z_col]).copy()
+    if "depth_m" in (x_col, y_col, z_col):
+        use = use[use["depth_m"] > 0]
+    for col in (x_col, y_col):
+        if col.endswith("_agl_m"):
+            use = use[use[col] >= 0]
+    return use
+
+
+def _z_clip_limits(z: np.ndarray) -> tuple[float, float]:
+    if z.size == 0:
+        return 0.0, 1.0
+    z_lo = float(np.nanpercentile(z, 1))
+    z_hi = float(np.nanpercentile(z, 99))
+    if z_hi <= z_lo:
+        z_hi = z_lo + 1.0
+    return z_lo, z_hi
+
+
+def plot_layers_scatter_3d(
+    layers: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    x_col: str,
+    y_col: str,
+    z_col: str,
+    xlabel: str,
+    ylabel: str,
+    zlabel: str,
+    filter_col: str | None = None,
+    filter_value: str | None = None,
+    color: str = "#34495E",
+    title: str | None = None,
+    note: str | None = None,
+    elev: float = 24.0,
+    azim: float = -58.0,
+):
+    """Универсальный 3D scatter по слоям инверсии."""
+    use = _layer_3d_frame(layers, x_col, y_col, z_col)
+    if filter_col is not None and filter_value is not None:
+        use = use[use[filter_col].astype(str) == str(filter_value)]
     if use.empty:
         with article_rc(style):
             fig = plt.figure(figsize=(style.figure_width_in * 1.15, style.figure_height_in * 1.15))
@@ -1321,51 +1427,257 @@ def plot_top_height_depth_gamma_3d(
             ax.text2D(0.5, 0.5, "Нет данных" if style.language == "ru" else "No data", transform=ax.transAxes, ha="center")
             return fig
 
-    x = use["top_height_agl_m"].to_numpy(float)
-    y = use["depth_m"].to_numpy(float)
-    z = use["gamma_c_per_100m"].to_numpy(float)
-    z_hi = max(float(np.nanpercentile(z, 99)), 3.0)
-    z_lo = min(float(np.nanpercentile(z, 1)), 0.0)
-
-    xlabel = "Высота верха AGL, м" if style.language == "ru" else "Top height AGL, m"
-    ylabel = "Толщина слоя, м" if style.language == "ru" else "Layer depth, m"
-    zlabel = "γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m"
-    color = TYPE_COLORS.get(inversion_type, "#34495E")
-    type_title = _type_title(inversion_type, style)
+    x = use[x_col].to_numpy(float)
+    y = use[y_col].to_numpy(float)
+    z = use[z_col].to_numpy(float)
+    if z_col == "gamma_c_per_100m":
+        z_lo = min(float(np.nanpercentile(z, 1)), 0.0)
+        z_hi = max(float(np.nanpercentile(z, 99)), 3.0)
+        z_plot = np.clip(z, z_lo, z_hi)
+    elif z_col == "month":
+        z_lo, z_hi = 1.0, 12.0
+        z_plot = z
+    else:
+        z_lo, z_hi = _z_clip_limits(z)
+        z_plot = np.clip(z, z_lo, z_hi)
 
     with article_rc(style):
         fig = plt.figure(figsize=(style.figure_width_in * 1.25, style.figure_height_in * 1.2))
         ax = fig.add_subplot(111, projection="3d")
-        ax.scatter(
-            x,
-            y,
-            np.clip(z, z_lo, z_hi),
-            c=color,
-            s=4,
-            alpha=0.38,
-            linewidths=0,
-            depthshade=True,
-        )
+        ax.scatter(x, y, z_plot, c=color, s=4, alpha=0.38, linewidths=0, depthshade=True)
+        ax.set_xlabel(xlabel, labelpad=8)
+        ax.set_ylabel(ylabel, labelpad=8)
+        ax.set_zlabel(zlabel, labelpad=8)
+        ax.set_zlim(z_lo, z_hi * 1.05 if z_col != "month" else z_hi)
+        ax.view_init(elev=elev, azim=azim)
+        ax.grid(True, alpha=style.grid_alpha)
+        if style.show_title and title:
+            fig.suptitle(title, fontsize=style.title_font_size, y=0.98)
+        if note:
+            fig.text(0.5, 0.02, note, ha="center", fontsize=style.tick_font_size - 1, color="#566573")
+        fig.subplots_adjust(left=0.02, right=0.98, bottom=0.08, top=0.92)
+        return fig
+
+
+def plot_layers_scatter_3d_combined(
+    layers: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    x_col: str,
+    y_col: str,
+    z_col: str,
+    xlabel: str,
+    ylabel: str,
+    zlabel: str,
+    group_col: str = "position_type",
+    colors: Mapping[str, str] | None = None,
+    title: str | None = None,
+    note: str | None = None,
+    elev: float = 24.0,
+    azim: float = -58.0,
+):
+    """3D scatter: все группы на одном графике (разные цвета)."""
+    from .metrics import SEASON_BY_MONTH
+
+    palette = dict(colors or TYPE_COLORS)
+    use = _layer_3d_frame(layers, x_col, y_col, z_col)
+    if group_col == "season" and "season" not in use.columns:
+        use = use.copy()
+        use["season"] = use["month"].map(SEASON_BY_MONTH)
+
+    with article_rc(style):
+        fig = plt.figure(figsize=(style.figure_width_in * 1.25, style.figure_height_in * 1.2))
+        ax = fig.add_subplot(111, projection="3d")
+        z_lo, z_hi = 0.0, 1.0
+        for key, g in use.groupby(group_col, sort=False):
+            if g.empty:
+                continue
+            z = g[z_col].to_numpy(float)
+            if z_col == "gamma_c_per_100m":
+                z_lo = min(float(np.nanpercentile(z, 1)), 0.0)
+                z_hi = max(float(np.nanpercentile(z, 99)), 3.0)
+                z_plot = np.clip(z, z_lo, z_hi)
+            else:
+                z_lo, z_hi = _z_clip_limits(z)
+                z_plot = np.clip(z, z_lo, z_hi)
+            ax.scatter(
+                g[x_col], g[y_col], z_plot,
+                c=palette.get(str(key), "#34495E"),
+                s=4, alpha=0.35, linewidths=0, depthshade=True, label=str(key),
+            )
         ax.set_xlabel(xlabel, labelpad=8)
         ax.set_ylabel(ylabel, labelpad=8)
         ax.set_zlabel(zlabel, labelpad=8)
         ax.set_zlim(z_lo, z_hi * 1.05)
         ax.view_init(elev=elev, azim=azim)
         ax.grid(True, alpha=style.grid_alpha)
-        note = (
-            "Полные данные слоя инверсии (eligible_article); Z — средний γ внутри слоя"
-            if style.language == "ru"
-            else "Full inversion layer data (eligible_article); Z — mean layer γ"
-        )
-        if style.show_title:
-            fig.suptitle(
-                title or f"3D: высота — толщина — γ ({type_title})",
-                fontsize=style.title_font_size,
-                y=0.98,
-            )
+        ax.legend(frameon=False, fontsize=style.legend_font_size - 1, loc="upper left")
+        if style.show_title and title:
+            fig.suptitle(title, fontsize=style.title_font_size, y=0.98)
+        if note:
             fig.text(0.5, 0.02, note, ha="center", fontsize=style.tick_font_size - 1, color="#566573")
         fig.subplots_adjust(left=0.02, right=0.98, bottom=0.08, top=0.92)
         return fig
+
+
+def plot_reference_gamma_scatter_3d(
+    gammas: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    pressure_hpa: float | None = None,
+    title: str | None = None,
+    elev: float = 24.0,
+    azim: float = -58.0,
+):
+    """3D: высота AGL × γ × месяц (опорные изobar, не слои инверсии)."""
+    use = gammas.dropna(subset=["height_agl_m", "gamma_c_per_100m", "month"]).copy()
+    if pressure_hpa is not None:
+        use = use[use["pressure_hpa"] == float(pressure_hpa)]
+    xlabel = "Высота AGL, м" if style.language == "ru" else "Height AGL, m"
+    ylabel = "γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m"
+    zlabel = "Месяц" if style.language == "ru" else "Month"
+    note = (
+        "γ между стандартными изobar; eligible_article, 00/12 UTC"
+        if style.language == "ru"
+        else "γ between standard isobars; eligible_article, 00/12 UTC"
+    )
+
+    if pressure_hpa is None:
+        with article_rc(style):
+            fig = plt.figure(figsize=(style.figure_width_in * 1.25, style.figure_height_in * 1.2))
+            ax = fig.add_subplot(111, projection="3d")
+            z = use["gamma_c_per_100m"].to_numpy(float)
+            z_lo = min(float(np.nanpercentile(z, 1)), 0.0) if z.size else 0.0
+            z_hi = max(float(np.nanpercentile(z, 99)), 3.0) if z.size else 3.0
+            for p in sorted(use["pressure_hpa"].dropna().unique()):
+                g = use[use["pressure_hpa"] == p]
+                ax.scatter(
+                    g["height_agl_m"],
+                    np.clip(g["gamma_c_per_100m"], z_lo, z_hi),
+                    g["month"],
+                    c=REF_LINE_COLORS.get(int(round(p)), "#34495E"),
+                    s=3, alpha=0.35, linewidths=0, label=f"{int(round(p))} гПа",
+                )
+            ax.set_xlabel(xlabel, labelpad=8)
+            ax.set_ylabel(ylabel, labelpad=8)
+            ax.set_zlabel(zlabel, labelpad=8)
+            ax.set_zlim(1, 12)
+            ax.view_init(elev=elev, azim=azim)
+            ax.legend(frameon=False, fontsize=style.legend_font_size - 1)
+            if style.show_title:
+                fig.suptitle(
+                    title or ("3D: γ на опорных изobar (все уровни)" if style.language == "ru" else "3D: γ at reference isobars"),
+                    fontsize=style.title_font_size, y=0.98,
+                )
+            fig.text(0.5, 0.02, note, ha="center", fontsize=style.tick_font_size - 1, color="#566573")
+            fig.subplots_adjust(left=0.02, right=0.98, bottom=0.08, top=0.92)
+            return fig
+
+    color = REF_LINE_COLORS.get(int(pressure_hpa), "#34495E")
+    framed = use.rename(columns={"height_agl_m": "top_height_agl_m"}).copy()
+    framed["month"] = framed["month"].astype(float)
+    return plot_layers_scatter_3d(
+        framed,
+        style,
+        x_col="top_height_agl_m",
+        y_col="gamma_c_per_100m",
+        z_col="month",
+        xlabel=xlabel,
+        ylabel=ylabel,
+        zlabel=zlabel,
+        color=color,
+        title=title or f"3D: γ на {int(pressure_hpa)} гПа",
+        note=note,
+        elev=elev,
+        azim=azim,
+    )
+
+
+def build_scatter_3d_figure_specs(
+    layers: pd.DataFrame,
+    reference_gammas: pd.DataFrame,
+    style: FigureStyle,
+) -> list[tuple[str, object]]:
+    """Список (относительный путь, builder) для всех 3D-графиков библиотеки."""
+    from .metrics import INVERSION_TYPES
+
+    layers_work = layers.copy()
+    layers_work["season"] = layers_work["month"].map(SEASON_BY_MONTH)
+    specs: list[tuple[str, object]] = []
+
+    def _labels(preset: dict[str, str]) -> tuple[str, str, str]:
+        if style.language == "ru":
+            return preset["xlabel_ru"], preset["ylabel_ru"], preset["zlabel_ru"]
+        return preset["xlabel_en"], preset["ylabel_en"], preset["zlabel_en"]
+
+    groupings: list[tuple[str, str, tuple, Mapping[str, str], object]] = [
+        ("by_inversion_type", "position_type", INVERSION_TYPES, TYPE_COLORS, lambda v: _type_title(v, style)),
+        (
+            "by_cycle",
+            "cycle",
+            tuple(sorted(layers_work["cycle"].dropna().astype(str).unique())) or ("00", "12"),
+            CYCLE_COLORS,
+            lambda v: f"{v} UTC",
+        ),
+        (
+            "by_season",
+            "season",
+            SEASON_ORDER,
+            SEASON_COLORS_3D,
+            lambda v: (SEASONS_RU if style.language == "ru" else SEASONS_EN)[v],
+        ),
+    ]
+
+    for preset in LAYER_3D_PRESETS:
+        pid = preset["id"]
+        xlabel, ylabel, zlabel = _labels(preset)
+        for folder, col, values, palette, label_fn in groupings:
+            for val in values:
+                label = label_fn(val)
+                path = f"scatter_3d/{folder}/{pid}_{val}"
+
+                def _make(p=preset, c=col, v=val, pal=palette, lbl=label, xl=xlabel, yl=ylabel, zl=zlabel):
+                    return plot_layers_scatter_3d(
+                        layers_work, style,
+                        x_col=p["x"], y_col=p["y"], z_col=p["z"],
+                        xlabel=xl, ylabel=yl, zlabel=zl,
+                        filter_col=c, filter_value=str(v),
+                        color=pal.get(str(v), "#34495E"),
+                        title=f"3D: {p['id']} ({lbl})",
+                    )
+
+                specs.append((path, _make))
+        specs.append(
+            (
+                f"scatter_3d/all_types_combined/{pid}_G_E_HE",
+                lambda p=preset, xl=xlabel, yl=ylabel, zl=zlabel: plot_layers_scatter_3d_combined(
+                    layers_work, style,
+                    x_col=p["x"], y_col=p["y"], z_col=p["z"],
+                    xlabel=xl, ylabel=yl, zlabel=zl,
+                    group_col="position_type", colors=TYPE_COLORS,
+                    title=f"3D: {p['id']} (G+E+HE)",
+                ),
+            )
+        )
+
+    ref_data = reference_gammas
+    specs.append(
+        (
+            "scatter_3d/reference_gamma/height_gamma_month_all_pressures",
+            lambda: plot_reference_gamma_scatter_3d(
+                ref_data, style,
+                title="3D: γ на опорных изobar (850/750/500 гПа)" if style.language == "ru" else "3D: γ at reference isobars",
+            ),
+        )
+    )
+    for pressure in REFERENCE_GAMMA_3D_PRESSURES:
+        specs.append(
+            (
+                f"scatter_3d/reference_gamma/height_gamma_month_{int(pressure)}hPa",
+                lambda p=pressure: plot_reference_gamma_scatter_3d(ref_data, style, pressure_hpa=p, title=f"3D: γ на {int(p)} гПа"),
+            )
+        )
+    return specs
 
 
 def plot_gamma_scatter_hist(

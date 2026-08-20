@@ -1,5 +1,5 @@
 {
-  "input": "..\\gdex_outputs\\far_east\\stations\\aldan\\profiles_long.csv",
+  "input": "../gdex_outputs/far_east/stations/aldan/profiles_long.csv",
   "rows": 183179,
   "profiles": 18200,
   "eligible_article_profiles": 17991,
@@ -214,9 +214,17 @@
       "sample_output\\figures\\10_top_height_seasonal_quantiles_G_E_HE_fixed.png",
       "sample_output\\figures\\10_top_height_seasonal_quantiles_G_E_HE_fixed.svg"
     ],
-    "11_top_height_vs_depth_joint": [
-      "sample_output\\figures\\11_top_height_vs_depth_joint.png",
-      "sample_output\\figures\\11_top_height_vs_depth_joint.svg"
+    "11_top_height_vs_depth_joint_G": [
+      "sample_output\\figures\\11_top_height_vs_depth_joint_G.png",
+      "sample_output\\figures\\11_top_height_vs_depth_joint_G.svg"
+    ],
+    "11_top_height_vs_depth_joint_E": [
+      "sample_output\\figures\\11_top_height_vs_depth_joint_E.png",
+      "sample_output\\figures\\11_top_height_vs_depth_joint_E.svg"
+    ],
+    "11_top_height_vs_depth_joint_HE": [
+      "sample_output\\figures\\11_top_height_vs_depth_joint_HE.png",
+      "sample_output\\figures\\11_top_height_vs_depth_joint_HE.svg"
     ],
     "12_top_height_vs_depth_monthly_12panel": [
       "sample_output\\figures\\12_top_height_vs_depth_monthly_12panel.png",
@@ -522,13 +530,196 @@
       "sample_output\\figures\\type02_height_bar_m12_HE.png",
       "sample_output\\figures\\type02_height_bar_m12_HE.svg"
     ],
-    "gamma_monthly/gamma_line_12months_1999-2026": [
-      "sample_output\\figures\\gamma_monthly\\gamma_line_12months_1999-2026.png",
-      "sample_output\\figures\\gamma_monthly\\gamma_line_12months_1999-2026.svg"
+    "gamma_monthly/gamma_line_12months_1999-2025": [
+      "sample_output\\figures\\gamma_monthly\\gamma_line_12months_1999-2025.png",
+      "sample_output\\figures\\gamma_monthly\\gamma_line_12months_1999-2025.svg"
     ],
-    "gamma_monthly_850_750_500/gamma_line_850_750_500_12months_1999-2026": [
-      "sample_output\\figures\\gamma_monthly_850_750_500\\gamma_line_850_750_500_12months_1999-2026.png",
-      "sample_output\\figures\\gamma_monthly_850_750_500\\gamma_line_850_750_500_12months_1999-2026.svg"
+    "gamma_monthly_850_750_500/gamma_line_850_750_500_12months_1999-2025": [
+      "sample_output\\figures\\gamma_monthly_850_750_500\\gamma_line_850_750_500_12months_1999-2025.png",
+      "sample_output\\figures\\gamma_monthly_850_750_500\\gamma_line_850_750_500_12months_1999-2025.svg"
+    ],
+    "gamma_by_year/gamma_line_1999": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_1999.png"
+    ],
+    "gamma_by_year/gamma_line_2000": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2000.png"
+    ],
+    "gamma_by_year/gamma_line_2001": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2001.png"
+    ],
+    "gamma_by_year/gamma_line_2002": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2002.png"
+    ],
+    "gamma_by_year/gamma_line_2003": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2003.png"
+    ],
+    "gamma_by_year/gamma_line_2004": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2004.png"
+    ],
+    "gamma_by_year/gamma_line_2005": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2005.png"
+    ],
+    "gamma_by_year/gamma_line_2006": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2006.png"
+    ],
+    "gamma_by_year/gamma_line_2007": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2007.png"
+    ],
+    "gamma_by_year/gamma_line_2008": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2008.png"
+    ],
+    "gamma_by_year/gamma_line_2009": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2009.png"
+    ],
+    "gamma_by_year/gamma_line_2010": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2010.png"
+    ],
+    "gamma_by_year/gamma_line_2011": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2011.png"
+    ],
+    "gamma_by_year/gamma_line_2012": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2012.png"
+    ],
+    "gamma_by_year/gamma_line_2013": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2013.png"
+    ],
+    "gamma_by_year/gamma_line_2014": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2014.png"
+    ],
+    "gamma_by_year/gamma_line_2015": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2015.png"
+    ],
+    "gamma_by_year/gamma_line_2016": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2016.png"
+    ],
+    "gamma_by_year/gamma_line_2017": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2017.png"
+    ],
+    "gamma_by_year/gamma_line_2018": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2018.png"
+    ],
+    "gamma_by_year/gamma_line_2019": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2019.png"
+    ],
+    "gamma_by_year/gamma_line_2020": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2020.png"
+    ],
+    "gamma_by_year/gamma_line_2021": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2021.png"
+    ],
+    "gamma_by_year/gamma_line_2022": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2022.png"
+    ],
+    "gamma_by_year/gamma_line_2023": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2023.png"
+    ],
+    "gamma_by_year/gamma_line_2024": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2024.png"
+    ],
+    "gamma_by_year/gamma_line_2025": [
+      "sample_output\\figures\\gamma_by_year\\gamma_line_2025.png"
+    ],
+    "scatter_3d/by_inversion_type/top_height_depth_gamma_G": [
+      "sample_output\\figures\\scatter_3d\\by_inversion_type\\top_height_depth_gamma_G.png"
+    ],
+    "scatter_3d/by_inversion_type/top_height_depth_gamma_E": [
+      "sample_output\\figures\\scatter_3d\\by_inversion_type\\top_height_depth_gamma_E.png"
+    ],
+    "scatter_3d/by_inversion_type/top_height_depth_gamma_HE": [
+      "sample_output\\figures\\scatter_3d\\by_inversion_type\\top_height_depth_gamma_HE.png"
+    ],
+    "scatter_3d/by_cycle/top_height_depth_gamma_00": [
+      "sample_output\\figures\\scatter_3d\\by_cycle\\top_height_depth_gamma_00.png"
+    ],
+    "scatter_3d/by_cycle/top_height_depth_gamma_12": [
+      "sample_output\\figures\\scatter_3d\\by_cycle\\top_height_depth_gamma_12.png"
+    ],
+    "scatter_3d/by_season/top_height_depth_gamma_DJF": [
+      "sample_output\\figures\\scatter_3d\\by_season\\top_height_depth_gamma_DJF.png"
+    ],
+    "scatter_3d/by_season/top_height_depth_gamma_MAM": [
+      "sample_output\\figures\\scatter_3d\\by_season\\top_height_depth_gamma_MAM.png"
+    ],
+    "scatter_3d/by_season/top_height_depth_gamma_JJA": [
+      "sample_output\\figures\\scatter_3d\\by_season\\top_height_depth_gamma_JJA.png"
+    ],
+    "scatter_3d/by_season/top_height_depth_gamma_SON": [
+      "sample_output\\figures\\scatter_3d\\by_season\\top_height_depth_gamma_SON.png"
+    ],
+    "scatter_3d/all_types_combined/top_height_depth_gamma_G_E_HE": [
+      "sample_output\\figures\\scatter_3d\\all_types_combined\\top_height_depth_gamma_G_E_HE.png"
+    ],
+    "scatter_3d/by_inversion_type/base_height_depth_deltaT_G": [
+      "sample_output\\figures\\scatter_3d\\by_inversion_type\\base_height_depth_deltaT_G.png"
+    ],
+    "scatter_3d/by_inversion_type/base_height_depth_deltaT_E": [
+      "sample_output\\figures\\scatter_3d\\by_inversion_type\\base_height_depth_deltaT_E.png"
+    ],
+    "scatter_3d/by_inversion_type/base_height_depth_deltaT_HE": [
+      "sample_output\\figures\\scatter_3d\\by_inversion_type\\base_height_depth_deltaT_HE.png"
+    ],
+    "scatter_3d/by_cycle/base_height_depth_deltaT_00": [
+      "sample_output\\figures\\scatter_3d\\by_cycle\\base_height_depth_deltaT_00.png"
+    ],
+    "scatter_3d/by_cycle/base_height_depth_deltaT_12": [
+      "sample_output\\figures\\scatter_3d\\by_cycle\\base_height_depth_deltaT_12.png"
+    ],
+    "scatter_3d/by_season/base_height_depth_deltaT_DJF": [
+      "sample_output\\figures\\scatter_3d\\by_season\\base_height_depth_deltaT_DJF.png"
+    ],
+    "scatter_3d/by_season/base_height_depth_deltaT_MAM": [
+      "sample_output\\figures\\scatter_3d\\by_season\\base_height_depth_deltaT_MAM.png"
+    ],
+    "scatter_3d/by_season/base_height_depth_deltaT_JJA": [
+      "sample_output\\figures\\scatter_3d\\by_season\\base_height_depth_deltaT_JJA.png"
+    ],
+    "scatter_3d/by_season/base_height_depth_deltaT_SON": [
+      "sample_output\\figures\\scatter_3d\\by_season\\base_height_depth_deltaT_SON.png"
+    ],
+    "scatter_3d/all_types_combined/base_height_depth_deltaT_G_E_HE": [
+      "sample_output\\figures\\scatter_3d\\all_types_combined\\base_height_depth_deltaT_G_E_HE.png"
+    ],
+    "scatter_3d/by_inversion_type/base_top_depth_G": [
+      "sample_output\\figures\\scatter_3d\\by_inversion_type\\base_top_depth_G.png"
+    ],
+    "scatter_3d/by_inversion_type/base_top_depth_E": [
+      "sample_output\\figures\\scatter_3d\\by_inversion_type\\base_top_depth_E.png"
+    ],
+    "scatter_3d/by_inversion_type/base_top_depth_HE": [
+      "sample_output\\figures\\scatter_3d\\by_inversion_type\\base_top_depth_HE.png"
+    ],
+    "scatter_3d/by_cycle/base_top_depth_00": [
+      "sample_output\\figures\\scatter_3d\\by_cycle\\base_top_depth_00.png"
+    ],
+    "scatter_3d/by_cycle/base_top_depth_12": [
+      "sample_output\\figures\\scatter_3d\\by_cycle\\base_top_depth_12.png"
+    ],
+    "scatter_3d/by_season/base_top_depth_DJF": [
+      "sample_output\\figures\\scatter_3d\\by_season\\base_top_depth_DJF.png"
+    ],
+    "scatter_3d/by_season/base_top_depth_MAM": [
+      "sample_output\\figures\\scatter_3d\\by_season\\base_top_depth_MAM.png"
+    ],
+    "scatter_3d/by_season/base_top_depth_JJA": [
+      "sample_output\\figures\\scatter_3d\\by_season\\base_top_depth_JJA.png"
+    ],
+    "scatter_3d/by_season/base_top_depth_SON": [
+      "sample_output\\figures\\scatter_3d\\by_season\\base_top_depth_SON.png"
+    ],
+    "scatter_3d/all_types_combined/base_top_depth_G_E_HE": [
+      "sample_output\\figures\\scatter_3d\\all_types_combined\\base_top_depth_G_E_HE.png"
+    ],
+    "scatter_3d/reference_gamma/height_gamma_month_all_pressures": [
+      "sample_output\\figures\\scatter_3d\\reference_gamma\\height_gamma_month_all_pressures.png"
+    ],
+    "scatter_3d/reference_gamma/height_gamma_month_850hPa": [
+      "sample_output\\figures\\scatter_3d\\reference_gamma\\height_gamma_month_850hPa.png"
+    ],
+    "scatter_3d/reference_gamma/height_gamma_month_750hPa": [
+      "sample_output\\figures\\scatter_3d\\reference_gamma\\height_gamma_month_750hPa.png"
+    ],
+    "scatter_3d/reference_gamma/height_gamma_month_500hPa": [
+      "sample_output\\figures\\scatter_3d\\reference_gamma\\height_gamma_month_500hPa.png"
     ]
   }
 }

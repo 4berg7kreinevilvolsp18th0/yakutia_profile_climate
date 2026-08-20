@@ -66,7 +66,7 @@ from .plots import (
     plot_top_height_vs_depth_boxplots,
     plot_top_height_vs_depth_joint,
     plot_top_height_vs_depth_monthly_facets,
-    plot_top_height_depth_gamma_3d,
+    build_scatter_3d_figure_specs,
 )
 
 
@@ -415,13 +415,16 @@ def build_all(
         key = str(rel.relative_to(figures_dir)).replace("\\", "/")
         saved[key] = [str(p) for p in save_figure(fig, rel, gamma_year_style)]
 
-    scatter_3d_dir = figures_dir / "scatter_3d"
-    scatter_3d_style = FigureStyle(**{**height_style.__dict__, "dpi": 300})
-    for kind in INVERSION_TYPES:
-        fig = plot_top_height_depth_gamma_3d(layers, scatter_3d_style, inversion_type=kind)
-        rel = scatter_3d_dir / f"top_height_depth_gamma_3d_{kind}"
-        key = str(rel.relative_to(figures_dir)).replace("\\", "/")
-        saved[key] = [str(p) for p in save_figure(fig, rel, scatter_3d_style)]
+    scatter_3d_style = FigureStyle(**{**height_style.__dict__, "dpi": 300, "output_formats": ("png",)})
+    for rel_path, builder in build_scatter_3d_figure_specs(
+        layers,
+        reference_gammas_850_750_500,
+        scatter_3d_style,
+    ):
+        fig = builder()
+        out_path = figures_dir / rel_path
+        key = str(out_path.relative_to(figures_dir)).replace("\\", "/")
+        saved[key] = [str(p) for p in save_figure(fig, out_path, scatter_3d_style)]
 
     summary = {
         "input": str(input_csv),

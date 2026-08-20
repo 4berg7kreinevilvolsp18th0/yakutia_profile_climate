@@ -241,22 +241,36 @@ def test_reference_pressure_heights_and_height_depth_plots():
         plt.close(fig)
 
 
-def test_top_height_depth_gamma_3d():
+def test_scatter_3d_catalog():
     from gdex_bufr.profile_climate.article_figures.config import FigureStyle
-    from gdex_bufr.profile_climate.article_figures.plots import plot_top_height_depth_gamma_3d
+    from gdex_bufr.profile_climate.article_figures.plots import build_scatter_3d_figure_specs
     import matplotlib.pyplot as plt
 
     layers = pd.DataFrame(
         {
-            "top_height_agl_m": [120.0, 800.0, 1500.0],
-            "depth_m": [50.0, 120.0, 200.0],
-            "gamma_c_per_100m": [2.0, 4.0, 6.0],
-            "position_type": ["G", "E", "HE"],
+            "month": [1, 2, 3, 1, 2],
+            "cycle": ["00", "12", "00", "12", "00"],
+            "top_height_agl_m": [120.0, 800.0, 1500.0, 200.0, 900.0],
+            "base_height_agl_m": [0.0, 400.0, 1200.0, 50.0, 500.0],
+            "depth_m": [50.0, 120.0, 200.0, 80.0, 150.0],
+            "gamma_c_per_100m": [2.0, 4.0, 6.0, 3.0, 5.0],
+            "delta_t_c": [1.0, 2.5, 4.0, 1.5, 3.0],
+            "position_type": ["G", "E", "HE", "G", "E"],
+        }
+    )
+    refs = pd.DataFrame(
+        {
+            "height_agl_m": [800.0, 2400.0, 5000.0],
+            "gamma_c_per_100m": [-0.5, -0.6, -0.4],
+            "month": [1, 6, 12],
+            "pressure_hpa": [850.0, 750.0, 500.0],
         }
     )
     style = FigureStyle(show_title=False, dpi=72)
-    for kind in ("G", "E", "HE"):
-        plt.close(plot_top_height_depth_gamma_3d(layers, style, inversion_type=kind))
+    specs = build_scatter_3d_figure_specs(layers, refs, style)
+    assert len(specs) >= 20
+    for _, builder in specs[:5]:
+        plt.close(builder())
 
 
 def test_gamma_monthly_line_facets():
