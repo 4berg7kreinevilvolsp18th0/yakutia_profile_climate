@@ -263,9 +263,9 @@ def test_gamma_monthly_line_facets():
     monthly_ref = gamma_count_table(gammas, bin_edges=edges, by_month=True, by_pressure=True)
     style = FigureStyle(show_title=False, dpi=72)
     for fig in (
-        plot_gamma_line_monthly_facets(monthly_all, style, year_label="1999–2025", log_y=False),
+        plot_gamma_line_monthly_facets(monthly_all, style, year_label="1999–2025"),
         plot_gamma_reference_line_monthly_facets(
-            monthly_ref, style, pressures_hpa=(850.0, 750.0, 500.0), year_label="1999–2025", log_y=False
+            monthly_ref, style, pressures_hpa=(850.0, 750.0, 500.0), year_label="1999–2025"
         ),
     ):
         plt.close(fig)

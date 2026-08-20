@@ -806,9 +806,7 @@ GAMMA_YEAR_START = 1999
 GAMMA_YEAR_COUNT = 27  # 1999–2025 включительно
 
 
-def _gamma_count_ylabel(style: FigureStyle, *, log_y: bool = False) -> str:
-    if log_y:
-        return "N (log)"
+def _gamma_count_ylabel(style: FigureStyle) -> str:
     if style.language == "ru":
         return "Число вертикальных интервалов"
     return "Number of vertical intervals"
@@ -839,15 +837,6 @@ def _gamma_reference_data_note(style: FigureStyle, *, year_label: str, pressures
     )
 
 
-def _maybe_log_y(ax, data: pd.DataFrame, *, enabled: bool) -> None:
-    if not enabled:
-        return
-    if data.empty or float(data["days"].max()) <= 0:
-        ax.set_ylim(bottom=0)
-        return
-    ax.set_yscale("log")
-
-
 def _draw_gamma_line_on_ax(
     ax,
     data: pd.DataFrame,
@@ -855,25 +844,20 @@ def _draw_gamma_line_on_ax(
     *,
     color: str = "#117A65",
     label: str | None = None,
-    log_y: bool = False,
 ) -> None:
     if data.empty:
         return
     g = data.sort_values("bin_center")
-    y = g["days"].to_numpy(float)
-    if log_y:
-        y = np.where(y > 0, y, np.nan)
     ax.plot(
         g["bin_center"],
-        y,
+        g["days"].to_numpy(float),
         marker="s",
         markersize=max(style.marker_size - 1.5, 2.5),
         linewidth=style.line_width * 0.85,
         color=color,
         label=label,
     )
-    if not log_y:
-        ax.fill_between(g["bin_center"], g["days"], alpha=0.12, color=color)
+    ax.fill_between(g["bin_center"], g["days"], alpha=0.12, color=color)
 
 
 def plot_gamma_line_monthly_facets(
@@ -881,11 +865,10 @@ def plot_gamma_line_monthly_facets(
     style: FigureStyle,
     *,
     year_label: str = "1999–2025",
-    log_y: bool = False,
     title: str | None = None,
     data_note: str | None = None,
 ):
-    """12 панелей: распределение γ по месяцам (линейная шкала N интервалов)."""
+    """12 панелей: распределение γ по месяцам (линейная шкала N)."""
     months = _months(style)
     note = data_note or _gamma_interval_data_note(style, year_label=year_label)
     with article_rc(style):
@@ -896,18 +879,16 @@ def plot_gamma_line_monthly_facets(
         )
         for ax, month in zip(axes.ravel(), range(1, 13)):
             g = monthly_table[monthly_table["month"] == month]
-            _draw_gamma_line_on_ax(ax, g, style, log_y=log_y)
+            _draw_gamma_line_on_ax(ax, g, style)
             ax.axvline(0, color="#7F8C8D", linewidth=0.7, linestyle="--", alpha=0.8)
             n = int(g["days"].sum()) if not g.empty else 0
             ax.set_title(f"{months[month - 1]} (n={n:,})".replace(",", " "), fontsize=style.tick_font_size)
             ax.grid(True, alpha=style.grid_alpha, linewidth=0.35)
-            _maybe_log_y(ax, g, enabled=log_y)
-            if not log_y:
-                ax.set_ylim(bottom=0)
+            ax.set_ylim(bottom=0)
         for ax in axes[2, :]:
             ax.set_xlabel("γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m", fontsize=style.tick_font_size)
         for ax in axes[:, 0]:
-            ax.set_ylabel(_gamma_count_ylabel(style, log_y=log_y), fontsize=style.tick_font_size)
+            ax.set_ylabel(_gamma_count_ylabel(style), fontsize=style.tick_font_size)
         if style.show_title:
             fig.suptitle(
                 title or (
@@ -928,7 +909,6 @@ def plot_gamma_reference_line_monthly_facets(
     *,
     pressures_hpa: Sequence[float] = (850.0, 750.0, 500.0),
     year_label: str = "1999–2025",
-    log_y: bool = False,
     title: str | None = None,
     data_note: str | None = None,
 ):
@@ -955,19 +935,15 @@ def plot_gamma_reference_line_monthly_facets(
                     style,
                     color=REF_LINE_COLORS.get(int(pressure), "#34495E"),
                     label=label,
-                    log_y=log_y,
                 )
             ax.axvline(0, color="#7F8C8D", linewidth=0.7, linestyle="--", alpha=0.8)
             ax.set_title(months[month - 1], fontsize=style.tick_font_size)
             ax.grid(True, alpha=style.grid_alpha, linewidth=0.35)
-            month_data = monthly_table[monthly_table["month"] == month]
-            _maybe_log_y(ax, month_data, enabled=log_y)
-            if not log_y:
-                ax.set_ylim(bottom=0)
+            ax.set_ylim(bottom=0)
         for ax in axes[2, :]:
             ax.set_xlabel("γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m", fontsize=style.tick_font_size)
         for ax in axes[:, 0]:
-            ax.set_ylabel(_gamma_count_ylabel(style, log_y=log_y), fontsize=style.tick_font_size)
+            ax.set_ylabel(_gamma_count_ylabel(style), fontsize=style.tick_font_size)
         handles = [
             mpl.lines.Line2D(
                 [0], [0],
@@ -1031,7 +1007,6 @@ def _joint_scatter_hist_layers(
     title: str | None = None,
     bins_x: int = 36,
     bins_y: int = 28,
-    log_hist: bool = False,
 ) -> None:
     """Joint scatter (высота vs толщина) с боковыми гистограммами по типам G/E/HE."""
     from .metrics import INVERSION_TYPES
@@ -1083,8 +1058,7 @@ def _joint_scatter_hist_layers(
 
     x_edges = np.histogram_bin_edges(use["top_height_agl_m"].to_numpy(float), bins=bins_x)
     y_edges = np.histogram_bin_edges(use["depth_m"].to_numpy(float), bins=bins_y)
-    hist_kwargs = {"log": log_hist} if log_hist else {}
-    y_count_label = "N (log)" if log_hist else ("Число" if style.language == "ru" else "Count")
+    count_label = "Число" if style.language == "ru" else "Count"
 
     for kind in INVERSION_TYPES:
         g = use[use["position_type"] == kind] if "position_type" in use.columns else use.iloc[0:0]
@@ -1098,7 +1072,6 @@ def _joint_scatter_hist_layers(
             alpha=0.38,
             color=TYPE_COLORS[kind],
             label=label,
-            **hist_kwargs,
         )
         ax_hy.hist(
             g["depth_m"],
@@ -1107,11 +1080,10 @@ def _joint_scatter_hist_layers(
             histtype="stepfilled",
             alpha=0.38,
             color=TYPE_COLORS[kind],
-            **hist_kwargs,
         )
 
-    ax_hx.set_ylabel(y_count_label)
-    ax_hy.set_xlabel(y_count_label)
+    ax_hx.set_ylabel(count_label)
+    ax_hy.set_xlabel(count_label)
     plt.setp(ax_hx.get_xticklabels(), visible=False)
     plt.setp(ax_hy.get_yticklabels(), visible=False)
     ax_hx.legend(frameon=False, fontsize=style.legend_font_size - 1, loc="upper right", ncol=1)
@@ -1136,7 +1108,6 @@ def _joint_scatter_hist(
     bins_y: int = 28,
     show_legend: bool = True,
     ylim: tuple[float, float] | None = None,
-    log_hist: bool = False,
 ) -> None:
     ax_sc = fig.add_subplot(gs[1:4, 0:3])
     ax_hx = fig.add_subplot(gs[0, 0:3], sharex=ax_sc)
@@ -1164,10 +1135,9 @@ def _joint_scatter_hist(
     if show_legend and ref_heights:
         ax_sc.legend(frameon=False, fontsize=style.legend_font_size - 1, loc="upper right")
 
-    hist_kwargs = {"log": log_hist} if log_hist else {}
-    count_label = "N (log)" if log_hist else ("Число" if style.language == "ru" else "Count")
-    ax_hx.hist(x, bins=bins_x, color="#5D6D7E", alpha=0.75, **hist_kwargs)
-    ax_hy.hist(y, bins=bins_y, orientation="horizontal", color="#5D6D7E", alpha=0.75, **hist_kwargs)
+    count_label = "Число" if style.language == "ru" else "Count"
+    ax_hx.hist(x, bins=bins_x, color="#5D6D7E", alpha=0.75)
+    ax_hy.hist(y, bins=bins_y, orientation="horizontal", color="#5D6D7E", alpha=0.75)
     ax_hx.set_ylabel(count_label)
     ax_hy.set_xlabel(count_label)
     plt.setp(ax_hx.get_xticklabels(), visible=False)
@@ -1215,7 +1185,6 @@ def plot_top_height_vs_depth_joint(
             xlabel=xlabel,
             ylabel=ylabel,
             title=title or default_title,
-            log_hist=False,
         )
         if style.show_title:
             suptitle = title or (
@@ -1335,7 +1304,7 @@ def plot_gamma_scatter_hist(
     *,
     title: str | None = None,
 ):
-    """Scatter γ vs высота AGL на опорных изobar (850/700/500 гПа) + гистограммы (log N)."""
+    """Scatter γ vs высота AGL на опорных изobar (850/700/500 гПа) + гистограммы (линейная N)."""
     use = gammas.dropna(subset=["height_agl_m", "gamma_c_per_100m"]).copy()
     use = use[use["height_agl_m"] >= 0]
     xlabel = "Высота AGL, м" if style.language == "ru" else "Height AGL, m"

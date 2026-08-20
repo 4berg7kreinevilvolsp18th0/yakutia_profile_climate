@@ -90,7 +90,6 @@ def _typed_marginal_histograms(
             range=depth_lim,
             color=color,
             alpha=alpha,
-            log=True,
             label=TYPE_LABELS[kind],
         )
         ax_histy.hist(
@@ -100,7 +99,6 @@ def _typed_marginal_histograms(
             orientation="horizontal",
             color=color,
             alpha=alpha,
-            log=True,
         )
 
 
@@ -237,11 +235,11 @@ def plot_depth_boxplots(layers: pd.DataFrame, style: FigureStyle, *, caption: st
     with revision_rc(style):
         fig, axes = plt.subplots(2, 2, figsize=(style.figure_width_in * 1.35, style.figure_height_in * 1.7))
         month_vals = [layers.loc[layers["month"] == m, "depth_m"].dropna().to_numpy() for m in range(1, 13)]
-        _box(axes[0, 0], month_vals, MONTHS_RU, "Месяц", log=True)
+        _box(axes[0, 0], month_vals, MONTHS_RU, "Месяц")
         season_vals = [layers.loc[layers["season"] == s, "depth_m"].dropna().to_numpy() for s in SEASON_ORDER]
-        _box(axes[0, 1], season_vals, [SEASONS_RU[s] for s in SEASON_ORDER], "Сезон", log=True)
+        _box(axes[0, 1], season_vals, [SEASONS_RU[s] for s in SEASON_ORDER], "Сезон")
         type_vals = [layers.loc[layers["position_type"] == k, "depth_m"].dropna().to_numpy() for k in INVERSION_TYPES]
-        _box(axes[1, 0], type_vals, [TYPE_LABELS[k] for k in INVERSION_TYPES], "Тип", log=True, colors=[TYPE_COLORS[k] for k in INVERSION_TYPES])
+        _box(axes[1, 0], type_vals, [TYPE_LABELS[k] for k in INVERSION_TYPES], "Тип", colors=[TYPE_COLORS[k] for k in INVERSION_TYPES])
         grouped = []
         labels = []
         colors = []
@@ -250,7 +248,7 @@ def plot_depth_boxplots(layers: pd.DataFrame, style: FigureStyle, *, caption: st
                 grouped.append(layers.loc[(layers["month"] == m) & (layers["position_type"] == k), "depth_m"].dropna().to_numpy())
                 labels.append(f"{MONTHS_RU[m - 1]} {k}" if k == "G" else k)
                 colors.append(TYPE_COLORS[k])
-        _box(axes[1, 1], grouped, labels, "Месяц × тип", log=True, colors=colors, rotate=True, small=True)
+        _box(axes[1, 1], grouped, labels, "Месяц × тип", colors=colors, rotate=True, small=True)
         axes[0, 0].set_ylabel("depth_m, м")
         axes[1, 0].set_ylabel("depth_m, м")
         fig.tight_layout()

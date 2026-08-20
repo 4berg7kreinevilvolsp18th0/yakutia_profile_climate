@@ -378,7 +378,6 @@ def build_all(
                 gamma_monthly_all,
                 gamma_monthly_style,
                 year_label=year_label,
-                log_y=False,
             ),
         ),
         (
@@ -388,7 +387,6 @@ def build_all(
                 gamma_monthly_style,
                 pressures_hpa=(850.0, 750.0, 500.0),
                 year_label=year_label,
-                log_y=False,
             ),
         ),
     ]
@@ -410,7 +408,6 @@ def build_all(
             year_table,
             gamma_year_style,
             year_label=year_label_one,
-            log_y=False,
             title=f"Распределение γ по месяцам, {year}" if gamma_year_style.language == "ru" else f"γ by month, {year}",
         )
         rel = gamma_by_year_dir / f"gamma_line_{year}"
