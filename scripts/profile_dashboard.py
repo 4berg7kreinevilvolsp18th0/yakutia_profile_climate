@@ -466,40 +466,37 @@ def month_mean(
     y_axis: str = "height",
     apply_plot_qc: bool = True,
 ) -> tuple[np.ndarray, np.ndarray] | None:
-    """Средний профиль включённых наблюдений — в том же режиме, что и сами кривые."""
-    series: list[tuple[np.ndarray, np.ndarray]] = []
-    for obs in observations:
-        if obs["profile_id"] not in enabled:
-            continue
-        prepared = observation_plot_arrays(obs, y_axis, apply_plot_qc=apply_plot_qc)
-        if prepared is None:
-            continue
-        t, y = prepared
-        if len(t) < 2:
-            continue
-        series.append((y, t))
-    if not series:
+    """Устаревшая обёртка: Method A на фиксированной сетке (см. profile_averaging)."""
+    from gdex_bufr.profile_climate.profile_averaging import (
+        AveragingConfig,
+        AveragingFilters,
+        compute_profile_average,
+    )
+
+    pool = [o for o in observations if o["profile_id"] in enabled]
+    if not pool:
         return None
-
-    y_lo = min(float(y.min()) for y, _ in series)
-    y_hi = max(float(y.max()) for y, _ in series)
-    if y_axis == "pressure":
-        grid = np.linspace(y_hi, y_lo, 40)
-    else:
-        grid = np.linspace(y_lo, y_hi, 40)
-
-    stack = []
-    for y, t in series:
-        order = np.argsort(y)
-        stack.append(np.interp(grid, y[order], t[order], left=np.nan, right=np.nan))
-    stacked = np.vstack(stack)
-    # np.nanmean по колонке без данных выдаёт предупреждение — считаем только заполненные
-    counted = np.count_nonzero(~np.isnan(stacked), axis=0)
-    mean_values = np.full(grid.shape, np.nan, dtype=float)
-    filled = counted > 0
-    if filled.any():
-        mean_values[filled] = np.nanmean(stacked[:, filled], axis=0)
-    return grid, mean_values
+    years = [int(o["date"][:4]) for o in pool]
+    months = {int(o["date"][5:7]) for o in pool}
+    filt = AveragingFilters(
+        year_start=min(years),
+        year_end=max(years),
+        selected_months=frozenset(months),
+        cycle_mode="all",
+    )
+    cfg = AveragingConfig(
+        method="A",
+        coordinate="pressure" if y_axis == "pressure" else "height",
+        apply_plot_qc=apply_plot_qc,
+        multi_month_mode="combined",
+        min_samples_a=1,
+        min_samples_b=1,
+    )
+    result = compute_profile_average(pool, filt, cfg)
+    if not result.months:
+        return None
+    item = result.months[0]
+    return item.grid, item.central
 
 
 def observation_plot_arrays(
@@ -1334,11 +1331,6 @@ def main() -> None:
         )
 
     st.sidebar.markdown("### Отображение")
-    show_month_mean = st.sidebar.checkbox(
-        "Месячное среднее",
-        value=False,
-        help="Красная линия month mean по включённым профилям.",
-    )
     show_day_means = st.sidebar.checkbox(
         "Суточные средние",
         value=False,
@@ -1561,52 +1553,12 @@ def main() -> None:
                     enabled.add(obs["profile_id"])
 
     st.sidebar.caption(f"Включено: {len(enabled)} / видимых {len(visible)}")
-    mean = None
-    if show_month_mean:
-        mean = month_mean(visible, enabled, y_axis=y_axis, apply_plot_qc=apply_plot_qc)
 
-    # На графике участвуют только наблюдения с уровнями — счётчики считаем по ним же.
     enabled_plottable = [o for o in visible_plottable if o["profile_id"] in enabled]
     n_enabled_missing = sum(
         1 for o in visible if o["profile_id"] in enabled and not has_levels(o)
     )
-
-    st.info(
-        f"Уровни: **{'подготовленные' if apply_plot_qc else 'все исходные без QC'}** · "
-        f"срок **{cycle_mode}** · дни "
-        f"**{day_from.isoformat()}…{day_to.isoformat()}**"
-        + (" · только инверсии v2" if inversion_only else "")
-        + (" · только слои v3" if inversion_v3_only else "")
-        + (
-            f" · качество **{inversion_quality}**"
-            if inversion_quality != QUALITY_ANY
-            else ""
-        )
-        + f" · на графике **{len(enabled_plottable)}** из **{len(visible_plottable)}**"
-    )
-
-    m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("На графике", f"{len(enabled_plottable)} / {len(visible_plottable)}")
-    m2.metric(
-        "Без уровней",
-        f"{n_enabled_missing} / {n_visible_missing}",
-        help="Профили только с метриками: в счёт кривых не входят.",
-    )
-    m3.metric("Дней с данными", len({o["date"] for o in enabled_plottable}))
-    m4.metric(
-        "С инверсией v2",
-        sum(1 for o in enabled_plottable if o.get("inversion_detected")),
-    )
-    n_v3 = sum(1 for o in enabled_plottable if int(o.get("n_inversion_layers_v3") or 0) > 0)
-    inv_heights = [
-        float(o["inversion_top_height_m"])
-        for o in enabled_plottable
-        if o.get("inversion_detected") and o.get("inversion_top_height_m") is not None
-    ]
-    if inv_heights:
-        m5.metric("Ср. H_inv v2, м", f"{sum(inv_heights) / len(inv_heights):.0f}")
-    else:
-        m5.metric("Со слоями v3", n_v3)
+    mean = None
 
     v3_override: dict[str, list[dict]] | None = None
     if show_v3_layers and v3_use_slider_params:
@@ -1622,141 +1574,191 @@ def main() -> None:
                 surface_tolerance_m=float(_V3_CFG["surface_tolerance_m"]),
             )
 
-    # График и таблица QC — отдельные шаги, чтобы main оставался последовательностью экрана
-    fig = _build_figure(
-        visible_by_day=visible_by_day,
-        enabled=enabled,
-        days=days,
-        y_axis=y_axis,
-        y_axis_label=y_axis_label,
-        apply_plot_qc=apply_plot_qc,
-        show_day_means=show_day_means,
-        show_inv_top=show_inv_top,
-        show_inv_from_top=show_inv_from_top,
-        show_v3_layers=show_v3_layers,
-        mean=mean,
-        station_name=str(data.get("station_name", "Aldan")),
-        month_key=month_key,
-        v3_layers_override=v3_override,
-        color_by_class=color_by_class,
-        layer_types=set(selected_types) if selected_types else None,
-    )
-    st.plotly_chart(fig, width="stretch")
+    tab_month, tab_clim = st.tabs(["Профили месяца", "Климатологическое усреднение"])
 
-    if enabled_plottable:
-        import pandas as pd
+    with tab_clim:
+        from scripts.dashboard_climatology import render_climatology_tab
 
-        export_df = pd.DataFrame(_visible_export_rows(enabled_plottable))
-        st.download_button(
-            "Скачать видимую выборку (CSV)",
-            data=export_df.to_csv(index=False).encode("utf-8-sig"),
-            file_name=f"dashboard_selection_{month_key}.csv",
-            mime="text/csv",
+        render_climatology_tab(data)
+
+    with tab_month:
+        st.caption(
+            "Линия «month mean» заменена вкладкой «Климатологическое усреднение» "
+            "(методы A/B, фиксированная сетка 500–925 гПа)."
         )
 
-    if enabled_plottable:
-        st.subheader("Ручная разметка слоя (gold set)")
-        labels_path = _manual_labels_path(data_file)
-        options = [o["profile_id"] for o in enabled_plottable]
-        pick = st.selectbox("profile_id", options=options)
-        chosen = next(o for o in enabled_plottable if o["profile_id"] == pick)
-        c1, c2, c3 = st.columns(3)
-        base_h = c1.number_input(
-            "Base, м",
-            value=float(chosen.get("heights_m")[0] or 0.0) if chosen.get("heights_m") else 0.0,
-            step=10.0,
-        )
-        top_h = c2.number_input(
-            "Top, м",
-            value=float(chosen.get("heights_m")[-1] or 0.0) if chosen.get("heights_m") else 0.0,
-            step=10.0,
-        )
-        pos_type = c3.selectbox("Type", options=["G", "E", "HE"])
-        c4, c5 = st.columns(2)
-        confidence = c4.selectbox("confidence", options=["high", "medium", "low"])
-        annotator = c5.text_input("annotator", value="operator")
-        comment = st.text_input("comment", value="")
-        if st.button("Сохранить слой в manual_inversion_labels.csv"):
-            existing_n = 0
-            if labels_path.exists():
-                import csv as _csv
-
-                with labels_path.open(encoding="utf-8", newline="") as handle:
-                    existing_n = sum(
-                        1 for r in _csv.DictReader(handle) if r.get("profile_id") == pick
-                    )
-            _append_manual_label(labels_path, {
-                "profile_id": pick,
-                "annotator": annotator,
-                "layer_index": existing_n,
-                "base_height_m": round(float(base_h), 1),
-                "top_height_m": round(float(top_h), 1),
-                "position_type": pos_type,
-                "confidence": confidence,
-                "comment": comment,
-            })
-            st.success(f"Записано в {labels_path}")
-        st.caption(f"Файл меток: {labels_path}")
-
-    if show_v3_layers and enabled_plottable:
-        export_rows = []
-        for obs in enabled_plottable:
-            layers = (
-                (v3_override or {}).get(obs["profile_id"])
-                if v3_override is not None
-                else (obs.get("inversion_layers_v3") or [])
+        # На графике участвуют только наблюдения с уровнями — счётчики считаем по ним же.
+        st.info(
+            f"Уровни: **{'подготовленные' if apply_plot_qc else 'все исходные без QC'}** · "
+            f"срок **{cycle_mode}** · дни "
+            f"**{day_from.isoformat()}…{day_to.isoformat()}**"
+            + (" · только инверсии v2" if inversion_only else "")
+            + (" · только слои v3" if inversion_v3_only else "")
+            + (
+                f" · качество **{inversion_quality}**"
+                if inversion_quality != QUALITY_ANY
+                else ""
             )
-            for layer in layers or []:
-                export_rows.append({
-                    "profile_id": obs["profile_id"],
-                    "datetime_utc": obs.get("datetime_utc"),
-                    "cycle": obs.get("cycle"),
-                    "inversion_detected_v2": bool(obs.get("inversion_detected")),
-                    "max_embedded_gap_m": float(v3_gap),
-                    "min_strength_c": float(v3_strength),
-                    "he_threshold_m": float(v3_he),
-                    "min_depth_m": float(v3_min_depth) if v3_min_depth_on else None,
-                    "max_gap_drop_c": float(v3_gap_drop) if v3_gap_drop_on else None,
-                    **layer,
-                })
-        if export_rows:
-            import csv
-            from io import StringIO
+            + f" · на графике **{len(enabled_plottable)}** из **{len(visible_plottable)}**"
+        )
 
-            buf = StringIO()
-            fieldnames = list(export_rows[0].keys())
-            writer = csv.DictWriter(buf, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(export_rows)
+        m1, m2, m3, m4, m5 = st.columns(5)
+        m1.metric("На графике", f"{len(enabled_plottable)} / {len(visible_plottable)}")
+        m2.metric(
+            "Без уровней",
+            f"{n_enabled_missing} / {n_visible_missing}",
+            help="Профили только с метриками: в счёт кривых не входят.",
+        )
+        m3.metric("Дней с данными", len({o["date"] for o in enabled_plottable}))
+        m4.metric(
+            "С инверсией v2",
+            sum(1 for o in enabled_plottable if o.get("inversion_detected")),
+        )
+        n_v3 = sum(1 for o in enabled_plottable if int(o.get("n_inversion_layers_v3") or 0) > 0)
+        inv_heights = [
+            float(o["inversion_top_height_m"])
+            for o in enabled_plottable
+            if o.get("inversion_detected") and o.get("inversion_top_height_m") is not None
+        ]
+        if inv_heights:
+            m5.metric("Ср. H_inv v2, м", f"{sum(inv_heights) / len(inv_heights):.0f}")
+        else:
+            m5.metric("Со слоями v3", n_v3)
+
+        fig = _build_figure(
+            visible_by_day=visible_by_day,
+            enabled=enabled,
+            days=days,
+            y_axis=y_axis,
+            y_axis_label=y_axis_label,
+            apply_plot_qc=apply_plot_qc,
+            show_day_means=show_day_means,
+            show_inv_top=show_inv_top,
+            show_inv_from_top=show_inv_from_top,
+            show_v3_layers=show_v3_layers,
+            mean=mean,
+            station_name=str(data.get("station_name", "Aldan")),
+            month_key=month_key,
+            v3_layers_override=v3_override,
+            color_by_class=color_by_class,
+            layer_types=set(selected_types) if selected_types else None,
+        )
+        st.plotly_chart(fig, width="stretch")
+
+        if enabled_plottable:
+            import pandas as pd
+
+            export_df = pd.DataFrame(_visible_export_rows(enabled_plottable))
             st.download_button(
-                "Экспорт сравнения v2/v3 (видимые)",
-                data=buf.getvalue(),
-                file_name=f"inversion_compare_{month_key}.csv",
+                "Скачать видимую выборку (CSV)",
+                data=export_df.to_csv(index=False).encode("utf-8-sig"),
+                file_name=f"dashboard_selection_{month_key}.csv",
                 mime="text/csv",
             )
 
-    if enabled_plottable:
-        rows, flags, form_thr = _qc_table_rows(enabled_plottable)
-        st.subheader("Сравнение критериев выбросов (наблюдения)")
-        c_a, c_b, c_c, c_d, c_e = st.columns(5)
-        c_a.metric("Флаг spike", flags["spike"])
-        c_b.metric("Флаг форма", flags["form"])
-        c_c.metric("Флаг |ΔT|", flags["dt"])
-        c_d.metric("Флаг (ΔT/ΔP)²", flags["grad"])
-        c_e.metric("Мало уровней", flags["few"])
-        if form_thr is not None:
-            st.caption(
-                f"Порог формы (P{FORM_PERCENTILE:.0f}, min {FORM_RMSE_MIN_C}°C): {form_thr:.2f} °C"
+        if enabled_plottable:
+            st.subheader("Ручная разметка слоя (gold set)")
+            labels_path = _manual_labels_path(data_file)
+            options = [o["profile_id"] for o in enabled_plottable]
+            pick = st.selectbox("profile_id", options=options)
+            chosen = next(o for o in enabled_plottable if o["profile_id"] == pick)
+            c1, c2, c3 = st.columns(3)
+            base_h = c1.number_input(
+                "Base, м",
+                value=float(chosen.get("heights_m")[0] or 0.0) if chosen.get("heights_m") else 0.0,
+                step=10.0,
             )
-        st.dataframe(rows, width="stretch", hide_index=True)
-        st.caption(
-            f"Источник: {Path(data_path).name} · schema={REQUIRED_SCHEMA} · "
-            f"spike k={HAMPEL_K} abs≥{SPIKE_ABS_C}°C · "
-            f"form P{FORM_PERCENTILE:.0f}/min{FORM_RMSE_MIN_C}°C · "
-            f"|ΔT|≥{OUTLIER_MAX_ABS_DT_C}°C · "
-            f"(ΔT/ΔP)²≥{OUTLIER_MAX_DT_DP_SQ} · "
-            f"n<{MIN_LEVELS_FLAG}"
-        )
+            top_h = c2.number_input(
+                "Top, м",
+                value=float(chosen.get("heights_m")[-1] or 0.0) if chosen.get("heights_m") else 0.0,
+                step=10.0,
+            )
+            pos_type = c3.selectbox("Type", options=["G", "E", "HE"])
+            c4, c5 = st.columns(2)
+            confidence = c4.selectbox("confidence", options=["high", "medium", "low"])
+            annotator = c5.text_input("annotator", value="operator")
+            comment = st.text_input("comment", value="")
+            if st.button("Сохранить слой в manual_inversion_labels.csv"):
+                existing_n = 0
+                if labels_path.exists():
+                    import csv as _csv
+
+                    with labels_path.open(encoding="utf-8", newline="") as handle:
+                        existing_n = sum(
+                            1 for r in _csv.DictReader(handle) if r.get("profile_id") == pick
+                        )
+                _append_manual_label(labels_path, {
+                    "profile_id": pick,
+                    "annotator": annotator,
+                    "layer_index": existing_n,
+                    "base_height_m": round(float(base_h), 1),
+                    "top_height_m": round(float(top_h), 1),
+                    "position_type": pos_type,
+                    "confidence": confidence,
+                    "comment": comment,
+                })
+                st.success(f"Записано в {labels_path}")
+            st.caption(f"Файл меток: {labels_path}")
+
+        if show_v3_layers and enabled_plottable:
+            export_rows = []
+            for obs in enabled_plottable:
+                layers = (
+                    (v3_override or {}).get(obs["profile_id"])
+                    if v3_override is not None
+                    else (obs.get("inversion_layers_v3") or [])
+                )
+                for layer in layers or []:
+                    export_rows.append({
+                        "profile_id": obs["profile_id"],
+                        "datetime_utc": obs.get("datetime_utc"),
+                        "cycle": obs.get("cycle"),
+                        "inversion_detected_v2": bool(obs.get("inversion_detected")),
+                        "max_embedded_gap_m": float(v3_gap),
+                        "min_strength_c": float(v3_strength),
+                        "he_threshold_m": float(v3_he),
+                        "min_depth_m": float(v3_min_depth) if v3_min_depth_on else None,
+                        "max_gap_drop_c": float(v3_gap_drop) if v3_gap_drop_on else None,
+                        **layer,
+                    })
+            if export_rows:
+                import csv
+                from io import StringIO
+
+                buf = StringIO()
+                fieldnames = list(export_rows[0].keys())
+                writer = csv.DictWriter(buf, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(export_rows)
+                st.download_button(
+                    "Экспорт сравнения v2/v3 (видимые)",
+                    data=buf.getvalue(),
+                    file_name=f"inversion_compare_{month_key}.csv",
+                    mime="text/csv",
+                )
+
+        if enabled_plottable:
+            rows, flags, form_thr = _qc_table_rows(enabled_plottable)
+            st.subheader("Сравнение критериев выбросов (наблюдения)")
+            c_a, c_b, c_c, c_d, c_e = st.columns(5)
+            c_a.metric("Флаг spike", flags["spike"])
+            c_b.metric("Флаг форма", flags["form"])
+            c_c.metric("Флаг |ΔT|", flags["dt"])
+            c_d.metric("Флаг (ΔT/ΔP)²", flags["grad"])
+            c_e.metric("Мало уровней", flags["few"])
+            if form_thr is not None:
+                st.caption(
+                    f"Порог формы (P{FORM_PERCENTILE:.0f}, min {FORM_RMSE_MIN_C}°C): {form_thr:.2f} °C"
+                )
+            st.dataframe(rows, width="stretch", hide_index=True)
+            st.caption(
+                f"Источник: {Path(data_path).name} · schema={REQUIRED_SCHEMA} · "
+                f"spike k={HAMPEL_K} abs≥{SPIKE_ABS_C}°C · "
+                f"form P{FORM_PERCENTILE:.0f}/min{FORM_RMSE_MIN_C}°C · "
+                f"|ΔT|≥{OUTLIER_MAX_ABS_DT_C}°C · "
+                f"(ΔT/ΔP)²≥{OUTLIER_MAX_DT_DP_SQ} · "
+                f"n<{MIN_LEVELS_FLAG}"
+            )
 
 
 if __name__ == "__main__":

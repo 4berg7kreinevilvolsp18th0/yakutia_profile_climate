@@ -5,6 +5,7 @@ from typing import Any, Sequence
 
 import numpy as np
 
+from gdex_bufr.profile_climate.profile_interpolation import interp_on_pressure_grid
 from gdex_bufr.profile_climate.plot_filter import (
     dedupe_levels_by_height,
     dedupe_levels_by_pressure,
@@ -379,24 +380,6 @@ def is_few_levels(obs: dict[str, Any], *, min_levels: int = MIN_LEVELS_FLAG) -> 
         return int(n) < min_levels
     temps = obs.get("temperature_c") or []
     return len(temps) < min_levels
-
-
-def interp_on_pressure_grid(
-    pressures: np.ndarray,
-    values: np.ndarray,
-    grid: np.ndarray,
-) -> np.ndarray:
-    """Интерполяция на сетку давления; xp должен возрастать для np.interp."""
-    if len(pressures) < 2:
-        return np.full_like(grid, np.nan, dtype=float)
-    order = np.argsort(pressures)
-    return np.interp(
-        grid,
-        pressures[order],
-        values[order],
-        left=np.nan,
-        right=np.nan,
-    )
 
 
 def pressure_grid_for_obs(
