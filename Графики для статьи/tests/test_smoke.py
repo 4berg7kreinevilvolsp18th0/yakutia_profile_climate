@@ -241,6 +241,24 @@ def test_reference_pressure_heights_and_height_depth_plots():
         plt.close(fig)
 
 
+def test_top_height_depth_gamma_3d():
+    from gdex_bufr.profile_climate.article_figures.config import FigureStyle
+    from gdex_bufr.profile_climate.article_figures.plots import plot_top_height_depth_gamma_3d
+    import matplotlib.pyplot as plt
+
+    layers = pd.DataFrame(
+        {
+            "top_height_agl_m": [120.0, 800.0, 1500.0],
+            "depth_m": [50.0, 120.0, 200.0],
+            "gamma_c_per_100m": [2.0, 4.0, 6.0],
+            "position_type": ["G", "E", "HE"],
+        }
+    )
+    style = FigureStyle(show_title=False, dpi=72)
+    for kind in ("G", "E", "HE"):
+        plt.close(plot_top_height_depth_gamma_3d(layers, style, inversion_type=kind))
+
+
 def test_gamma_monthly_line_facets():
     from gdex_bufr.profile_climate.article_figures.config import FigureStyle
     from gdex_bufr.profile_climate.article_figures.metrics import gamma_count_table

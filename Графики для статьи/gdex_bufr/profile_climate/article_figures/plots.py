@@ -1297,6 +1297,77 @@ def plot_top_height_vs_depth_boxplots(
         return fig
 
 
+def plot_top_height_depth_gamma_3d(
+    layers: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    inversion_type: str,
+    title: str | None = None,
+    elev: float = 24.0,
+    azim: float = -58.0,
+):
+    """3D scatter: X — высота верха AGL, Y — толщина слоя, Z — γ слоя (по типу G/E/HE)."""
+    from .metrics import INVERSION_TYPES
+
+    if inversion_type not in INVERSION_TYPES:
+        raise ValueError(f"inversion_type must be one of {INVERSION_TYPES}")
+
+    use = _layer_height_depth_frame(layers)
+    use = use[use["position_type"] == inversion_type].dropna(subset=["gamma_c_per_100m"]).copy()
+    if use.empty:
+        with article_rc(style):
+            fig = plt.figure(figsize=(style.figure_width_in * 1.15, style.figure_height_in * 1.15))
+            ax = fig.add_subplot(111, projection="3d")
+            ax.text2D(0.5, 0.5, "Нет данных" if style.language == "ru" else "No data", transform=ax.transAxes, ha="center")
+            return fig
+
+    x = use["top_height_agl_m"].to_numpy(float)
+    y = use["depth_m"].to_numpy(float)
+    z = use["gamma_c_per_100m"].to_numpy(float)
+    z_hi = max(float(np.nanpercentile(z, 99)), 3.0)
+    z_lo = min(float(np.nanpercentile(z, 1)), 0.0)
+
+    xlabel = "Высота верха AGL, м" if style.language == "ru" else "Top height AGL, m"
+    ylabel = "Толщина слоя, м" if style.language == "ru" else "Layer depth, m"
+    zlabel = "γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m"
+    color = TYPE_COLORS.get(inversion_type, "#34495E")
+    type_title = _type_title(inversion_type, style)
+
+    with article_rc(style):
+        fig = plt.figure(figsize=(style.figure_width_in * 1.25, style.figure_height_in * 1.2))
+        ax = fig.add_subplot(111, projection="3d")
+        ax.scatter(
+            x,
+            y,
+            np.clip(z, z_lo, z_hi),
+            c=color,
+            s=4,
+            alpha=0.38,
+            linewidths=0,
+            depthshade=True,
+        )
+        ax.set_xlabel(xlabel, labelpad=8)
+        ax.set_ylabel(ylabel, labelpad=8)
+        ax.set_zlabel(zlabel, labelpad=8)
+        ax.set_zlim(z_lo, z_hi * 1.05)
+        ax.view_init(elev=elev, azim=azim)
+        ax.grid(True, alpha=style.grid_alpha)
+        note = (
+            "Полные данные слоя инверсии (eligible_article); Z — средний γ внутри слоя"
+            if style.language == "ru"
+            else "Full inversion layer data (eligible_article); Z — mean layer γ"
+        )
+        if style.show_title:
+            fig.suptitle(
+                title or f"3D: высота — толщина — γ ({type_title})",
+                fontsize=style.title_font_size,
+                y=0.98,
+            )
+            fig.text(0.5, 0.02, note, ha="center", fontsize=style.tick_font_size - 1, color="#566573")
+        fig.subplots_adjust(left=0.02, right=0.98, bottom=0.08, top=0.92)
+        return fig
+
+
 def plot_gamma_scatter_hist(
     gammas: pd.DataFrame,
     ref_heights: Mapping[int, float],

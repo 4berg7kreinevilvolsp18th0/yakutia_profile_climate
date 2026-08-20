@@ -66,6 +66,7 @@ from .plots import (
     plot_top_height_vs_depth_boxplots,
     plot_top_height_vs_depth_joint,
     plot_top_height_vs_depth_monthly_facets,
+    plot_top_height_depth_gamma_3d,
 )
 
 
@@ -413,6 +414,14 @@ def build_all(
         rel = gamma_by_year_dir / f"gamma_line_{year}"
         key = str(rel.relative_to(figures_dir)).replace("\\", "/")
         saved[key] = [str(p) for p in save_figure(fig, rel, gamma_year_style)]
+
+    scatter_3d_dir = figures_dir / "scatter_3d"
+    scatter_3d_style = FigureStyle(**{**height_style.__dict__, "dpi": 300})
+    for kind in INVERSION_TYPES:
+        fig = plot_top_height_depth_gamma_3d(layers, scatter_3d_style, inversion_type=kind)
+        rel = scatter_3d_dir / f"top_height_depth_gamma_3d_{kind}"
+        key = str(rel.relative_to(figures_dir)).replace("\\", "/")
+        saved[key] = [str(p) for p in save_figure(fig, rel, scatter_3d_style)]
 
     summary = {
         "input": str(input_csv),
