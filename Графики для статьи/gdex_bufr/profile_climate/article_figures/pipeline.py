@@ -67,6 +67,7 @@ from .plots import (
     plot_top_height_vs_depth_joint,
     plot_top_height_vs_depth_monthly_facets,
     build_scatter_3d_figure_specs,
+    build_inversion_scatter_3d_figure_specs,
 )
 
 
@@ -416,6 +417,12 @@ def build_all(
         saved[key] = [str(p) for p in save_figure(fig, rel, gamma_year_style)]
 
     scatter_3d_style = FigureStyle(**{**height_style.__dict__, "dpi": 300, "output_formats": ("png",)})
+    for rel_path, builder in build_inversion_scatter_3d_figure_specs(layers, scatter_3d_style):
+        fig = builder()
+        out_path = figures_dir / rel_path
+        key = str(out_path.relative_to(figures_dir)).replace("\\", "/")
+        saved[key] = [str(p) for p in save_figure(fig, out_path, scatter_3d_style)]
+
     for rel_path, builder in build_scatter_3d_figure_specs(
         layers,
         reference_gammas_850_750_500,

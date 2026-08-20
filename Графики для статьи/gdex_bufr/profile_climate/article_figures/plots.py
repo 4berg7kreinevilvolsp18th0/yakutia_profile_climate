@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Iterable, Mapping, Sequence
+from itertools import permutations
+from typing import Iterable, Literal, Mapping, Sequence
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -627,6 +628,18 @@ LAYER_3D_PRESETS: tuple[dict[str, str], ...] = (
 )
 
 REFERENCE_GAMMA_3D_PRESSURES = (850.0, 750.0, 500.0)
+
+INVERSION_3D_AXIS_COLS = ("top_height_agl_m", "depth_m", "gamma_c_per_100m")
+INVERSION_3D_AXIS_LABELS: dict[str, tuple[str, str]] = {
+    "top_height_agl_m": ("Высота верха AGL, м", "Top height AGL, m"),
+    "depth_m": ("Толщина слоя, м", "Layer depth, m"),
+    "gamma_c_per_100m": ("γ, °C/100 м", "γ, °C/100 m"),
+}
+INVERSION_3D_AXIS_SUFFIX: dict[str, str] = {
+    "top_height_agl_m": "Htop",
+    "depth_m": "D",
+    "gamma_c_per_100m": "G",
+}
 
 
 def plot_qc_old_vs_new(old_qc: dict, new_qc: dict, style: FigureStyle, *, title: str | None = None):
@@ -1398,6 +1411,39 @@ def _z_clip_limits(z: np.ndarray) -> tuple[float, float]:
     return z_lo, z_hi
 
 
+def _axis_values_and_limits(col: str, values: np.ndarray) -> tuple[np.ndarray, float, float]:
+    if col == "gamma_c_per_100m":
+        lo = min(float(np.nanpercentile(values, 1)), 0.0) if values.size else 0.0
+        hi = max(float(np.nanpercentile(values, 99)), 3.0) if values.size else 3.0
+        return np.clip(values, lo, hi), lo, hi
+    if col == "month":
+        return values, 1.0, 12.0
+    lo, hi = _z_clip_limits(values)
+    return np.clip(values, lo, hi), lo, hi
+
+
+def _axis_limit_hi(col: str, lo: float, hi: float) -> float:
+    if col == "month":
+        return hi
+    return hi * 1.05
+
+
+def _filter_layers_by_gamma_sign(
+    layers: pd.DataFrame,
+    gamma_sign: Literal["positive", "negative"] | None,
+) -> pd.DataFrame:
+    if gamma_sign is None or "gamma_c_per_100m" not in layers.columns:
+        return layers
+    if gamma_sign == "positive":
+        return layers[layers["gamma_c_per_100m"] > 0]
+    return layers[layers["gamma_c_per_100m"] < 0]
+
+
+def _inversion_3d_axis_label(col: str, style: FigureStyle) -> str:
+    ru, en = INVERSION_3D_AXIS_LABELS[col]
+    return ru if style.language == "ru" else en
+
+
 def plot_layers_scatter_3d(
     layers: pd.DataFrame,
     style: FigureStyle,
@@ -1415,9 +1461,11 @@ def plot_layers_scatter_3d(
     note: str | None = None,
     elev: float = 24.0,
     azim: float = -58.0,
+    gamma_sign: Literal["positive", "negative"] | None = None,
 ):
     """Универсальный 3D scatter по слоям инверсии."""
-    use = _layer_3d_frame(layers, x_col, y_col, z_col)
+    use = _filter_layers_by_gamma_sign(layers, gamma_sign)
+    use = _layer_3d_frame(use, x_col, y_col, z_col)
     if filter_col is not None and filter_value is not None:
         use = use[use[filter_col].astype(str) == str(filter_value)]
     if use.empty:
@@ -1430,25 +1478,20 @@ def plot_layers_scatter_3d(
     x = use[x_col].to_numpy(float)
     y = use[y_col].to_numpy(float)
     z = use[z_col].to_numpy(float)
-    if z_col == "gamma_c_per_100m":
-        z_lo = min(float(np.nanpercentile(z, 1)), 0.0)
-        z_hi = max(float(np.nanpercentile(z, 99)), 3.0)
-        z_plot = np.clip(z, z_lo, z_hi)
-    elif z_col == "month":
-        z_lo, z_hi = 1.0, 12.0
-        z_plot = z
-    else:
-        z_lo, z_hi = _z_clip_limits(z)
-        z_plot = np.clip(z, z_lo, z_hi)
+    x_plot, x_lo, x_hi = _axis_values_and_limits(x_col, x)
+    y_plot, y_lo, y_hi = _axis_values_and_limits(y_col, y)
+    z_plot, z_lo, z_hi = _axis_values_and_limits(z_col, z)
 
     with article_rc(style):
         fig = plt.figure(figsize=(style.figure_width_in * 1.25, style.figure_height_in * 1.2))
         ax = fig.add_subplot(111, projection="3d")
-        ax.scatter(x, y, z_plot, c=color, s=4, alpha=0.38, linewidths=0, depthshade=True)
+        ax.scatter(x_plot, y_plot, z_plot, c=color, s=4, alpha=0.38, linewidths=0, depthshade=True)
         ax.set_xlabel(xlabel, labelpad=8)
         ax.set_ylabel(ylabel, labelpad=8)
         ax.set_zlabel(zlabel, labelpad=8)
-        ax.set_zlim(z_lo, z_hi * 1.05 if z_col != "month" else z_hi)
+        ax.set_xlim(x_lo, _axis_limit_hi(x_col, x_lo, x_hi))
+        ax.set_ylim(y_lo, _axis_limit_hi(y_col, y_lo, y_hi))
+        ax.set_zlim(z_lo, _axis_limit_hi(z_col, z_lo, z_hi))
         ax.view_init(elev=elev, azim=azim)
         ax.grid(True, alpha=style.grid_alpha)
         if style.show_title and title:
@@ -1677,6 +1720,79 @@ def build_scatter_3d_figure_specs(
                 lambda p=pressure: plot_reference_gamma_scatter_3d(ref_data, style, pressure_hpa=p, title=f"3D: γ на {int(p)} гПа"),
             )
         )
+    return specs
+
+
+def build_inversion_scatter_3d_figure_specs(
+    layers: pd.DataFrame,
+    style: FigureStyle,
+) -> list[tuple[str, object]]:
+    """3D-графики инверсий (G/E/HE): знак γ и все перестановки осей."""
+    from .metrics import INVERSION_TYPES
+
+    specs: list[tuple[str, object]] = []
+    sign_meta = (
+        ("pos", "positive", "γ > 0", "γ > 0"),
+        ("neg", "negative", "γ < 0", "γ < 0"),
+    )
+
+    for inv_type in INVERSION_TYPES:
+        specs.append(
+            (
+                f"scatter_3d/top_height_depth_gamma_3d_{inv_type}",
+                lambda t=inv_type: plot_top_height_depth_gamma_3d(layers, style, inversion_type=t),
+            )
+        )
+        for sign_tag, sign_filter, sign_ru, sign_en in sign_meta:
+            sign_label = sign_ru if style.language == "ru" else sign_en
+            for x_col, y_col, z_col in permutations(INVERSION_3D_AXIS_COLS):
+                axis_suffix = "_".join(INVERSION_3D_AXIS_SUFFIX[c] for c in (x_col, y_col, z_col))
+                path = f"scatter_3d/top_height_depth_gamma_3d_{inv_type}_{sign_tag}_{axis_suffix}"
+                xlabel = _inversion_3d_axis_label(x_col, style)
+                ylabel = _inversion_3d_axis_label(y_col, style)
+                zlabel = _inversion_3d_axis_label(z_col, style)
+                axis_tag = " × ".join(
+                    INVERSION_3D_AXIS_SUFFIX[c] for c in (x_col, y_col, z_col)
+                )
+
+                def _make(
+                    t=inv_type,
+                    sf=sign_filter,
+                    sl=sign_label,
+                    xc=x_col,
+                    yc=y_col,
+                    zc=z_col,
+                    xl=xlabel,
+                    yl=ylabel,
+                    zl=zlabel,
+                    at=axis_tag,
+                ):
+                    return plot_layers_scatter_3d(
+                        layers,
+                        style,
+                        x_col=xc,
+                        y_col=yc,
+                        z_col=zc,
+                        xlabel=xl,
+                        ylabel=yl,
+                        zlabel=zl,
+                        filter_col="position_type",
+                        filter_value=t,
+                        color=TYPE_COLORS.get(t, "#34495E"),
+                        gamma_sign=sf,
+                        title=(
+                            f"3D: {_type_title(t, style)} ({sl}) — {at}"
+                            if style.language == "ru"
+                            else f"3D: {_type_title(t, style)} ({sl}) — {at}"
+                        ),
+                        note=(
+                            "Слои инверсии; оси — все перестановки геометрии и γ"
+                            if style.language == "ru"
+                            else "Inversion layers; all axis permutations of geometry and γ"
+                        ),
+                    )
+
+                specs.append((path, _make))
     return specs
 
 

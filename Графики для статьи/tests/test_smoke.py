@@ -241,6 +241,26 @@ def test_reference_pressure_heights_and_height_depth_plots():
         plt.close(fig)
 
 
+def test_inversion_scatter_3d_variants():
+    from gdex_bufr.profile_climate.article_figures.config import FigureStyle
+    from gdex_bufr.profile_climate.article_figures.plots import build_inversion_scatter_3d_figure_specs
+    import matplotlib.pyplot as plt
+
+    layers = pd.DataFrame(
+        {
+            "top_height_agl_m": [120.0, 800.0, 1500.0, 400.0],
+            "depth_m": [50.0, 120.0, 200.0, 90.0],
+            "gamma_c_per_100m": [2.0, -1.5, 6.0, -0.8],
+            "position_type": ["G", "E", "HE", "G"],
+        }
+    )
+    style = FigureStyle(show_title=False, dpi=72)
+    specs = build_inversion_scatter_3d_figure_specs(layers, style)
+    assert len(specs) == 39
+    for _, builder in specs[:8]:
+        plt.close(builder())
+
+
 def test_scatter_3d_catalog():
     from gdex_bufr.profile_climate.article_figures.config import FigureStyle
     from gdex_bufr.profile_climate.article_figures.plots import build_scatter_3d_figure_specs
