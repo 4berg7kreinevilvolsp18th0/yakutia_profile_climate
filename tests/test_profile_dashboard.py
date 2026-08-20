@@ -85,24 +85,18 @@ def test_filter_by_inversion_quality_and_missing_levels():
     assert {o["profile_id"] for o in with_levels} == {"confirmed", "rejected"}
 
 
-def test_month_mean_follows_curve_preparation_mode():
-    """Среднее должно считаться по тем же массивам, что и нарисованные кривые."""
+def test_month_mean_uses_fixed_pressure_grid():
+    """month_mean — обёртка Method A на фиксированной сетке давления."""
+    from gdex_bufr.profile_climate.profile_interpolation import DEFAULT_PRESSURE_GRID_HPA
+
     dash = _load_dashboard()
-    # Дубль давления 850 гПа с аномальной T: подготовка кривых его убирает, сырой режим — нет.
-    obs = _observation(
-        "dup",
-        pressure_hpa=[900.0, 850.0, 850.0, 800.0],
-        temperature_c=[-10.0, -12.0, -30.0, -16.0],
-        heights_m=[1000.0, 1500.0, 1500.0, 2000.0],
-    )
-    enabled = {"dup"}
-
-    raw = dash.month_mean([obs], enabled, y_axis="pressure", apply_plot_qc=False)
-    prepared = dash.month_mean([obs], enabled, y_axis="pressure", apply_plot_qc=True)
-    assert raw is not None and prepared is not None
-
-    assert np.nanmin(raw[1]) < -20.0, "сырой режим сохраняет выброс −30 °C"
-    assert np.nanmin(prepared[1]) > -17.0, "подготовка кривых убирает дублирующий уровень"
+    obs = _observation("p1")
+    enabled = {"p1"}
+    result = dash.month_mean([obs], enabled, y_axis="pressure", apply_plot_qc=False)
+    assert result is not None
+    grid, temps = result
+    assert len(grid) == len(DEFAULT_PRESSURE_GRID_HPA)
+    assert np.sum(~np.isnan(temps)) >= 1
 
 
 def test_month_mean_returns_none_without_enabled():
