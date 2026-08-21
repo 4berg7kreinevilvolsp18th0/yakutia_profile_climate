@@ -1,4 +1,4 @@
-"""Усреднение температурных профилей: метод A и метод B."""
+"""Усреднение температурных профилей: методы A, B и C (аномалии T−Ts)."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -13,7 +13,7 @@ from gdex_bufr.profile_climate.profile_interpolation import (
 )
 
 Coordinate = Literal["pressure", "height"]
-Method = Literal["A", "B"]
+Method = Literal["A", "B", "C"]
 Statistic = Literal["mean", "median"]
 RangeMode = Literal["q25_q75", "std1"]
 MultiMonthMode = Literal["separate", "combined"]
@@ -173,6 +173,49 @@ def filter_observations_for_averaging(
     return out
 
 
+def observation_surface_temperature(obs: dict[str, Any]) -> float | None:
+    """Приземная температура для выравнивания профилей (метод C)."""
+    ts = obs.get("t_surface_c")
+    try:
+        if ts is not None and np.isfinite(float(ts)):
+            return float(ts)
+    except (TypeError, ValueError):
+        pass
+    levels = extract_level_arrays(obs, apply_plot_qc=False)
+    if levels is None:
+        return None
+    p, _h, t = levels
+    ok = np.isfinite(p) & np.isfinite(t)
+    if not np.any(ok):
+        return None
+    # Нижний уровень = максимальное давление.
+    return float(t[ok][np.argmax(p[ok])])
+
+
+def to_surface_anomaly(profile: np.ndarray, t_surface: float) -> np.ndarray:
+    """T'(q) = T(q) − Ts — все профили выходят из одной температуры Ts."""
+    out = np.asarray(profile, dtype=float) - float(t_surface)
+    return out
+
+
+def interpolate_observation_as_anomaly(
+    obs: dict[str, Any],
+    grid: np.ndarray,
+    *,
+    coordinate: Coordinate,
+    apply_plot_qc: bool = False,
+) -> np.ndarray | None:
+    row = interpolate_observation(
+        obs, grid, coordinate=coordinate, apply_plot_qc=apply_plot_qc,
+    )
+    if row is None:
+        return None
+    ts = observation_surface_temperature(obs)
+    if ts is None or not np.isfinite(ts):
+        return None
+    return to_surface_anomaly(row, ts)
+
+
 def interpolate_observation(
     obs: dict[str, Any],
     grid: np.ndarray,
@@ -302,9 +345,14 @@ def compute_single_month_average(
     stacks_a: list[np.ndarray] = []
     ym_pairs: list[tuple[tuple[int, int], np.ndarray]] = []
     for obs in month_obs:
-        row = interpolate_observation(
-            obs, grid, coordinate=config.coordinate, apply_plot_qc=config.apply_plot_qc,
-        )
+        if config.method == "C":
+            row = interpolate_observation_as_anomaly(
+                obs, grid, coordinate=config.coordinate, apply_plot_qc=config.apply_plot_qc,
+            )
+        else:
+            row = interpolate_observation(
+                obs, grid, coordinate=config.coordinate, apply_plot_qc=config.apply_plot_qc,
+            )
         if row is None:
             continue
         stacks_a.append(row)
@@ -333,6 +381,7 @@ def compute_single_month_average(
     if config.method == "B":
         central, median, q25, q75, std = central_b, median_b, q25_b, q75_b, std_b
     else:
+        # A и C: равный вес каждому профилю (для C — уже аномалии T−Ts).
         central, median, q25, q75, std = central_a, median_a, q25_a, q75_a, std_a
 
     all_ym_in_range = {
@@ -388,9 +437,14 @@ def compute_profile_average(
             stacks: list[np.ndarray] = []
             ym_pairs: list[tuple[tuple[int, int], np.ndarray]] = []
             for obs in pool:
-                row = interpolate_observation(
-                    obs, grid, coordinate=config.coordinate, apply_plot_qc=config.apply_plot_qc,
-                )
+                if config.method == "C":
+                    row = interpolate_observation_as_anomaly(
+                        obs, grid, coordinate=config.coordinate, apply_plot_qc=config.apply_plot_qc,
+                    )
+                else:
+                    row = interpolate_observation(
+                        obs, grid, coordinate=config.coordinate, apply_plot_qc=config.apply_plot_qc,
+                    )
                 if row is None:
                     continue
                 stacks.append(row)
@@ -446,6 +500,12 @@ def compute_profile_average(
         "n_pool_profiles": len(pool),
         "interpolation": "linear, no extrapolation",
         "grid_step": "25 hPa" if config.coordinate == "pressure" else "100 m AGL",
+        "quantity": "delta_t_surface_c" if config.method == "C" else "temperature_c",
+        "method_note": (
+            "T' = T − Ts; профили выровнены по приземной температуре"
+            if config.method == "C"
+            else ""
+        ),
     }
     return AveragingResult(
         coordinate=config.coordinate,

@@ -1,4 +1,4 @@
-"""Тесты усреднения профилей (Method A / Method B)."""
+"""Тесты усреднения профилей (Method A / B / C)."""
 from __future__ import annotations
 
 import numpy as np
@@ -70,6 +70,57 @@ def test_method_a_vs_b_year_weights():
     rb = compute_profile_average(obs, filt, cfg_b).months[0].central[0]
     assert ra == pytest.approx(9.0)  # 1*0 + 9*10 = 90 / 10
     assert rb == pytest.approx(5.0)  # mean(0, 10)
+
+
+def test_method_c_surface_anomaly_aligns_profiles():
+    """Профили с разной Ts, но одинаковым лапсом → одинаковые аномалии."""
+    grid = np.array([900.0, 850.0, 800.0])
+    obs = [
+        {
+            "profile_id": "cold",
+            "date": "2001-01-01",
+            "cycle": "00",
+            "pressure_hpa": [900.0, 850.0, 800.0],
+            "temperature_c": [-30.0, -28.0, -26.0],
+            "heights_m": [0.0, 500.0, 1000.0],
+            "t_surface_c": -30.0,
+        },
+        {
+            "profile_id": "warm",
+            "date": "2001-01-02",
+            "cycle": "00",
+            "pressure_hpa": [900.0, 850.0, 800.0],
+            "temperature_c": [-10.0, -8.0, -6.0],
+            "heights_m": [0.0, 500.0, 1000.0],
+            "t_surface_c": -10.0,
+        },
+    ]
+    filt = AveragingFilters(year_start=2001, year_end=2001, selected_months=frozenset([1]))
+    cfg = AveragingConfig(
+        method="C",
+        target_grid=grid,
+        min_samples_a=1,
+        min_samples_b=1,
+        keep_individual_profiles=True,
+    )
+    out = compute_profile_average(obs, filt, cfg)
+    res = out.months[0]
+    # Обе аномалии: 0, +2, +4 → среднее то же
+    np.testing.assert_allclose(res.central, [0.0, 2.0, 4.0], atol=1e-9)
+    assert len(res.individual_profiles) == 2
+    for prof in res.individual_profiles:
+        np.testing.assert_allclose(prof, [0.0, 2.0, 4.0], atol=1e-9)
+    assert out.metadata["quantity"] == "delta_t_surface_c"
+
+
+def test_to_surface_anomaly_helper():
+    from gdex_bufr.profile_climate.profile_averaging import to_surface_anomaly
+
+    row = np.array([-20.0, -18.0, np.nan])
+    out = to_surface_anomaly(row, -20.0)
+    np.testing.assert_allclose(out[:2], [0.0, 2.0])
+    assert np.isnan(out[2])
+
 
 
 def test_no_extrapolation():

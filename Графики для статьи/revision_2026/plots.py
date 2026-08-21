@@ -126,33 +126,60 @@ def _cycle_marginal_histograms(
     y_bins: np.ndarray,
     x_col: str,
     y_col: str,
+    by_type: bool = True,
 ) -> None:
-    """Marginal histograms 00/12: top=X, right=Y; общие bins; log count."""
-    for cycle in ("00", "12"):
-        g = layers[layers["cycle"].astype(str).str.zfill(2).str[-2:] == cycle]
-        if g.empty:
-            continue
-        color = ARTICLE_COLORS[cycle]
-        ax_top.hist(
-            g[x_col].to_numpy(float),
-            bins=x_bins,
-            color=color,
-            alpha=0.55 if cycle == "00" else 0.45,
-            histtype="stepfilled" if cycle == "00" else "step",
-            linewidth=1.2,
-            label=f"{cycle} UTC",
-        )
-        ax_right.hist(
-            g[y_col].to_numpy(float),
-            bins=y_bins,
-            orientation="horizontal",
-            color=color,
-            alpha=0.55 if cycle == "00" else 0.45,
-            histtype="stepfilled" if cycle == "00" else "step",
-            linewidth=1.2,
-        )
-    ax_top.set_yscale("log")
-    ax_right.set_xscale("log")
+    """Marginal histograms: общие bins; линейная шкала N; цвет по типу (или по сроку)."""
+    if by_type:
+        for kind in INVERSION_TYPES:
+            g = layers[layers["position_type"] == kind]
+            if g.empty:
+                continue
+            color = ARTICLE_COLORS[kind]
+            ax_top.hist(
+                g[x_col].to_numpy(float),
+                bins=x_bins,
+                color=color,
+                alpha=0.45,
+                histtype="stepfilled",
+                linewidth=0.8,
+                label=TYPE_LABELS[kind],
+            )
+            ax_right.hist(
+                g[y_col].to_numpy(float),
+                bins=y_bins,
+                orientation="horizontal",
+                color=color,
+                alpha=0.45,
+                histtype="stepfilled",
+                linewidth=0.8,
+            )
+    else:
+        for cycle in ("00", "12"):
+            g = layers[layers["cycle"].astype(str).str.zfill(2).str[-2:] == cycle]
+            if g.empty:
+                continue
+            color = ARTICLE_COLORS[cycle]
+            ax_top.hist(
+                g[x_col].to_numpy(float),
+                bins=x_bins,
+                color=color,
+                alpha=0.55 if cycle == "00" else 0.45,
+                histtype="stepfilled" if cycle == "00" else "step",
+                linewidth=1.2,
+                label=f"{cycle} UTC",
+            )
+            ax_right.hist(
+                g[y_col].to_numpy(float),
+                bins=y_bins,
+                orientation="horizontal",
+                color=color,
+                alpha=0.55 if cycle == "00" else 0.45,
+                histtype="stepfilled" if cycle == "00" else "step",
+                linewidth=1.2,
+            )
+    # Обычная (линейная) шкала количества — не log.
+    ax_top.set_yscale("linear")
+    ax_right.set_xscale("linear")
 
 
 def plot_joint_scatter_base_depth(
@@ -165,15 +192,13 @@ def plot_joint_scatter_base_depth(
     cycle_filter: str | None = None,
     type_filter: str | None = None,
 ) -> plt.Figure:
-    """Joint scatter: X=base_height_agl_m, Y=depth_m; 00/12 markers."""
+    """Joint scatter: X=base AGL, Y=depth; цвет=G/E/HE, форма=00/12."""
     use = _valid_depth_base_layers(layers)
     if type_filter:
         use = use[use["position_type"] == type_filter]
     if cycle_filter in ("00", "12"):
         use = use[use["cycle"].astype(str).str.zfill(2).str[-2:] == cycle_filter]
 
-    x = use["base_height_agl_m"].to_numpy(float)
-    y = use["depth_m"].to_numpy(float)
     x_lim = xlim if xlim is not None else (0.0, JOINT_BASE_AXIS_MAX_M)
     y_lim = ylim if ylim is not None else (0.0, JOINT_DEPTH_AXIS_MAX_M)
     x_bins = np.linspace(x_lim[0], x_lim[1], 41)
@@ -186,42 +211,73 @@ def plot_joint_scatter_base_depth(
         ax = fig.add_subplot(gs[1, 0], sharex=ax_histx)
         ax_histy = fig.add_subplot(gs[1, 1], sharey=ax)
 
-        if cycle_filter in (None, "both") or cycle_filter not in ("00", "12"):
-            cycles = ("00", "12") if cycle_filter != "00" and cycle_filter != "12" else (cycle_filter,)
-        else:
-            cycles = (cycle_filter,)
+        cycles = (cycle_filter,) if cycle_filter in ("00", "12") else ("00", "12")
+        types = (type_filter,) if type_filter in INVERSION_TYPES else INVERSION_TYPES
 
         n00 = n12 = 0
-        for cycle in cycles:
-            g = use[use["cycle"].astype(str).str.zfill(2).str[-2:] == cycle]
-            if g.empty:
-                continue
-            if cycle == "00":
-                n00 = len(g)
-            else:
-                n12 = len(g)
-            ax.scatter(
-                g["base_height_agl_m"],
-                g["depth_m"],
-                c=ARTICLE_COLORS[cycle],
-                marker=CYCLE_MARKERS[cycle],
-                s=5,
-                alpha=0.35,
-                linewidths=0,
-                rasterized=True,
-                label=f"{'○' if cycle == '00' else '×'} {cycle} UTC",
-            )
-            med_x = float(np.median(g["base_height_agl_m"]))
-            med_y = float(np.median(g["depth_m"]))
-            ax.scatter(
-                [med_x], [med_y],
-                c=ARTICLE_COLORS[cycle],
-                marker=CYCLE_MARKERS[cycle],
-                s=80,
-                edgecolors="k",
-                linewidths=0.4,
-                zorder=5,
-            )
+        legend_handles: list = []
+        legend_labels: list[str] = []
+        seen_type: set[str] = set()
+        seen_cycle: set[str] = set()
+
+        for kind in types:
+            for cycle in cycles:
+                g = use[
+                    (use["position_type"] == kind)
+                    & (use["cycle"].astype(str).str.zfill(2).str[-2:] == cycle)
+                ]
+                if g.empty:
+                    continue
+                if cycle == "00":
+                    n00 += len(g)
+                else:
+                    n12 += len(g)
+                color = ARTICLE_COLORS[kind]
+                marker = CYCLE_MARKERS[cycle]
+                ax.scatter(
+                    g["base_height_agl_m"],
+                    g["depth_m"],
+                    c=color,
+                    marker=marker,
+                    s=8 if cycle == "00" else 10,
+                    alpha=0.40 if cycle == "00" else 0.45,
+                    linewidths=0.5 if cycle == "12" else 0,
+                    rasterized=True,
+                )
+                if kind not in seen_type:
+                    legend_handles.append(
+                        mpl.lines.Line2D(
+                            [], [], color=color, marker="o", linestyle="",
+                            markersize=6, label=TYPE_LABELS[kind],
+                        )
+                    )
+                    legend_labels.append(TYPE_LABELS[kind])
+                    seen_type.add(kind)
+                if cycle not in seen_cycle:
+                    legend_handles.append(
+                        mpl.lines.Line2D(
+                            [], [], color="#2C3E50", marker=marker, linestyle="",
+                            markersize=7, label=f"{'○' if cycle == '00' else '×'} {cycle} UTC",
+                        )
+                    )
+                    legend_labels.append(f"{cycle} UTC")
+                    seen_cycle.add(cycle)
+
+                med_x = float(np.median(g["base_height_agl_m"]))
+                med_y = float(np.median(g["depth_m"]))
+                # 'x' — незалитый маркер: без edgecolors (иначе warning matplotlib).
+                med_kw: dict = dict(
+                    c=color,
+                    marker=marker,
+                    s=90,
+                    zorder=5,
+                )
+                if cycle == "00":
+                    med_kw["edgecolors"] = "k"
+                    med_kw["linewidths"] = 0.6
+                else:
+                    med_kw["linewidths"] = 1.4
+                ax.scatter([med_x], [med_y], **med_kw)
 
         ax.set_xlim(*x_lim)
         ax.set_ylim(*y_lim)
@@ -231,20 +287,24 @@ def plot_joint_scatter_base_depth(
         stats = f"N layers = {len(use)}\nN00 = {n00}, N12 = {n12}"
         if type_filter:
             stats += f"\ntype = {type_filter}"
-        ax.text(0.98, 0.97, stats, transform=ax.transAxes, ha="right", va="top", fontsize=7.5,
-                bbox=dict(boxstyle="round,pad=0.25", facecolor="white", edgecolor="#D5D8DC", alpha=0.9))
+        ax.text(
+            0.98, 0.97, stats, transform=ax.transAxes, ha="right", va="top", fontsize=7.5,
+            bbox=dict(boxstyle="round,pad=0.25", facecolor="white", edgecolor="#D5D8DC", alpha=0.9),
+        )
 
         if len(use):
             _cycle_marginal_histograms(
                 ax_histx, ax_histy, use,
                 x_bins=x_bins, y_bins=y_bins,
                 x_col="base_height_agl_m", y_col="depth_m",
+                by_type=True,
             )
         ax_histx.tick_params(labelbottom=False)
         ax_histy.tick_params(labelleft=False)
-        ax_histx.set_ylabel("N (log)")
-        ax_histy.set_xlabel("N (log)")
-        ax.legend(loc="upper left", framealpha=0.92)
+        ax_histx.set_ylabel("N")
+        ax_histy.set_xlabel("N")
+        if legend_handles:
+            ax.legend(handles=legend_handles, loc="upper left", framealpha=0.92, fontsize=7.5)
         return finish(fig, style, caption)
 
 
@@ -284,19 +344,28 @@ def plot_monthly_depth_vs_base_12(
         for ax, month in zip(axes.ravel(), range(1, 13)):
             g = use[use["month"] == month]
             for kind in INVERSION_TYPES:
-                gt = g[g["position_type"] == kind]
-                if gt.empty:
-                    continue
-                ax.scatter(
-                    gt["base_height_agl_m"],
-                    gt["depth_m"],
-                    c=TYPE_COLORS[kind],
-                    s=4,
-                    alpha=0.42,
-                    linewidths=0,
-                    rasterized=True,
-                    label=TYPE_LABELS[kind] if month == 1 else None,
-                )
+                for cycle in ("00", "12"):
+                    gt = g[
+                        (g["position_type"] == kind)
+                        & (g["cycle"].astype(str).str.zfill(2).str[-2:] == cycle)
+                    ]
+                    if gt.empty:
+                        continue
+                    ax.scatter(
+                        gt["base_height_agl_m"],
+                        gt["depth_m"],
+                        c=ARTICLE_COLORS[kind],
+                        marker=CYCLE_MARKERS[cycle],
+                        s=5 if cycle == "00" else 7,
+                        alpha=0.42,
+                        linewidths=0.4 if cycle == "12" else 0,
+                        rasterized=True,
+                        label=(
+                            f"{TYPE_LABELS[kind]} · {cycle}"
+                            if month == 1 and kind == "G"
+                            else (TYPE_LABELS[kind] if month == 1 and cycle == "00" else None)
+                        ),
+                    )
             ax.set_xlim(*base_lim)
             ax.set_ylim(*depth_lim)
             ax.set_title(MONTHS_RU[month - 1], fontsize=style.tick_font_size)

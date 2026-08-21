@@ -25,11 +25,34 @@ from gdex_bufr.profile_climate.profile_averaging import (
 
 MEAN_COLOR = "#C0392B"
 METHOD_B_COLOR = "#2471A3"
+METHOD_C_COLOR = "#117A65"
 BUNDLE_COLOR = "rgba(120,120,120,0.35)"
 YM_BUNDLE_COLOR = "rgba(100,100,160,0.45)"
 # Лимит линий Bundle: иначе Plotly зависает на тысячах traces.
 MAX_BUNDLE_A_TRACES = 250
 MAX_BUNDLE_B_TRACES = 120
+
+
+def _method_from_label(label: str) -> str:
+    if label.startswith("Метод B"):
+        return "B"
+    if label.startswith("Метод C"):
+        return "C"
+    return "A"
+
+
+def _method_line_color(method: str) -> str:
+    if method == "B":
+        return METHOD_B_COLOR
+    if method == "C":
+        return METHOD_C_COLOR
+    return MEAN_COLOR
+
+
+def _x_axis_title(method: str) -> str:
+    if method == "C":
+        return "ΔT = T − Ts, °C"
+    return "Температура, °C"
 
 
 def iter_all_observations(data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -109,15 +132,19 @@ def render_averaging_sidebar(
         options=[
             "Метод A: среднее по всем отдельным профилям",
             "Метод B: сначала средний профиль каждого месяца каждого года",
+            "Метод C: профили из одной Ts (аномалия T−Ts), затем среднее",
         ],
         index=0,
     )
-    method = "B" if method_label.startswith("Метод B") else "A"
+    method = _method_from_label(method_label)
 
     with st.sidebar.expander("Справка по методам", expanded=False):
         st.markdown(
             "**Метод A** — каждый профиль равноправен.\n\n"
-            "**Метод B** — сначала средний профиль каждого (год, месяц), затем среднее по годам."
+            "**Метод B** — сначала средний профиль каждого (год, месяц), затем среднее по годам.\n\n"
+            "**Метод C** — у каждого профиля вычитается приземная температура Ts "
+            "(`t_surface_c` или T на нижнем уровне). Все кривые выходят из одной точки "
+            "(ΔT≈0 у земли) и расходятся с высотой; среднее — как в методе A по аномалиям."
         )
 
     coord_label = st.sidebar.radio(
@@ -226,9 +253,9 @@ def render_averaging_sidebar(
 
     compare_methods = st.sidebar.checkbox("Сравнить Method A vs Method B", value=False)
     show_bundle_a = st.sidebar.checkbox(
-        "Пучок: отдельные профили (Bundle A)",
+        "Пучок: отдельные профили (Bundle A/C)",
         value=False,
-        help=f"На график ≤{MAX_BUNDLE_A_TRACES} линий; статистика считается по всем.",
+        help=f"На график ≤{MAX_BUNDLE_A_TRACES} линий; статистика считается по всем. Для метода C — аномалии T−Ts.",
     )
     show_bundle_b = st.sidebar.checkbox("Пучок: year-month mean (Bundle B)", value=True)
     show_12_panel = st.sidebar.checkbox("Показать все 12 месяцев (4×3)", value=False)
@@ -313,22 +340,22 @@ def build_climatology_figure(
 ) -> go.Figure:
     fig = go.Figure()
     y_title = "Давление, гПа" if result.coordinate == "pressure" else "Высота AGL, м"
-    x_title = "Температура, °C"
+    x_title = _x_axis_title(method)
     shown_note: list[str] = []
 
     for item in result.months:
         label = _month_label(item.month) if item.month else "Объединённая выборка"
-        if show_bundle_a and method == "A":
+        if show_bundle_a and method in ("A", "C"):
             drawn, total = _subsample_profiles(item.individual_profiles, MAX_BUNDLE_A_TRACES)
             if total > len(drawn):
-                shown_note.append(f"Bundle A: {len(drawn)}/{total}")
+                shown_note.append(f"Bundle: {len(drawn)}/{total}")
             for prof in drawn:
                 fig.add_trace(go.Scattergl(
                     x=prof, y=item.grid, mode="lines",
                     line=dict(width=0.6, color=BUNDLE_COLOR),
                     opacity=0.2, showlegend=False, hoverinfo="skip",
                 ))
-        if show_bundle_b:
+        if show_bundle_b and method != "C":
             ym_profs = item.year_month_profiles
             if len(ym_profs) > MAX_BUNDLE_B_TRACES:
                 rng = np.random.default_rng(7)
@@ -350,13 +377,17 @@ def build_climatology_figure(
             y=item.grid,
             mode="lines",
             name=f"{label} ({method})",
-            line=dict(width=3.2, color=MEAN_COLOR if method == "A" else METHOD_B_COLOR),
+            line=dict(width=3.2, color=_method_line_color(method)),
         ))
+        if method == "C":
+            fig.add_vline(x=0, line_width=1, line_dash="dash", line_color="#7F8C8D")
 
     yaxis = dict(title=y_title)
     if result.coordinate == "pressure":
         yaxis["autorange"] = "reversed"
     title = f"{station_name} · Monthly climatological profiles"
+    if method == "C":
+        title += " · Method C (T − Ts)"
     if shown_note:
         title += " · " + "; ".join(shown_note)
     fig.update_layout(
@@ -421,6 +452,7 @@ def build_12month_panel(
     result = compute_profile_average(observations, filt_all, cfg)
     by_month = {r.month: r for r in result.months}
     t_vals: list[float] = []
+    color = _method_line_color(config.method)
     for m in range(1, 13):
         row, col = (m - 1) // 3 + 1, (m - 1) % 3 + 1
         item = by_month.get(m)
@@ -430,7 +462,7 @@ def build_12month_panel(
         fig.add_trace(
             go.Scatter(
                 x=item.central, y=item.grid, mode="lines",
-                line=dict(width=2, color=MEAN_COLOR), showlegend=False,
+                line=dict(width=2, color=color), showlegend=False,
             ),
             row=row, col=col,
         )
@@ -439,17 +471,20 @@ def build_12month_panel(
     if t_vals:
         t_lo, t_hi = np.percentile(t_vals, 2), np.percentile(t_vals, 98)
         fig.update_xaxes(range=[float(t_lo), float(t_hi)])
-    fig.update_layout(height=900, title="12 monthly climatological profiles", template="plotly_white")
+    title = "12 monthly climatological profiles"
+    if config.method == "C":
+        title += " · Method C (T − Ts)"
+    fig.update_layout(height=900, title=title, template="plotly_white")
     return fig
 
 
 def build_n_samples_panel(item, coordinate: str, method: str) -> go.Figure:
-    n = item.n_profiles if method == "A" else item.n_year_months
+    n = item.n_year_months if method == "B" else item.n_profiles
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=n, y=item.grid, mode="lines+markers", name="N"))
     fig.update_layout(
         title="N на уровне",
-        xaxis_title="N profiles" if method == "A" else "N year-months",
+        xaxis_title="N year-months" if method == "B" else "N profiles",
         yaxis_title="P, гПа" if coordinate == "pressure" else "H, m",
         height=400,
         template="plotly_white",
@@ -461,8 +496,10 @@ def build_n_samples_panel(item, coordinate: str, method: str) -> go.Figure:
 
 def render_metadata_block(result: AveragingResult, item, filters: AveragingFilters, ui_flags: dict) -> None:
     st.markdown("#### Метаданные расчёта")
+    quantity = "ΔT = T − Ts" if result.method == "C" else "T"
     st.markdown(
         f"- **Метод:** {result.method}\n"
+        f"- **Величина:** {quantity}\n"
         f"- **Месяцы:** {', '.join(_month_label(m) for m in sorted(filters.selected_months))}\n"
         f"- **Years included:** {filters.year_start}–{filters.year_end}\n"
         f"- **Years excluded (pairs):** "

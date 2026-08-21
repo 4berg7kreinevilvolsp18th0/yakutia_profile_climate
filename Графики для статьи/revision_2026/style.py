@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 from gdex_bufr.profile_climate.article_figures.config import FigureStyle
 
-TYPE_COLORS = {"G": "#B03A2E", "E": "#2471A3", "HE": "#6C3483"}
+TYPE_COLORS = {"G": "#B03A2E", "E": "#2471A3", "HE": "#6C3483"}  # совпадает с ARTICLE_COLORS
 TYPE_LABELS = {
     "G": "Приземная (G)",
     "E": "Приподнятая (E)",
