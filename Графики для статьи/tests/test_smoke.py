@@ -293,6 +293,39 @@ def test_scatter_3d_catalog():
         plt.close(builder())
 
 
+def test_scatter_3d_extra_visuals(tmp_path):
+    from gdex_bufr.profile_climate.article_figures.config import FigureStyle
+    from gdex_bufr.profile_climate.article_figures.plots import (
+        build_scatter_3d_animation_specs,
+        build_scatter_3d_extra_figure_specs,
+    )
+    import matplotlib.pyplot as plt
+
+    layers = pd.DataFrame(
+        {
+            "top_height_agl_m": [120.0, 800.0, 1500.0, 400.0, 900.0, 1100.0],
+            "depth_m": [50.0, 120.0, 200.0, 90.0, 150.0, 180.0],
+            "gamma_c_per_100m": [2.0, -1.5, 6.0, -0.8, 3.5, 1.2],
+            "position_type": ["G", "E", "HE", "G", "E", "HE"],
+        }
+    )
+    style = FigureStyle(show_title=False, dpi=72)
+    specs = build_scatter_3d_extra_figure_specs(layers, style)
+    # 4 kinds × 3 modes = 12
+    assert len(specs) == 12
+    for _, builder in specs:
+        plt.close(builder())
+
+    anim_specs = build_scatter_3d_animation_specs(layers, style)
+    assert len(anim_specs) == 3
+    rel, save_fn = anim_specs[0]
+    out = tmp_path / "rotate_G.gif"
+    path = save_fn(out)
+    assert path.exists()
+    assert path.suffix.lower() == ".gif"
+    assert path.stat().st_size > 0
+
+
 def test_gamma_monthly_line_facets():
     from gdex_bufr.profile_climate.article_figures.config import FigureStyle
     from gdex_bufr.profile_climate.article_figures.metrics import gamma_count_table

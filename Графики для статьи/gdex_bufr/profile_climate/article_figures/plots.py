@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from itertools import permutations
-from typing import Iterable, Literal, Mapping, Sequence
+from pathlib import Path
+from typing import Callable, Iterable, Literal, Mapping, Sequence
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.colors import Normalize
 from matplotlib.gridspec import GridSpec
 
 from .config import AnalysisConfig, FigureStyle
@@ -1793,6 +1795,421 @@ def build_inversion_scatter_3d_figure_specs(
                     )
 
                 specs.append((path, _make))
+    return specs
+
+
+# --- Расширенные 3D-визуализации: bar3d / voxels / GIF / 2D-проекции ---
+
+_EXTRA_3D_X = "top_height_agl_m"
+_EXTRA_3D_Y = "depth_m"
+_EXTRA_3D_Z = "gamma_c_per_100m"
+
+
+def _percentile_edges(values: np.ndarray, n_bins: int, lo_pct: float = 1.0, hi_pct: float = 99.0) -> np.ndarray:
+    vals = np.asarray(values, dtype=float)
+    vals = vals[np.isfinite(vals)]
+    if vals.size == 0:
+        return np.linspace(0.0, 1.0, n_bins + 1)
+    lo = float(np.nanpercentile(vals, lo_pct))
+    hi = float(np.nanpercentile(vals, hi_pct))
+    if hi <= lo:
+        hi = lo + 1.0
+    return np.linspace(lo, hi, n_bins + 1)
+
+
+def _bin_edges_3d(
+    x: np.ndarray,
+    y: np.ndarray,
+    z: np.ndarray,
+    nx: int = 12,
+    ny: int = 10,
+    nz: int = 10,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    return (
+        _percentile_edges(x, nx),
+        _percentile_edges(y, ny),
+        _percentile_edges(z, nz),
+    )
+
+
+def _hist3d_counts(
+    x: np.ndarray,
+    y: np.ndarray,
+    z: np.ndarray,
+    x_edges: np.ndarray,
+    y_edges: np.ndarray,
+    z_edges: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """3D-гистограмма: counts shape (nx, ny, nz) и центры бинов."""
+    counts, _ = np.histogramdd(
+        np.column_stack([x, y, z]),
+        bins=(x_edges, y_edges, z_edges),
+    )
+    xc = 0.5 * (x_edges[:-1] + x_edges[1:])
+    yc = 0.5 * (y_edges[:-1] + y_edges[1:])
+    zc = 0.5 * (z_edges[:-1] + z_edges[1:])
+    return counts.astype(float), xc, yc, zc
+
+
+def _prepare_extra_3d_frame(
+    layers: pd.DataFrame,
+    *,
+    inversion_type: str | None = None,
+) -> pd.DataFrame:
+    use = _layer_3d_frame(layers, _EXTRA_3D_X, _EXTRA_3D_Y, _EXTRA_3D_Z)
+    if inversion_type is not None:
+        use = use[use["position_type"].astype(str) == str(inversion_type)]
+    return use
+
+
+def _empty_3d_fig(style: FigureStyle, title: str | None = None):
+    with article_rc(style):
+        fig = plt.figure(figsize=(style.figure_width_in * 1.25, style.figure_height_in * 1.2))
+        ax = fig.add_subplot(111, projection="3d")
+        ax.text2D(
+            0.5, 0.5,
+            "Нет данных" if style.language == "ru" else "No data",
+            transform=ax.transAxes, ha="center",
+        )
+        if style.show_title and title:
+            fig.suptitle(title, fontsize=style.title_font_size, y=0.98)
+        return fig
+
+
+def _hex_to_rgba(hex_color: str, alpha: float) -> tuple[float, float, float, float]:
+    rgb = mpl.colors.to_rgb(hex_color)
+    return (rgb[0], rgb[1], rgb[2], float(np.clip(alpha, 0.05, 1.0)))
+
+
+def plot_layers_bar3d(
+    layers: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    inversion_type: str | None = None,
+    nx: int = 12,
+    ny: int = 10,
+    title: str | None = None,
+    elev: float = 24.0,
+    azim: float = -58.0,
+):
+    """Столбики bar3d: X=Htop, Y=γ, высота = mean(depth) в ячейке."""
+    use = _prepare_extra_3d_frame(layers, inversion_type=inversion_type)
+    xlabel = "Высота верха AGL, м" if style.language == "ru" else "Top height AGL, m"
+    ylabel = "γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m"
+    zlabel = "Средняя толщина, м" if style.language == "ru" else "Mean depth, m"
+    default_title = (
+        f"3D bar: {_type_title(inversion_type, style)}" if inversion_type
+        else ("3D bar: G+E+HE" if style.language == "ru" else "3D bar: G+E+HE")
+    )
+    if use.empty:
+        return _empty_3d_fig(style, title or default_title)
+
+    x_edges = _percentile_edges(use[_EXTRA_3D_X].to_numpy(float), nx)
+    g_edges = _percentile_edges(use[_EXTRA_3D_Z].to_numpy(float), ny)
+    dx = float(np.diff(x_edges).mean()) * 0.85
+    dy = float(np.diff(g_edges).mean()) * 0.85
+
+    with article_rc(style):
+        fig = plt.figure(figsize=(style.figure_width_in * 1.25, style.figure_height_in * 1.2))
+        ax = fig.add_subplot(111, projection="3d")
+
+        if inversion_type is None and "position_type" in use.columns:
+            series = [
+                (str(t), g, TYPE_COLORS.get(str(t), "#34495E"))
+                for t, g in use.groupby("position_type", sort=False)
+            ]
+        else:
+            color = TYPE_COLORS.get(str(inversion_type or "G"), "#34495E")
+            series = [(str(inversion_type or "all"), use, color)]
+
+        for label, gdf, color in series:
+            gx = gdf[_EXTRA_3D_X].to_numpy(float)
+            gd = gdf[_EXTRA_3D_Y].to_numpy(float)
+            gg = gdf[_EXTRA_3D_Z].to_numpy(float)
+            counts, _, _ = np.histogram2d(gx, gg, bins=[x_edges, g_edges])
+            depth_sum, _, _ = np.histogram2d(gx, gg, bins=[x_edges, g_edges], weights=gd)
+            with np.errstate(invalid="ignore", divide="ignore"):
+                mean_depth = np.where(counts > 0, depth_sum / counts, 0.0)
+            ix, iy = np.nonzero(counts > 0)
+            if ix.size == 0:
+                continue
+            xc = 0.5 * (x_edges[:-1] + x_edges[1:])
+            yc = 0.5 * (g_edges[:-1] + g_edges[1:])
+            xpos = xc[ix]
+            ypos = yc[iy]
+            zpos = np.zeros(ix.size)
+            dz = mean_depth[ix, iy]
+            n_cell = counts[ix, iy]
+            alphas = 0.25 + 0.7 * (np.log1p(n_cell) / max(np.log1p(n_cell.max()), 1e-9))
+            colors = [_hex_to_rgba(color, a) for a in alphas]
+            ax.bar3d(
+                xpos - dx / 2, ypos - dy / 2, zpos,
+                dx, dy, dz,
+                color=colors, shade=True, edgecolor="none",
+                label=label if inversion_type is None else None,
+            )
+
+        ax.set_xlabel(xlabel, labelpad=8)
+        ax.set_ylabel(ylabel, labelpad=8)
+        ax.set_zlabel(zlabel, labelpad=8)
+        ax.view_init(elev=elev, azim=azim)
+        ax.grid(True, alpha=style.grid_alpha)
+        if inversion_type is None:
+            ax.legend(frameon=False, fontsize=style.legend_font_size - 1, loc="upper left")
+        if style.show_title:
+            fig.suptitle(title or default_title, fontsize=style.title_font_size, y=0.98)
+        note = (
+            "Бины Htop×γ; высота столбика = mean(depth)"
+            if style.language == "ru"
+            else "Htop×γ bins; bar height = mean(depth)"
+        )
+        fig.text(0.5, 0.02, note, ha="center", fontsize=style.tick_font_size - 1, color="#566573")
+        fig.subplots_adjust(left=0.02, right=0.98, bottom=0.08, top=0.92)
+        return fig
+
+
+def plot_layers_voxels(
+    layers: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    inversion_type: str | None = None,
+    nx: int = 10,
+    ny: int = 8,
+    nz: int = 8,
+    min_count: int = 1,
+    title: str | None = None,
+    elev: float = 24.0,
+    azim: float = -58.0,
+):
+    """Воксельная 3D-гистограмма плотности N в (Htop, depth, γ)."""
+    use = _prepare_extra_3d_frame(layers, inversion_type=inversion_type)
+    default_title = (
+        f"3D voxels: {_type_title(inversion_type, style)}" if inversion_type
+        else "3D voxels: G+E+HE"
+    )
+    if use.empty:
+        return _empty_3d_fig(style, title or default_title)
+
+    x = use[_EXTRA_3D_X].to_numpy(float)
+    y = use[_EXTRA_3D_Y].to_numpy(float)
+    z = use[_EXTRA_3D_Z].to_numpy(float)
+    x_edges, y_edges, z_edges = _bin_edges_3d(x, y, z, nx=nx, ny=ny, nz=nz)
+    counts, _, _, _ = _hist3d_counts(x, y, z, x_edges, y_edges, z_edges)
+    filled = counts >= float(min_count)
+    if not np.any(filled):
+        return _empty_3d_fig(style, title or default_title)
+
+    base = TYPE_COLORS.get(str(inversion_type or "G"), "#2E86C1")
+    logn = np.log1p(counts)
+    vmax = float(logn[filled].max()) if np.any(filled) else 1.0
+    norm = Normalize(vmin=0.0, vmax=max(vmax, 1e-9))
+    cmap = mpl.colormaps["viridis"]
+    facecolors = np.zeros(counts.shape + (4,))
+    for i, j, k in zip(*np.nonzero(filled)):
+        if inversion_type is None:
+            rgba = list(cmap(norm(logn[i, j, k])))
+        else:
+            rgba = list(_hex_to_rgba(base, 0.25 + 0.7 * norm(logn[i, j, k])))
+        facecolors[i, j, k] = rgba
+
+    with article_rc(style):
+        fig = plt.figure(figsize=(style.figure_width_in * 1.25, style.figure_height_in * 1.2))
+        ax = fig.add_subplot(111, projection="3d")
+        ax.voxels(filled, facecolors=facecolors, edgecolor="k", linewidth=0.15)
+        # Масштаб осей в физические единицы через tick labels на индексах.
+        ax.set_xticks(np.linspace(0, nx, 5))
+        ax.set_yticks(np.linspace(0, ny, 5))
+        ax.set_zticks(np.linspace(0, nz, 5))
+        ax.set_xticklabels([f"{v:.0f}" for v in np.linspace(x_edges[0], x_edges[-1], 5)])
+        ax.set_yticklabels([f"{v:.0f}" for v in np.linspace(y_edges[0], y_edges[-1], 5)])
+        ax.set_zticklabels([f"{v:.1f}" for v in np.linspace(z_edges[0], z_edges[-1], 5)])
+        ax.set_xlabel("Htop AGL, м" if style.language == "ru" else "Htop AGL, m", labelpad=8)
+        ax.set_ylabel("Толщина, м" if style.language == "ru" else "Depth, m", labelpad=8)
+        ax.set_zlabel("γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m", labelpad=8)
+        ax.view_init(elev=elev, azim=azim)
+        if style.show_title:
+            fig.suptitle(title or default_title, fontsize=style.title_font_size, y=0.98)
+        note = (
+            "Воксели: N в кубах (Htop × depth × γ); цвет ∝ log(N)"
+            if style.language == "ru"
+            else "Voxels: N in (Htop × depth × γ); color ∝ log(N)"
+        )
+        fig.text(0.5, 0.02, note, ha="center", fontsize=style.tick_font_size - 1, color="#566573")
+        fig.subplots_adjust(left=0.02, right=0.98, bottom=0.08, top=0.92)
+        return fig
+
+
+def plot_layers_3d_projections(
+    layers: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    inversion_type: str | None = None,
+    title: str | None = None,
+):
+    """2D-проекции и гистограмма depth из тех же 3D-данных."""
+    use = _prepare_extra_3d_frame(layers, inversion_type=inversion_type)
+    default_title = (
+        f"2D из 3D: {_type_title(inversion_type, style)}" if inversion_type
+        else "2D из 3D: G+E+HE"
+    )
+    with article_rc(style):
+        fig = plt.figure(figsize=(style.figure_width_in * 1.35, style.figure_height_in * 1.25))
+        gs = GridSpec(2, 2, figure=fig, wspace=0.28, hspace=0.32)
+        ax_xy = fig.add_subplot(gs[0, 0])
+        ax_xz = fig.add_subplot(gs[0, 1])
+        ax_yz = fig.add_subplot(gs[1, 0])
+        ax_d = fig.add_subplot(gs[1, 1])
+
+        if use.empty:
+            for ax in (ax_xy, ax_xz, ax_yz, ax_d):
+                ax.text(0.5, 0.5, "Нет данных" if style.language == "ru" else "No data", ha="center", va="center")
+            if style.show_title:
+                fig.suptitle(title or default_title, fontsize=style.title_font_size)
+            return fig
+
+        x = use[_EXTRA_3D_X].to_numpy(float)
+        y = use[_EXTRA_3D_Y].to_numpy(float)
+        z = use[_EXTRA_3D_Z].to_numpy(float)
+        color = TYPE_COLORS.get(str(inversion_type or "G"), "#2E86C1")
+        cmap = "Blues" if inversion_type == "G" else ("Oranges" if inversion_type == "E" else ("Greens" if inversion_type == "HE" else "viridis"))
+
+        ax_xy.hexbin(x, y, gridsize=28, cmap=cmap, mincnt=1, linewidths=0)
+        ax_xy.set_xlabel("Htop AGL, м" if style.language == "ru" else "Htop AGL, m")
+        ax_xy.set_ylabel("Толщина, м" if style.language == "ru" else "Depth, m")
+        ax_xy.set_title("Htop × depth")
+
+        ax_xz.hexbin(x, z, gridsize=28, cmap=cmap, mincnt=1, linewidths=0)
+        ax_xz.set_xlabel("Htop AGL, м" if style.language == "ru" else "Htop AGL, m")
+        ax_xz.set_ylabel("γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m")
+        ax_xz.set_title("Htop × γ")
+
+        ax_yz.hexbin(y, z, gridsize=28, cmap=cmap, mincnt=1, linewidths=0)
+        ax_yz.set_xlabel("Толщина, м" if style.language == "ru" else "Depth, m")
+        ax_yz.set_ylabel("γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m")
+        ax_yz.set_title("depth × γ")
+
+        ax_d.hist(y, bins=30, color=color, alpha=0.85, edgecolor="white", linewidth=0.4)
+        ax_d.set_xlabel("Толщина, м" if style.language == "ru" else "Depth, m")
+        ax_d.set_ylabel("N")
+        ax_d.set_title("Гистограмма depth" if style.language == "ru" else "Depth histogram")
+        ax_d.grid(True, axis="y", alpha=style.grid_alpha, linewidth=0.5)
+
+        if style.show_title:
+            fig.suptitle(title or default_title, fontsize=style.title_font_size, y=0.98)
+        fig.subplots_adjust(left=0.08, right=0.98, bottom=0.08, top=0.90)
+        return fig
+
+
+def save_layers_scatter_3d_gif(
+    layers: pd.DataFrame,
+    style: FigureStyle,
+    output_path: Path,
+    *,
+    inversion_type: str,
+    n_frames: int = 36,
+    dpi: int = 120,
+    elev: float = 24.0,
+) -> Path:
+    """GIF вращения 3D scatter вокруг вертикали."""
+    try:
+        from matplotlib.animation import FuncAnimation, PillowWriter
+    except Exception as exc:  # pragma: no cover
+        raise RuntimeError("Для GIF нужен matplotlib.animation и Pillow") from exc
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    use = _prepare_extra_3d_frame(layers, inversion_type=inversion_type)
+    color = TYPE_COLORS.get(str(inversion_type), "#34495E")
+    with article_rc(style):
+        fig = plt.figure(figsize=(style.figure_width_in * 1.15, style.figure_height_in * 1.1))
+        ax = fig.add_subplot(111, projection="3d")
+        if use.empty:
+            ax.text2D(0.5, 0.5, "Нет данных", transform=ax.transAxes, ha="center")
+        else:
+            x = use[_EXTRA_3D_X].to_numpy(float)
+            y = use[_EXTRA_3D_Y].to_numpy(float)
+            z = use[_EXTRA_3D_Z].to_numpy(float)
+            x_plot, x_lo, x_hi = _axis_values_and_limits(_EXTRA_3D_X, x)
+            y_plot, y_lo, y_hi = _axis_values_and_limits(_EXTRA_3D_Y, y)
+            z_plot, z_lo, z_hi = _axis_values_and_limits(_EXTRA_3D_Z, z)
+            ax.scatter(x_plot, y_plot, z_plot, c=color, s=4, alpha=0.38, linewidths=0, depthshade=True)
+            ax.set_xlim(x_lo, _axis_limit_hi(_EXTRA_3D_X, x_lo, x_hi))
+            ax.set_ylim(y_lo, _axis_limit_hi(_EXTRA_3D_Y, y_lo, y_hi))
+            ax.set_zlim(z_lo, _axis_limit_hi(_EXTRA_3D_Z, z_lo, z_hi))
+        ax.set_xlabel("Htop AGL, м" if style.language == "ru" else "Htop AGL, m")
+        ax.set_ylabel("Толщина, м" if style.language == "ru" else "Depth, m")
+        ax.set_zlabel("γ, °C/100 м" if style.language == "ru" else "γ, °C/100 m")
+        if style.show_title:
+            fig.suptitle(f"3D rotate: {_type_title(inversion_type, style)}", fontsize=style.title_font_size)
+
+        def _update(frame: int):
+            ax.view_init(elev=elev, azim=(360.0 * frame) / n_frames)
+            return (ax,)
+
+        anim = FuncAnimation(fig, _update, frames=n_frames, interval=80, blit=False)
+        writer = PillowWriter(fps=12)
+        anim.save(str(output_path), writer=writer, dpi=dpi)
+        plt.close(fig)
+    return output_path
+
+
+def build_scatter_3d_extra_figure_specs(
+    layers: pd.DataFrame,
+    style: FigureStyle,
+) -> list[tuple[str, Callable[[], object]]]:
+    """PNG-спеки: bars / voxels / projections_2d для G, E, HE и combined."""
+    from .metrics import INVERSION_TYPES
+
+    specs: list[tuple[str, Callable[[], object]]] = []
+    kinds: list[tuple[str | None, str]] = [(t, t) for t in INVERSION_TYPES]
+    kinds.append((None, "G_E_HE"))
+
+    for inv_type, tag in kinds:
+        label = _type_title(inv_type, style) if inv_type else "G+E+HE"
+        specs.append(
+            (
+                f"scatter_3d/bars/top_height_gamma_mean_depth_{tag}",
+                lambda t=inv_type, lbl=label: plot_layers_bar3d(
+                    layers, style, inversion_type=t, title=f"3D bar: {lbl}",
+                ),
+            )
+        )
+        specs.append(
+            (
+                f"scatter_3d/voxels/top_height_depth_gamma_density_{tag}",
+                lambda t=inv_type, lbl=label: plot_layers_voxels(
+                    layers, style, inversion_type=t, title=f"3D voxels: {lbl}",
+                ),
+            )
+        )
+        specs.append(
+            (
+                f"scatter_3d/projections_2d/htop_depth_gamma_panels_{tag}",
+                lambda t=inv_type, lbl=label: plot_layers_3d_projections(
+                    layers, style, inversion_type=t, title=f"2D из 3D: {lbl}",
+                ),
+            )
+        )
+    return specs
+
+
+def build_scatter_3d_animation_specs(
+    layers: pd.DataFrame,
+    style: FigureStyle,
+) -> list[tuple[str, Callable[[Path], Path]]]:
+    """GIF-спеки вращения для G / E / HE."""
+    from .metrics import INVERSION_TYPES
+
+    specs: list[tuple[str, Callable[[Path], Path]]] = []
+    for inv_type in INVERSION_TYPES:
+        path = f"scatter_3d/animated/top_height_depth_gamma_rotate_{inv_type}"
+
+        def _save(out: Path, t=inv_type) -> Path:
+            gif_path = out if out.suffix.lower() == ".gif" else Path(str(out) + ".gif")
+            return save_layers_scatter_3d_gif(layers, style, gif_path, inversion_type=t)
+
+        specs.append((path, _save))
     return specs
 
 

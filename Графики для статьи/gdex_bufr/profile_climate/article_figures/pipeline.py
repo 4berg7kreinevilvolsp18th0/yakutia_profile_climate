@@ -68,6 +68,8 @@ from .plots import (
     plot_top_height_vs_depth_monthly_facets,
     build_scatter_3d_figure_specs,
     build_inversion_scatter_3d_figure_specs,
+    build_scatter_3d_extra_figure_specs,
+    build_scatter_3d_animation_specs,
 )
 
 
@@ -432,6 +434,19 @@ def build_all(
         out_path = figures_dir / rel_path
         key = str(out_path.relative_to(figures_dir)).replace("\\", "/")
         saved[key] = [str(p) for p in save_figure(fig, out_path, scatter_3d_style)]
+
+    for rel_path, builder in build_scatter_3d_extra_figure_specs(layers, scatter_3d_style):
+        fig = builder()
+        out_path = figures_dir / rel_path
+        key = str(out_path.relative_to(figures_dir)).replace("\\", "/")
+        saved[key] = [str(p) for p in save_figure(fig, out_path, scatter_3d_style)]
+
+    for rel_path, save_fn in build_scatter_3d_animation_specs(layers, scatter_3d_style):
+        out_path = figures_dir / rel_path
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        gif_path = save_fn(out_path.with_suffix(".gif"))
+        key = str(Path(gif_path).relative_to(figures_dir)).replace("\\", "/")
+        saved[key] = [str(gif_path)]
 
     summary = {
         "input": str(input_csv),
