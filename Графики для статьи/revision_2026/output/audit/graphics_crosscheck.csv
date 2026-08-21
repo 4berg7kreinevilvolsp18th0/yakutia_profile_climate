@@ -1,0 +1,5 @@
+﻿metric,folder_a,figure_a,N_a,folder_b,figure_b,N_b,delta_N,median_a,median_b,reason
+depth_m,01_thickness,inversion_depth_vs_base_joint,19996,06_extra,violin_depth_by_month,19996,0,236.5,236.5,identical filter expected
+depth_m,01_thickness,inversion_depth_vs_base_joint,19996,diagnostic,qc_depth_histogram,19996,0,236.5,236.5,identical filter expected
+gamma_sfc_850,02_gamma_sfc_P,type03_gamma_annual_cycle_850_700_500,17991,02_gamma_sfc_P,type03_gamma_annual_cycle_850_700_500,17991,0,-0.4716263502205943,-0.4716263502205943,identical filter expected
+gamma_sfc_850,02_gamma_sfc_P,type03_gamma_annual_cycle_850_700_500,17991,diagnostic,qc_eligible_counts,17991,0,-0.4716263502205943,-0.4716263502205943,identical filter expected

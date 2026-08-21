@@ -13,6 +13,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from gdex_bufr.profile_climate.article_figures.config import FigureStyle
 from gdex_bufr.profile_climate.article_figures.metrics import INVERSION_TYPES
 
+from .article_colors import ARTICLE_COLORS, CYCLE_MARKERS, REFERENCE_GAMMA_DRY_ADIABATIC, REFERENCE_GAMMA_STANDARD
 from .metrics import heatmap_matrix, shared_abs_limit
 from .style import (
     DIAG_HEXBIN_CMAP,
@@ -102,6 +103,151 @@ def _typed_marginal_histograms(
         )
 
 
+def _add_gamma_reference_lines(ax: plt.Axes, *, orientation: str = "horizontal") -> None:
+    """Референс γ=0, −0.6 и опционально сухоадиабат −0.98 °C/100 м."""
+    refs = (
+        (0.0, "γ = 0", "#7F8C8D", "--"),
+        (REFERENCE_GAMMA_STANDARD, "реф. −0.6 °C/100 м", "#922B21", ":"),
+        (REFERENCE_GAMMA_DRY_ADIABATIC, "сухоадиабат ≈ −0.98", "#566573", ":"),
+    )
+    for val, label, color, ls in refs:
+        if orientation == "horizontal":
+            ax.axhline(val, color=color, linestyle=ls, linewidth=0.9, label=label)
+        else:
+            ax.axvline(val, color=color, linestyle=ls, linewidth=0.9, label=label)
+
+
+def _cycle_marginal_histograms(
+    ax_top: plt.Axes,
+    ax_right: plt.Axes,
+    layers: pd.DataFrame,
+    *,
+    x_bins: np.ndarray,
+    y_bins: np.ndarray,
+    x_col: str,
+    y_col: str,
+) -> None:
+    """Marginal histograms 00/12: top=X, right=Y; общие bins; log count."""
+    for cycle in ("00", "12"):
+        g = layers[layers["cycle"].astype(str).str.zfill(2).str[-2:] == cycle]
+        if g.empty:
+            continue
+        color = ARTICLE_COLORS[cycle]
+        ax_top.hist(
+            g[x_col].to_numpy(float),
+            bins=x_bins,
+            color=color,
+            alpha=0.55 if cycle == "00" else 0.45,
+            histtype="stepfilled" if cycle == "00" else "step",
+            linewidth=1.2,
+            label=f"{cycle} UTC",
+        )
+        ax_right.hist(
+            g[y_col].to_numpy(float),
+            bins=y_bins,
+            orientation="horizontal",
+            color=color,
+            alpha=0.55 if cycle == "00" else 0.45,
+            histtype="stepfilled" if cycle == "00" else "step",
+            linewidth=1.2,
+        )
+    ax_top.set_yscale("log")
+    ax_right.set_xscale("log")
+
+
+def plot_joint_scatter_base_depth(
+    layers: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    caption: str | None = None,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
+    cycle_filter: str | None = None,
+    type_filter: str | None = None,
+) -> plt.Figure:
+    """Joint scatter: X=base_height_agl_m, Y=depth_m; 00/12 markers."""
+    use = _valid_depth_base_layers(layers)
+    if type_filter:
+        use = use[use["position_type"] == type_filter]
+    if cycle_filter in ("00", "12"):
+        use = use[use["cycle"].astype(str).str.zfill(2).str[-2:] == cycle_filter]
+
+    x = use["base_height_agl_m"].to_numpy(float)
+    y = use["depth_m"].to_numpy(float)
+    x_lim = xlim if xlim is not None else (0.0, JOINT_BASE_AXIS_MAX_M)
+    y_lim = ylim if ylim is not None else (0.0, JOINT_DEPTH_AXIS_MAX_M)
+    x_bins = np.linspace(x_lim[0], x_lim[1], 41)
+    y_bins = _joint_depth_bins()
+
+    with revision_rc(style):
+        fig = plt.figure(figsize=(style.figure_width_in, style.figure_height_in * 1.25))
+        gs = fig.add_gridspec(2, 2, width_ratios=[4, 1.15], height_ratios=[1.15, 4], hspace=0.04, wspace=0.04)
+        ax_histx = fig.add_subplot(gs[0, 0])
+        ax = fig.add_subplot(gs[1, 0], sharex=ax_histx)
+        ax_histy = fig.add_subplot(gs[1, 1], sharey=ax)
+
+        if cycle_filter in (None, "both") or cycle_filter not in ("00", "12"):
+            cycles = ("00", "12") if cycle_filter != "00" and cycle_filter != "12" else (cycle_filter,)
+        else:
+            cycles = (cycle_filter,)
+
+        n00 = n12 = 0
+        for cycle in cycles:
+            g = use[use["cycle"].astype(str).str.zfill(2).str[-2:] == cycle]
+            if g.empty:
+                continue
+            if cycle == "00":
+                n00 = len(g)
+            else:
+                n12 = len(g)
+            ax.scatter(
+                g["base_height_agl_m"],
+                g["depth_m"],
+                c=ARTICLE_COLORS[cycle],
+                marker=CYCLE_MARKERS[cycle],
+                s=5,
+                alpha=0.35,
+                linewidths=0,
+                rasterized=True,
+                label=f"{'○' if cycle == '00' else '×'} {cycle} UTC",
+            )
+            med_x = float(np.median(g["base_height_agl_m"]))
+            med_y = float(np.median(g["depth_m"]))
+            ax.scatter(
+                [med_x], [med_y],
+                c=ARTICLE_COLORS[cycle],
+                marker=CYCLE_MARKERS[cycle],
+                s=80,
+                edgecolors="k",
+                linewidths=0.4,
+                zorder=5,
+            )
+
+        ax.set_xlim(*x_lim)
+        ax.set_ylim(*y_lim)
+        ax.set_xlabel("Высота основания AGL, м")
+        ax.set_ylabel("Толщина слоя depth_m, м")
+        ax.grid(True, alpha=style.grid_alpha, linewidth=0.4)
+        stats = f"N layers = {len(use)}\nN00 = {n00}, N12 = {n12}"
+        if type_filter:
+            stats += f"\ntype = {type_filter}"
+        ax.text(0.98, 0.97, stats, transform=ax.transAxes, ha="right", va="top", fontsize=7.5,
+                bbox=dict(boxstyle="round,pad=0.25", facecolor="white", edgecolor="#D5D8DC", alpha=0.9))
+
+        if len(use):
+            _cycle_marginal_histograms(
+                ax_histx, ax_histy, use,
+                x_bins=x_bins, y_bins=y_bins,
+                x_col="base_height_agl_m", y_col="depth_m",
+            )
+        ax_histx.tick_params(labelbottom=False)
+        ax_histy.tick_params(labelleft=False)
+        ax_histx.set_ylabel("N (log)")
+        ax_histy.set_xlabel("N (log)")
+        ax.legend(loc="upper left", framealpha=0.92)
+        return finish(fig, style, caption)
+
+
 def plot_joint_depth_vs_base(
     layers: pd.DataFrame,
     style: FigureStyle,
@@ -111,76 +257,14 @@ def plot_joint_depth_vs_base(
     ylim: tuple[float, float] | None = None,
     vmax: float | None = None,
 ) -> plt.Figure:
-    use = _valid_depth_base_layers(layers)
-    base = use["base_height_agl_m"].to_numpy(float)
-    depth = use["depth_m"].to_numpy(float)
-    depth_lim = xlim if xlim is not None else (0.0, JOINT_DEPTH_AXIS_MAX_M)
-    base_lim = ylim if ylim is not None else (0.0, JOINT_BASE_AXIS_MAX_M)
-    med_base = float(np.median(base)) if base.size else np.nan
-    med_depth = float(np.median(depth)) if depth.size else np.nan
-    q25_base, q75_base = (np.nanpercentile(base, [25, 75]) if base.size else (np.nan, np.nan))
-    q25_depth, q75_depth = (np.nanpercentile(depth, [25, 75]) if depth.size else (np.nan, np.nan))
-    type_lines = []
-    for kind in INVERSION_TYPES:
-        n_kind = int((use["position_type"] == kind).sum())
-        if n_kind:
-            type_lines.append(f"{kind}: {n_kind}")
-
-    with revision_rc(style):
-        fig = plt.figure(figsize=(style.figure_width_in, style.figure_height_in * 1.25))
-        gs = fig.add_gridspec(2, 2, width_ratios=[4, 1.15], height_ratios=[1.15, 4], hspace=0.04, wspace=0.04)
-        ax_histx = fig.add_subplot(gs[0, 0])
-        ax = fig.add_subplot(gs[1, 0], sharex=ax_histx)
-        ax_histy = fig.add_subplot(gs[1, 1], sharey=ax)
-        for kind in INVERSION_TYPES:
-            g = use[use["position_type"] == kind]
-            if g.empty:
-                continue
-            ax.scatter(
-                g["depth_m"],
-                g["base_height_agl_m"],
-                c=TYPE_COLORS[kind],
-                s=6,
-                alpha=0.42,
-                linewidths=0,
-                rasterized=True,
-                label=TYPE_LABELS[kind],
-            )
-        ax.axvline(med_depth, color="#1C2833", linewidth=0.9, linestyle="--")
-        ax.axhline(med_base, color="#1C2833", linewidth=0.9, linestyle="--")
-        ax.set_xlim(*depth_lim)
-        ax.set_ylim(*base_lim)
-        ax.set_xticks(_joint_depth_ticks())
-        ax.set_xlabel("Толщина слоя depth_m, м")
-        ax.set_ylabel("Высота основания AGL, м")
-        ax.grid(True, alpha=style.grid_alpha, linewidth=0.4)
-        stats = (
-            f"N = {depth.size}\n"
-            f"med depth = {med_depth:.0f} м (Q25–Q75 {q25_depth:.0f}–{q75_depth:.0f})\n"
-            f"med base = {med_base:.0f} м (Q25–Q75 {q25_base:.0f}–{q75_base:.0f})"
-        )
-        if type_lines:
-            stats += "\n" + ", ".join(type_lines)
-        ax.text(
-            0.98,
-            0.97,
-            stats,
-            transform=ax.transAxes,
-            ha="right",
-            va="top",
-            fontsize=7.5,
-            bbox=dict(boxstyle="round,pad=0.25", facecolor="white", edgecolor="#D5D8DC", alpha=0.9),
-        )
-        if depth.size:
-            _typed_marginal_histograms(
-                ax_histx, ax_histy, use, depth_lim=depth_lim, base_lim=base_lim
-            )
-        ax_histx.tick_params(labelbottom=False)
-        ax_histy.tick_params(labelleft=False)
-        ax_histx.set_ylabel("N")
-        ax_histy.set_xlabel("N")
-        ax.legend(loc="upper left", framealpha=0.92, borderpad=0.35, handletextpad=0.35)
-        return finish(fig, style, caption)
+    """Обратная совместимость: joint scatter base×depth, 00+12."""
+    _ = vmax
+    return plot_joint_scatter_base_depth(
+        layers, style, caption=caption,
+        xlim=xlim if xlim else (0.0, JOINT_BASE_AXIS_MAX_M),
+        ylim=ylim if ylim else (0.0, JOINT_DEPTH_AXIS_MAX_M),
+        cycle_filter=None,
+    )
 
 
 def plot_monthly_depth_vs_base_12(
@@ -204,8 +288,8 @@ def plot_monthly_depth_vs_base_12(
                 if gt.empty:
                     continue
                 ax.scatter(
-                    gt["depth_m"],
                     gt["base_height_agl_m"],
+                    gt["depth_m"],
                     c=TYPE_COLORS[kind],
                     s=4,
                     alpha=0.42,
@@ -213,22 +297,22 @@ def plot_monthly_depth_vs_base_12(
                     rasterized=True,
                     label=TYPE_LABELS[kind] if month == 1 else None,
                 )
-            ax.set_xlim(*depth_lim)
-            ax.set_ylim(*base_lim)
+            ax.set_xlim(*base_lim)
+            ax.set_ylim(*depth_lim)
             ax.set_title(MONTHS_RU[month - 1], fontsize=style.tick_font_size)
             ax.grid(True, alpha=0.2, linewidth=0.3)
             ax.text(0.97, 0.95, f"N={len(g)}", transform=ax.transAxes, ha="right", va="top", fontsize=6.5)
         for ax in axes[-1, :]:
-            ax.set_xticks(_joint_depth_ticks())
-        axes[3, 1].set_xlabel("Толщина depth_m, м")
-        axes[1, 0].set_ylabel("Основание AGL, м")
+            ax.set_xticks(np.linspace(0, JOINT_BASE_AXIS_MAX_M, 6))
+        axes[3, 1].set_xlabel("Основание AGL, м")
+        axes[1, 0].set_ylabel("Толщина depth_m, м")
         handles, labels = axes[0, 0].get_legend_handles_labels()
         if handles:
             fig.legend(handles, labels, loc="upper center", ncol=3, framealpha=0.92, bbox_to_anchor=(0.5, 0.995))
         fig.subplots_adjust(bottom=0.08, top=0.94, right=0.96)
         if caption:
             fig.text(0.5, 0.01, caption, ha="center", fontsize=7.5, color="#4D4D4D")
-        return fig, depth_lim, base_lim, vmax
+        return fig, base_lim, depth_lim, vmax
 
 
 def plot_depth_boxplots(layers: pd.DataFrame, style: FigureStyle, *, caption: str | None = None) -> plt.Figure:
@@ -282,29 +366,68 @@ def _box(ax, groups, labels, xlabel, *, log=False, colors=None, rotate=False, sm
         ax.text(i, ymin, str(len(g)), ha="center", va="bottom", fontsize=5.5, color="#4D6174")
 
 
-def plot_gamma_sfc_annual_cycle(monthly: pd.DataFrame, style: FigureStyle, *, caption: str | None = None) -> plt.Figure:
-    x = monthly["month"].to_numpy(int)
+def plot_gamma_sfc_annual_cycle(
+    monthly: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    caption: str | None = None,
+    cycle_filter: str | None = None,
+    monthly_by_cycle: pd.DataFrame | None = None,
+) -> plt.Figure:
+    """Годовой ход γ_sfc-P; combined 00+12 или отдельный срок."""
     with revision_rc(style):
         fig, ax = plt.subplots(figsize=(style.figure_width_in, style.figure_height_in))
         ymins, ymaxs = [], []
-        for level in STANDARD_LEVELS:
-            k = int(level)
-            med = monthly[f"median_{k}"]
-            q25 = monthly[f"q25_{k}"]
-            q75 = monthly[f"q75_{k}"]
-            ax.plot(x, med, marker="o", color=LEVEL_COLORS[level], label=LEVEL_LABELS[level], linewidth=1.8)
-            ax.fill_between(x, q25, q75, color=LEVEL_COLORS[level], alpha=0.16, linewidth=0)
-            ymins.extend(q25.dropna().tolist())
-            ymaxs.extend(q75.dropna().tolist())
+        n_labels: list[str] = []
+
+        def _draw_block(tab: pd.DataFrame, *, cycle: str | None, linestyle: str, marker: str) -> None:
+            nonlocal ymins, ymaxs, n_labels
+            x = tab["month"].to_numpy(int)
+            for level in STANDARD_LEVELS:
+                k = int(level)
+                med = tab[f"median_{k}"]
+                q25 = tab[f"q25_{k}"]
+                q75 = tab[f"q75_{k}"]
+                n_col = f"n_{k}"
+                n850 = int(tab[n_col].sum()) if n_col in tab.columns else int(tab["n_profiles"].sum())
+                suffix = f" {cycle}" if cycle else ""
+                ax.plot(
+                    x, med, marker=marker, linestyle=linestyle, color=LEVEL_COLORS[level],
+                    linewidth=1.8 if cycle is None else 1.4,
+                    label=f"{LEVEL_LABELS[level]}{suffix}",
+                )
+                ax.fill_between(x, q25, q75, color=LEVEL_COLORS[level], alpha=0.12 if cycle else 0.16, linewidth=0)
+                ymins.extend(q25.dropna().tolist())
+                ymaxs.extend(q75.dropna().tolist())
+                if cycle and level == STANDARD_LEVELS[0]:
+                    n_labels.append(f"N{cycle}_{k}={n850}")
+
+        if cycle_filter in ("00", "12") and monthly_by_cycle is not None:
+            tab = monthly_by_cycle[monthly_by_cycle["cycle"] == cycle_filter]
+            _draw_block(tab, cycle=cycle_filter, linestyle="-", marker=CYCLE_MARKERS[cycle_filter])
+        elif monthly_by_cycle is not None and cycle_filter is None:
+            for cycle in ("00", "12"):
+                tab = monthly_by_cycle[monthly_by_cycle["cycle"] == cycle]
+                _draw_block(
+                    tab, cycle=cycle,
+                    linestyle="-" if cycle == "00" else "--",
+                    marker=CYCLE_MARKERS[cycle],
+                )
+        else:
+            _draw_block(monthly, cycle=None, linestyle="-", marker="o")
+
         ax.axhline(0, color="#7F8C8D", linewidth=0.9, linestyle="--")
+        _add_gamma_reference_lines(ax, orientation="horizontal")
         ax.set_xticks(range(1, 13), labels=MONTHS_RU)
         ax.set_xlabel("Месяц")
         ax.set_ylabel("γ_sfc-P, °C/100 м")
-        ax.legend(frameon=False)
+        ax.legend(frameon=False, fontsize=7)
         ax.grid(True, axis="y", alpha=0.25)
         if ymins and ymaxs:
             lim = max(abs(min(ymins)), abs(max(ymaxs)), 0.2)
             ax.set_ylim(-lim, lim)
+        if n_labels:
+            ax.text(0.02, 0.02, "; ".join(n_labels), transform=ax.transAxes, fontsize=7, va="bottom")
         return finish(fig, style, caption)
 
 
@@ -343,6 +466,7 @@ def plot_local_gamma_hist(local: pd.DataFrame, style: FigureStyle, *, caption: s
         fig, ax = plt.subplots(figsize=(style.figure_width_in, style.figure_height_in))
         ax.hist(vals, bins=np.linspace(-15, 15, 61), color="#5B2C6F", alpha=0.75)
         ax.axvline(0, color="#6F9172", linestyle="--", linewidth=0.9)
+        _add_gamma_reference_lines(ax, orientation="vertical")
         ax.set_xlabel("γ_local, °C/100 м")
         ax.set_ylabel("Число интервалов")
         ax.text(0.98, 0.95, f"N = {vals.size}", transform=ax.transAxes, ha="right", va="top", fontsize=8)
@@ -357,6 +481,7 @@ def plot_local_gamma_hist_seasons(local: pd.DataFrame, style: FigureStyle, *, ca
             vals = local.loc[local["season"] == season, "gamma_local_c_100m"].dropna().to_numpy(float)
             ax.hist(vals, bins=np.linspace(-15, 15, 49), color="#1F618D", alpha=0.8)
             ax.axvline(0, color="#7F8C8D", linestyle="--", linewidth=0.8)
+            _add_gamma_reference_lines(ax, orientation="vertical")
             ax.set_title(SEASONS_RU[season])
             ax.grid(True, axis="y", alpha=0.2)
         axes[1, 0].set_xlabel("γ_local, °C/100 м")
@@ -405,6 +530,7 @@ def plot_local_gamma_box_month(local: pd.DataFrame, style: FigureStyle, *, capti
         for patch in bp["boxes"]:
             patch.set_facecolor("#AED6F1")
         ax.axhline(0, color="#7F8C8D", linestyle="--", linewidth=0.9)
+        _add_gamma_reference_lines(ax, orientation="horizontal")
         ax.set_xlabel("Месяц")
         ax.set_ylabel("γ_local, °C/100 м")
         ax.grid(True, axis="y", alpha=0.25)
@@ -416,8 +542,9 @@ def plot_local_gamma_00_12(local: pd.DataFrame, style: FigureStyle, *, caption: 
         fig, axes = plt.subplots(1, 2, figsize=(style.figure_width_in * 1.2, style.figure_height_in), sharex=True, sharey=True)
         for ax, cycle, title in zip(axes, ("00", "12"), ("00 UTC", "12 UTC")):
             vals = local.loc[local["cycle"].str.zfill(2).str[-2:] == cycle, "gamma_local_c_100m"].dropna().to_numpy()
-            ax.hist(vals, bins=np.linspace(-15, 15, 49), color="#117A65", alpha=0.8)
+            ax.hist(vals, bins=np.linspace(-15, 15, 49), color=ARTICLE_COLORS[cycle], alpha=0.8)
             ax.axvline(0, color="#7F8C8D", linestyle="--")
+            _add_gamma_reference_lines(ax, orientation="vertical")
             ax.set_title(title)
             ax.set_xlabel("γ_local, °C/100 м")
             ax.text(0.97, 0.95, f"N={vals.size}", transform=ax.transAxes, ha="right", va="top", fontsize=8)
@@ -443,6 +570,7 @@ def plot_seasonal_gamma_z(local: pd.DataFrame, style: FigureStyle, *, caption: s
                 med.append(float(chunk.median()) if len(chunk) else np.nan)
             ax.plot(med, centers, label=SEASONS_RU[season], color=cycle[i], linewidth=1.8)
         ax.axvline(0, color="#7F8C8D", linestyle="--", linewidth=0.9)
+        _add_gamma_reference_lines(ax, orientation="vertical")
         ax.set_xlabel("медиана γ_local, °C/100 м")
         ax.set_ylabel("Высота AGL, м")
         ax.legend(frameon=False)
@@ -548,18 +676,116 @@ def plot_year_month_heatmap(matrix: pd.DataFrame, style: FigureStyle, *, label: 
         return finish(fig, style, caption)
 
 
-def plot_multilayer_00_12(counts: pd.DataFrame, style: FigureStyle, *, caption: str | None = None) -> plt.Figure:
+def plot_multilayer_00_12(
+    counts: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    caption: str | None = None,
+    cycle_filter: str | None = None,
+) -> plt.Figure:
     with revision_rc(style):
         fig, ax = plt.subplots(figsize=(style.figure_width_in, style.figure_height_in))
-        for cycle, color in (("00", "#1A5276"), ("12", "#B9770E")):
+        cycles = (cycle_filter,) if cycle_filter in ("00", "12") else ("00", "12")
+        for cycle in cycles:
             g = counts[counts["cycle"].astype(str).str.zfill(2).str[-2:] == cycle]
-            fracs = [100.0 * g.loc[g["month"] == m, "multilayer"].mean() if (g["month"] == m).any() else np.nan for m in range(1, 13)]
-            ax.plot(range(1, 13), fracs, marker="o", color=color, label=f"{cycle} UTC")
+            fracs = []
+            n_total = 0
+            for m in range(1, 13):
+                gm = g.loc[g["month"] == m]
+                n_total += len(gm)
+                fracs.append(100.0 * gm["multilayer"].mean() if len(gm) else np.nan)
+            ax.plot(
+                range(1, 13), fracs,
+                marker=CYCLE_MARKERS[cycle],
+                linestyle="-" if cycle == "00" else "--",
+                color=ARTICLE_COLORS[cycle],
+                label=f"{cycle} UTC (N={n_total})",
+            )
         ax.set_xticks(range(1, 13), labels=MONTHS_RU)
         ax.set_ylabel("P(n_layers ≥ 2), %")
         ax.legend(frameon=False)
         ax.grid(True, axis="y", alpha=0.25)
         ax.set_ylim(bottom=0)
+        return finish(fig, style, caption)
+
+
+def plot_split_violin_gamma_by_month(local: pd.DataFrame, style: FigureStyle, *, caption: str | None = None) -> plt.Figure:
+    use = local.dropna(subset=["gamma_local_c_100m"]).copy()
+    use["cycle"] = use["cycle"].astype(str).str.zfill(2).str[-2:]
+    with revision_rc(style):
+        fig, ax = plt.subplots(figsize=(style.figure_width_in * 1.25, style.figure_height_in))
+        positions = np.arange(1, 13, dtype=float)
+        width = 0.8
+        for i, month in enumerate(range(1, 13), start=1):
+            for cycle, side, sign in (("00", "left", -1), ("12", "right", +1)):
+                vals = use.loc[(use["month"] == month) & (use["cycle"] == cycle), "gamma_local_c_100m"].to_numpy(float)
+                vals = vals[np.isfinite(vals)]
+                if vals.size < 3:
+                    continue
+                parts = ax.violinplot([vals], positions=[i], widths=width, showmeans=False, showmedians=False, showextrema=False)
+                body = parts["bodies"][0]
+                verts = body.get_paths()[0].vertices
+                center = np.mean(verts[:, 0])
+                if side == "left":
+                    verts[:, 0] = np.minimum(verts[:, 0], center)
+                else:
+                    verts[:, 0] = np.maximum(verts[:, 0], center)
+                body.set_facecolor(ARTICLE_COLORS[cycle])
+                body.set_edgecolor(ARTICLE_COLORS[cycle])
+                body.set_alpha(0.55)
+                q25, med, q75 = np.quantile(vals, [0.25, 0.5, 0.75])
+                x_med = i + sign * 0.08
+                ax.scatter([x_med], [med], s=14, color="white", edgecolors="black", linewidths=0.35, zorder=6)
+                ax.plot([x_med, x_med], [q25, q75], color="black", linewidth=1.8, zorder=5)
+                # individual values
+                jitter = (np.random.default_rng(42 + i).random(vals.size) - 0.5) * 0.12
+                x_pts = i + sign * 0.16 + jitter
+                ax.scatter(
+                    x_pts, vals, s=2.0, alpha=0.08, color=ARTICLE_COLORS[cycle],
+                    linewidths=0, rasterized=True, zorder=2,
+                )
+        _add_gamma_reference_lines(ax, orientation="horizontal")
+        ax.set_xticks(positions, labels=MONTHS_RU)
+        ax.set_ylabel("γ_local, °C/100 м")
+        ax.set_xlabel("Месяц")
+        ax.grid(True, axis="y", alpha=0.2)
+        ax.legend(
+            handles=[
+                mpl.lines.Line2D([], [], color=ARTICLE_COLORS["00"], marker="o", linestyle="", label="00 UTC"),
+                mpl.lines.Line2D([], [], color=ARTICLE_COLORS["12"], marker="o", linestyle="", label="12 UTC"),
+            ],
+            frameon=False,
+            loc="upper right",
+        )
+        return finish(fig, style, caption)
+
+
+def plot_gamma_population_pyramid(local: pd.DataFrame, style: FigureStyle, *, caption: str | None = None) -> plt.Figure:
+    use = local.dropna(subset=["gamma_local_c_100m"]).copy()
+    use["cycle"] = use["cycle"].astype(str).str.zfill(2).str[-2:]
+    bins = np.linspace(-15, 15, 31)
+    centers = 0.5 * (bins[:-1] + bins[1:])
+    out = {}
+    for cycle in ("00", "12"):
+        vals = use.loc[use["cycle"] == cycle, "gamma_local_c_100m"].to_numpy(float)
+        vals = vals[np.isfinite(vals)]
+        h, _ = np.histogram(vals, bins=bins)
+        pct = 100.0 * h / max(1, vals.size)
+        out[cycle] = pct
+    with revision_rc(style):
+        fig, ax = plt.subplots(figsize=(style.figure_width_in, style.figure_height_in * 1.15))
+        ax.barh(centers, -out["00"], height=np.diff(bins), color=ARTICLE_COLORS["00"], alpha=0.65, label="00 UTC")
+        ax.barh(centers, out["12"], height=np.diff(bins), color=ARTICLE_COLORS["12"], alpha=0.65, label="12 UTC")
+        lim = float(max(np.nanmax(out["00"]), np.nanmax(out["12"]), 1.0) * 1.15)
+        ax.set_xlim(-lim, lim)
+        ticks = np.linspace(-lim, lim, 7)
+        ax.set_xticks(ticks, labels=[f"{abs(t):.1f}" for t in ticks])
+        ax.axvline(0, color="#7F8C8D", linewidth=0.9)
+        _add_gamma_reference_lines(ax, orientation="horizontal")
+        ax.set_xlabel("Повторяемость, %")
+        ax.set_ylabel("γ_local, °C/100 м")
+        ax.legend(frameon=False)
+        ax.grid(True, axis="x", alpha=0.2)
         return finish(fig, style, caption)
 
 

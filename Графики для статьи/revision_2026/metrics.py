@@ -257,6 +257,31 @@ def sfc_gamma_monthly(table: pd.DataFrame, levels_hpa: Sequence[float] = STANDAR
     return pd.DataFrame(rows)
 
 
+def _normalize_cycle(series: pd.Series) -> pd.Series:
+    return series.astype(str).str.zfill(2).str[-2:]
+
+
+def sfc_gamma_monthly_by_cycle(
+    table: pd.DataFrame,
+    levels_hpa: Sequence[float] = STANDARD_LEVELS_HPA,
+) -> pd.DataFrame:
+    rows = []
+    cy = _normalize_cycle(table["cycle"])
+    for month in range(1, 13):
+        for cycle in ("00", "12"):
+            g = table[(table["month"] == month) & (cy == cycle)]
+            rec = {"month": month, "cycle": cycle, "n_profiles": int(len(g))}
+            for level in levels_hpa:
+                col = f"gamma_sfc_{int(level)}"
+                vals = pd.to_numeric(g[col], errors="coerce").dropna()
+                rec[f"median_{int(level)}"] = float(vals.median()) if len(vals) else np.nan
+                rec[f"q25_{int(level)}"] = float(vals.quantile(0.25)) if len(vals) else np.nan
+                rec[f"q75_{int(level)}"] = float(vals.quantile(0.75)) if len(vals) else np.nan
+                rec[f"n_{int(level)}"] = int(len(vals))
+            rows.append(rec)
+    return pd.DataFrame(rows)
+
+
 def sfc_gamma_year_month(table: pd.DataFrame, levels_hpa: Sequence[float] = STANDARD_LEVELS_HPA) -> pd.DataFrame:
     rows = []
     for (year, month), g in table.groupby(["year", "month"], sort=True):
@@ -550,6 +575,7 @@ def prepare_revision_tables(
         "flags": flags,
         "sfc_gamma": sfc,
         "sfc_gamma_monthly": sfc_gamma_monthly(sfc),
+        "sfc_gamma_monthly_by_cycle": sfc_gamma_monthly_by_cycle(sfc),
         "sfc_gamma_year_month": sfc_gamma_year_month(sfc),
         "local_gamma": local,
         "local_gamma_extreme_ge_15": filter_extreme_gamma_local(local),

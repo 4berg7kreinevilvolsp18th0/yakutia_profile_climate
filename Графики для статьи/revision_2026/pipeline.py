@@ -45,6 +45,7 @@ from .plots import (
     plot_gehe_summary,
     plot_hexbin,
     plot_joint_depth_vs_base,
+    plot_joint_scatter_base_depth,
     plot_local_gamma_00_12,
     plot_local_gamma_box_month,
     plot_local_gamma_hist,
@@ -53,6 +54,7 @@ from .plots import (
     plot_month_height_heatmap,
     plot_month_type_heatmap,
     plot_monthly_depth_vs_base_12,
+    plot_gamma_population_pyramid,
     plot_multilayer_00_12,
     plot_multilayer_hist,
     plot_multilayer_monthly_stack,
@@ -64,10 +66,12 @@ from .plots import (
     plot_seasonal_phase,
     plot_simple_hist,
     plot_type01_shared,
+    plot_split_violin_gamma_by_month,
     plot_violin,
     plot_year_month_heatmap,
 )
 from .style import TYPE_COLORS, TYPE_LABELS, MONTHS_RU, add_caption, revision_style, station_caption
+from .inversion_duration import build_all_duration_events
 
 
 def _dirs(output_dir: Path) -> dict[str, Path]:
@@ -79,6 +83,8 @@ def _dirs(output_dir: Path) -> dict[str, Path]:
         "multilayer": output_dir / "figures" / "article" / "04_multilayer",
         "gehe": output_dir / "figures" / "article" / "05_GEHE",
         "extra": output_dir / "figures" / "article" / "06_extra",
+        "winter": output_dir / "figures" / "article" / "winter_profiles",
+        "duration": output_dir / "figures" / "article" / "duration",
         "diagnostic": output_dir / "figures" / "diagnostic",
         "tables": output_dir / "tables" / "article_figures",
     }
@@ -174,6 +180,17 @@ def build_revision(
         _csv(mat.reset_index(), dirs["tables"], f"frequency_matrix_{kind}")
 
     # --- 01 thickness ---
+    _save(plot_joint_scatter_base_depth(layers, style, caption=cap), dirs["thickness"], "01_joint_scatter_00_12", style, saved)
+    _save(plot_joint_scatter_base_depth(layers, style, caption=cap, cycle_filter="00"), dirs["thickness"], "01_joint_scatter_00_only", style, saved)
+    _save(plot_joint_scatter_base_depth(layers, style, caption=cap, cycle_filter="12"), dirs["thickness"], "01_joint_scatter_12_only", style, saved)
+    for kind in INVERSION_TYPES:
+        _save(
+            plot_joint_scatter_base_depth(layers, style, caption=f"{cap}. {kind}", type_filter=kind),
+            dirs["thickness"],
+            f"01_joint_scatter_{kind}",
+            style,
+            saved,
+        )
     _save(plot_joint_depth_vs_base(layers, style, caption=cap), dirs["thickness"], "inversion_depth_vs_base_joint", style, saved)
     fig12, xlim, ylim, vmax = plot_monthly_depth_vs_base_12(layers, style, caption=cap)
     _save(fig12, dirs["thickness"], "inversion_depth_vs_base_monthly_12panel", style, saved)
@@ -191,6 +208,9 @@ def build_revision(
 
     # --- 02 gamma sfc-P ---
     _save(plot_gamma_sfc_annual_cycle(tables["sfc_gamma_monthly"], style, caption=cap + ". γ_sfc-P = 100(T_P−T_sfc)/(H_P−H_sfc)."), dirs["gamma_sfc"], "type03_gamma_annual_cycle_850_700_500", style, saved)
+    _save(plot_gamma_sfc_annual_cycle(tables["sfc_gamma_monthly"], style, caption=cap + ". Только 00 UTC.", cycle_filter="00", monthly_by_cycle=tables["sfc_gamma_monthly_by_cycle"]), dirs["gamma_sfc"], "type03_gamma_annual_cycle_850_700_500_00", style, saved)
+    _save(plot_gamma_sfc_annual_cycle(tables["sfc_gamma_monthly"], style, caption=cap + ". Только 12 UTC.", cycle_filter="12", monthly_by_cycle=tables["sfc_gamma_monthly_by_cycle"]), dirs["gamma_sfc"], "type03_gamma_annual_cycle_850_700_500_12", style, saved)
+    _save(plot_gamma_sfc_annual_cycle(tables["sfc_gamma_monthly"], style, caption=cap + ". Сравнение 00 vs 12.", monthly_by_cycle=tables["sfc_gamma_monthly_by_cycle"]), dirs["gamma_sfc"], "type03_gamma_annual_cycle_850_700_500_00_vs_12", style, saved)
     _save(plot_gamma_sfc_monthly_panels(tables["sfc_gamma_year_month"], style, caption=cap + ". Панели: год; три линии 850/700/500 гПа."), dirs["gamma_sfc"], "type03_gamma_monthly_850_700_500", style, saved)
 
     # --- 03 local gamma ---
@@ -219,6 +239,9 @@ def build_revision(
         .pivot(index="year", columns="month", values="multilayer").reindex(columns=range(1, 13)).sort_index()
     )
     _save(plot_year_month_heatmap(multi_mat, style, label="P(n_layers ≥ 2), %", vmin=0, vmax=float(np.nanmax(multi_mat.to_numpy()) or 1), caption=cap), dirs["multilayer"], "heatmap_p_multilayer", style, saved)
+    _save(plot_multilayer_00_12(counts, style, caption=cap), dirs["multilayer"], "04_04_combined_00_12", style, saved)
+    _save(plot_multilayer_00_12(counts, style, caption=cap + ". Только 00 UTC.", cycle_filter="00"), dirs["multilayer"], "04_04_00", style, saved)
+    _save(plot_multilayer_00_12(counts, style, caption=cap + ". Только 12 UTC.", cycle_filter="12"), dirs["multilayer"], "04_04_12", style, saved)
     _save(plot_multilayer_00_12(counts, style, caption=cap), dirs["multilayer"], "p_multilayer_00_12", style, saved)
     _save(plot_mean_layers_month(counts, style, caption=cap), dirs["multilayer"], "mean_layers_per_profile_month", style, saved)
     _csv(multi_mat.reset_index(), dirs["tables"], "heatmap_p_multilayer")
@@ -241,6 +264,8 @@ def build_revision(
         [layers.loc[layers["month"] == m, "depth_m"] for m in range(1, 13)],
         MONTHS_RU, "depth_m, м", style, cap,
     ), dirs["extra"], "violin_depth_by_month", style, saved)
+    _save(plot_split_violin_gamma_by_month(local, style, caption=cap + ". Split violin: 00 слева, 12 справа; статистика по всем значениям."), dirs["extra"], "split_violin_gamma_local_by_month", style, saved)
+    _save(plot_gamma_population_pyramid(local, style, caption=cap + ". Population pyramid: частоты γ_local по срокам."), dirs["extra"], "gamma_population_pyramid_00_12", style, saved)
     _save(plot_ridgeline([layers.loc[layers["month"] == m, "depth_m"].to_numpy() for m in range(1, 13)], MONTHS_RU, "depth_m, м", style, cap), dirs["extra"], "ridgeline_depth_by_month", style, saved)
     _save(plot_ridgeline([layers.loc[layers["month"] == m, "delta_t_c"].to_numpy() for m in range(1, 13)], MONTHS_RU, "ΔT, °C", style, cap), dirs["extra"], "ridgeline_delta_t_by_month", style, saved)
     _save(plot_month_type_heatmap(tables["monthly_type_frequency"], style, cap), dirs["extra"], "heatmap_month_type_frequency", style, saved)
@@ -268,6 +293,18 @@ def build_revision(
         _save(plot_hexbin(layers["embedded_gap_count"] + 1, layers["delta_t_c"], style, "число сегментов (gap_count+1)", "ΔT, °C", cap), dirs["diagnostic"], "qc_delta_t_vs_source_segments", style, saved)
     _save(plot_counts_year_month(qc, style, cap), dirs["diagnostic"], "qc_eligible_counts_year_month", style, saved)
     _csv(pd.DataFrame([qc_geo]), dirs["tables"], "qc_geometry_counts")
+
+    # --- duration events ---
+    duration = build_all_duration_events(qc[qc["eligible_article"]], flags)
+    if not duration.empty:
+        duration.to_csv(dirs["tables"] / "inversion_duration_events.csv", index=False, encoding="utf-8-sig")
+        _save(
+            plot_simple_hist(duration["duration_lower_h"], "duration_lower_h, ч", style, cap, logy=False),
+            dirs["duration"],
+            "inversion_duration_summary",
+            style,
+            saved,
+        )
 
     summary = {
         "input": str(input_csv),

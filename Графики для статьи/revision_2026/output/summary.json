@@ -1,5 +1,5 @@
 {
-  "input": "../gdex_outputs/far_east/stations/aldan/profiles_long.csv",
+  "input": "b:/Kutunika programmist/yakutia_profile_climate/gdex_outputs/far_east/stations/aldan/profiles_long.csv",
   "eligible_profiles": 17991,
   "valid_layers": 19996,
   "geometry_qc": {
@@ -30,6 +30,30 @@
     "type01_matrix_G_E_HE_shared_scale": [
       "revision_2026\\output\\figures\\updated\\type01_matrix_G_E_HE_shared_scale.png",
       "revision_2026\\output\\figures\\updated\\type01_matrix_G_E_HE_shared_scale.svg"
+    ],
+    "01_joint_scatter_00_12": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\01_joint_scatter_00_12.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\01_joint_scatter_00_12.svg"
+    ],
+    "01_joint_scatter_00_only": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\01_joint_scatter_00_only.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\01_joint_scatter_00_only.svg"
+    ],
+    "01_joint_scatter_12_only": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\01_joint_scatter_12_only.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\01_joint_scatter_12_only.svg"
+    ],
+    "01_joint_scatter_G": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\01_joint_scatter_G.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\01_joint_scatter_G.svg"
+    ],
+    "01_joint_scatter_E": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\01_joint_scatter_E.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\01_joint_scatter_E.svg"
+    ],
+    "01_joint_scatter_HE": [
+      "revision_2026\\output\\figures\\article\\01_thickness\\01_joint_scatter_HE.png",
+      "revision_2026\\output\\figures\\article\\01_thickness\\01_joint_scatter_HE.svg"
     ],
     "inversion_depth_vs_base_joint": [
       "revision_2026\\output\\figures\\article\\01_thickness\\inversion_depth_vs_base_joint.png",
@@ -95,6 +119,18 @@
       "revision_2026\\output\\figures\\article\\02_gamma_sfc_P\\type03_gamma_annual_cycle_850_700_500.png",
       "revision_2026\\output\\figures\\article\\02_gamma_sfc_P\\type03_gamma_annual_cycle_850_700_500.svg"
     ],
+    "type03_gamma_annual_cycle_850_700_500_00": [
+      "revision_2026\\output\\figures\\article\\02_gamma_sfc_P\\type03_gamma_annual_cycle_850_700_500_00.png",
+      "revision_2026\\output\\figures\\article\\02_gamma_sfc_P\\type03_gamma_annual_cycle_850_700_500_00.svg"
+    ],
+    "type03_gamma_annual_cycle_850_700_500_12": [
+      "revision_2026\\output\\figures\\article\\02_gamma_sfc_P\\type03_gamma_annual_cycle_850_700_500_12.png",
+      "revision_2026\\output\\figures\\article\\02_gamma_sfc_P\\type03_gamma_annual_cycle_850_700_500_12.svg"
+    ],
+    "type03_gamma_annual_cycle_850_700_500_00_vs_12": [
+      "revision_2026\\output\\figures\\article\\02_gamma_sfc_P\\type03_gamma_annual_cycle_850_700_500_00_vs_12.png",
+      "revision_2026\\output\\figures\\article\\02_gamma_sfc_P\\type03_gamma_annual_cycle_850_700_500_00_vs_12.svg"
+    ],
     "type03_gamma_monthly_850_700_500": [
       "revision_2026\\output\\figures\\article\\02_gamma_sfc_P\\type03_gamma_monthly_850_700_500.png",
       "revision_2026\\output\\figures\\article\\02_gamma_sfc_P\\type03_gamma_monthly_850_700_500.svg"
@@ -151,6 +187,18 @@
       "revision_2026\\output\\figures\\article\\04_multilayer\\heatmap_p_multilayer.png",
       "revision_2026\\output\\figures\\article\\04_multilayer\\heatmap_p_multilayer.svg"
     ],
+    "04_04_combined_00_12": [
+      "revision_2026\\output\\figures\\article\\04_multilayer\\04_04_combined_00_12.png",
+      "revision_2026\\output\\figures\\article\\04_multilayer\\04_04_combined_00_12.svg"
+    ],
+    "04_04_00": [
+      "revision_2026\\output\\figures\\article\\04_multilayer\\04_04_00.png",
+      "revision_2026\\output\\figures\\article\\04_multilayer\\04_04_00.svg"
+    ],
+    "04_04_12": [
+      "revision_2026\\output\\figures\\article\\04_multilayer\\04_04_12.png",
+      "revision_2026\\output\\figures\\article\\04_multilayer\\04_04_12.svg"
+    ],
     "p_multilayer_00_12": [
       "revision_2026\\output\\figures\\article\\04_multilayer\\p_multilayer_00_12.png",
       "revision_2026\\output\\figures\\article\\04_multilayer\\p_multilayer_00_12.svg"
@@ -186,6 +234,14 @@
     "violin_depth_by_month": [
       "revision_2026\\output\\figures\\article\\06_extra\\violin_depth_by_month.png",
       "revision_2026\\output\\figures\\article\\06_extra\\violin_depth_by_month.svg"
+    ],
+    "split_violin_gamma_local_by_month": [
+      "revision_2026\\output\\figures\\article\\06_extra\\split_violin_gamma_local_by_month.png",
+      "revision_2026\\output\\figures\\article\\06_extra\\split_violin_gamma_local_by_month.svg"
+    ],
+    "gamma_population_pyramid_00_12": [
+      "revision_2026\\output\\figures\\article\\06_extra\\gamma_population_pyramid_00_12.png",
+      "revision_2026\\output\\figures\\article\\06_extra\\gamma_population_pyramid_00_12.svg"
     ],
     "ridgeline_depth_by_month": [
       "revision_2026\\output\\figures\\article\\06_extra\\ridgeline_depth_by_month.png",
@@ -254,6 +310,10 @@
     "qc_eligible_counts_year_month": [
       "revision_2026\\output\\figures\\diagnostic\\qc_eligible_counts_year_month.png",
       "revision_2026\\output\\figures\\diagnostic\\qc_eligible_counts_year_month.svg"
+    ],
+    "inversion_duration_summary": [
+      "revision_2026\\output\\figures\\article\\duration\\inversion_duration_summary.png",
+      "revision_2026\\output\\figures\\article\\duration\\inversion_duration_summary.svg"
     ]
   },
   "note": "γ_sfc-P и γ_local считаются раздельно. Старый sample_output не перезаписывался."
