@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 from datetime import datetime
-from typing import Any, Iterable
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 import plotly.graph_objects as go
@@ -18,15 +20,16 @@ from gdex_bufr.profile_climate.profile_averaging import (
     AveragingFilters,
     AveragingResult,
     average_result_to_csv_rows,
-    compare_methods_delta,
     compute_profile_average,
-    parse_observation_year_month,
 )
 
 MEAN_COLOR = "#C0392B"
 METHOD_B_COLOR = "#2471A3"
 BUNDLE_COLOR = "rgba(120,120,120,0.35)"
 YM_BUNDLE_COLOR = "rgba(100,100,160,0.45)"
+# Лимит линий Bundle: иначе Plotly зависает на тысячах traces.
+MAX_BUNDLE_A_TRACES = 250
+MAX_BUNDLE_B_TRACES = 120
 
 
 def iter_all_observations(data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -36,6 +39,16 @@ def iter_all_observations(data: dict[str, Any]) -> list[dict[str, Any]]:
             for obs in day.get("observations") or []:
                 out.append({**obs, "date": day["date"], "_month_key": month_key})
     return out
+
+
+def _years_from_month_keys(data: dict[str, Any]) -> list[int]:
+    years: set[int] = set()
+    for month_key in (data.get("months") or {}):
+        try:
+            years.add(int(str(month_key)[:4]))
+        except ValueError:
+            continue
+    return sorted(years) or [2000]
 
 
 def _month_label(m: int) -> str:
@@ -68,10 +81,24 @@ def _cycle_mode_from_ui(label: str) -> str:
     return mapping.get(label, "00+12")
 
 
-def render_averaging_sidebar(data: dict[str, Any]) -> tuple[AveragingFilters, AveragingConfig, dict[str, Any]]:
-    """Сайдбар блока «Усреднение температурных профилей»; возвращает фильтры, конфиг и флаги UI."""
-    all_obs = iter_all_observations(data)
-    years = sorted({parse_observation_year_month(o)[0] for o in all_obs}) or [2000]
+def _subsample_profiles(profiles: list[np.ndarray], max_n: int, seed: int = 42) -> tuple[list[np.ndarray], int]:
+    n = len(profiles)
+    if n <= max_n:
+        return profiles, n
+    rng = np.random.default_rng(seed)
+    idx = np.sort(rng.choice(n, size=max_n, replace=False))
+    return [profiles[i] for i in idx], n
+
+
+def render_averaging_sidebar(
+    data: dict[str, Any],
+    *,
+    data_path: str = "",
+    mtime_ns: int = 0,
+) -> tuple[AveragingFilters, AveragingConfig, dict[str, Any]]:
+    """Сайдбар блока «Усреднение температурных профилей»."""
+    _ = (data_path, mtime_ns)
+    years = _years_from_month_keys(data)
     year_start, year_end = years[0], years[-1]
 
     st.sidebar.markdown("### Усреднение температурных профилей")
@@ -89,12 +116,8 @@ def render_averaging_sidebar(data: dict[str, Any]) -> tuple[AveragingFilters, Av
 
     with st.sidebar.expander("Справка по методам", expanded=False):
         st.markdown(
-            "**Метод A** — «Как выглядит средний радиозондовый профиль среди всех фактически "
-            "имеющихся наблюдений?» Каждый профиль равноправен; год с большим числом запусков "
-            "имеет больший вес.\n\n"
-            "**Метод B** — «Как выглядит средний климатический профиль выбранного календарного "
-            "месяца, если каждому году дать одинаковый вес?» Сначала средний профиль каждого "
-            "(год, месяц), затем среднее по годам."
+            "**Метод A** — каждый профиль равноправен.\n\n"
+            "**Метод B** — сначала средний профиль каждого (год, месяц), затем среднее по годам."
         )
 
     coord_label = st.sidebar.radio(
@@ -116,7 +139,6 @@ def render_averaging_sidebar(data: dict[str, Any]) -> tuple[AveragingFilters, Av
 
     st.sidebar.markdown("#### Месяцы")
     mc1, mc2, mc3 = st.sidebar.columns(3)
-    selected_months: set[int] = set()
     if mc1.button("Все месяцы"):
         st.session_state["avg_months"] = list(range(1, 13))
     if mc2.button("DJF"):
@@ -141,7 +163,6 @@ def render_averaging_sidebar(data: dict[str, Any]) -> tuple[AveragingFilters, Av
     st.session_state["avg_months"] = selected_months_list
     selected_months = set(selected_months_list) or {3}
 
-    yr_range: tuple[int, int]
     if year_start >= year_end:
         yr_range = (year_start, year_end)
         st.sidebar.caption(f"Год: {year_start}")
@@ -169,19 +190,25 @@ def render_averaging_sidebar(data: dict[str, Any]) -> tuple[AveragingFilters, Av
     st.session_state["avg_excl_text"] = excl_text
     excluded = _parse_excluded_ym(excl_text)
 
-    # Матрица year × month (упрощённая)
+    # Матрица year×month — только по запросу (много виджетов = медленный rerun).
     with st.sidebar.expander("Матрица включения year × month", expanded=False):
-        matrix_month = st.selectbox("Месяц для матрицы", options=sorted(selected_months), format_func=_month_label)
-        matrix_flags: dict[int, bool] = {}
-        for y in year_options:
-            key = f"ym_{y}_{matrix_month}"
-            default_on = (y, matrix_month) not in excluded
-            matrix_flags[y] = st.checkbox(f"{y}", value=default_on, key=key)
-        for y, on in matrix_flags.items():
-            if not on:
-                excluded.add((y, matrix_month))
-            elif (y, matrix_month) in excluded:
-                excluded.discard((y, matrix_month))
+        enable_matrix = st.checkbox("Показать чекбоксы по годам", value=False)
+        if enable_matrix and selected_months:
+            matrix_month = st.selectbox(
+                "Месяц для матрицы",
+                options=sorted(selected_months),
+                format_func=_month_label,
+            )
+            matrix_flags: dict[int, bool] = {}
+            for y in year_options:
+                key = f"ym_{y}_{matrix_month}"
+                default_on = (y, matrix_month) not in excluded
+                matrix_flags[y] = st.checkbox(f"{y}", value=default_on, key=key)
+            for y, on in matrix_flags.items():
+                if not on:
+                    excluded.add((y, matrix_month))
+                elif (y, matrix_month) in excluded:
+                    excluded.discard((y, matrix_month))
 
     cycle_label = st.sidebar.radio(
         "Срок",
@@ -198,7 +225,11 @@ def render_averaging_sidebar(data: dict[str, Any]) -> tuple[AveragingFilters, Av
     multi_month_mode = "combined" if "Объединить" in multi_mode_label else "separate"
 
     compare_methods = st.sidebar.checkbox("Сравнить Method A vs Method B", value=False)
-    show_bundle_a = st.sidebar.checkbox("Пучок: отдельные профили (Bundle A)", value=True)
+    show_bundle_a = st.sidebar.checkbox(
+        "Пучок: отдельные профили (Bundle A)",
+        value=False,
+        help=f"На график ≤{MAX_BUNDLE_A_TRACES} линий; статистика считается по всем.",
+    )
     show_bundle_b = st.sidebar.checkbox("Пучок: year-month mean (Bundle B)", value=True)
     show_12_panel = st.sidebar.checkbox("Показать все 12 месяцев (4×3)", value=False)
     show_n_panel = st.sidebar.checkbox("Панель N на уровне", value=False)
@@ -221,6 +252,7 @@ def render_averaging_sidebar(data: dict[str, Any]) -> tuple[AveragingFilters, Av
         multi_month_mode=multi_month_mode,  # type: ignore[arg-type]
         min_samples_a=int(min_a),
         min_samples_b=int(min_b),
+        keep_individual_profiles=bool(show_bundle_a),
     )
     ui_flags = {
         "show_average": show_average,
@@ -282,19 +314,31 @@ def build_climatology_figure(
     fig = go.Figure()
     y_title = "Давление, гПа" if result.coordinate == "pressure" else "Высота AGL, м"
     x_title = "Температура, °C"
+    shown_note: list[str] = []
 
     for item in result.months:
         label = _month_label(item.month) if item.month else "Объединённая выборка"
         if show_bundle_a and method == "A":
-            for prof in item.individual_profiles:
-                fig.add_trace(go.Scatter(
+            drawn, total = _subsample_profiles(item.individual_profiles, MAX_BUNDLE_A_TRACES)
+            if total > len(drawn):
+                shown_note.append(f"Bundle A: {len(drawn)}/{total}")
+            for prof in drawn:
+                fig.add_trace(go.Scattergl(
                     x=prof, y=item.grid, mode="lines",
-                    line=dict(width=0.8, color=BUNDLE_COLOR),
-                    opacity=0.25, showlegend=False, hoverinfo="skip",
+                    line=dict(width=0.6, color=BUNDLE_COLOR),
+                    opacity=0.2, showlegend=False, hoverinfo="skip",
                 ))
         if show_bundle_b:
-            for y, m, prof in item.year_month_profiles:
-                fig.add_trace(go.Scatter(
+            ym_profs = item.year_month_profiles
+            if len(ym_profs) > MAX_BUNDLE_B_TRACES:
+                rng = np.random.default_rng(7)
+                pick = np.sort(rng.choice(len(ym_profs), size=MAX_BUNDLE_B_TRACES, replace=False))
+                drawn_ym = [ym_profs[i] for i in pick]
+                shown_note.append(f"Bundle B: {len(drawn_ym)}/{len(ym_profs)}")
+            else:
+                drawn_ym = ym_profs
+            for y, m, prof in drawn_ym:
+                fig.add_trace(go.Scattergl(
                     x=prof, y=item.grid, mode="lines",
                     line=dict(width=1.0, color=YM_BUNDLE_COLOR),
                     opacity=0.35, showlegend=False,
@@ -312,8 +356,11 @@ def build_climatology_figure(
     yaxis = dict(title=y_title)
     if result.coordinate == "pressure":
         yaxis["autorange"] = "reversed"
+    title = f"{station_name} · Monthly climatological profiles"
+    if shown_note:
+        title += " · " + "; ".join(shown_note)
     fig.update_layout(
-        title=f"{station_name} · Monthly climatological profiles",
+        title=title,
         xaxis_title=x_title,
         yaxis=yaxis,
         height=720,
@@ -330,8 +377,8 @@ def build_compare_figure(
     month: int,
     station_name: str = "Aldan",
 ) -> go.Figure | None:
-    cfg_a = AveragingConfig(**{**config.__dict__, "method": "A"})
-    cfg_b = AveragingConfig(**{**config.__dict__, "method": "B"})
+    cfg_a = AveragingConfig(**{**config.__dict__, "method": "A", "keep_individual_profiles": False})
+    cfg_b = AveragingConfig(**{**config.__dict__, "method": "B", "keep_individual_profiles": False})
     filt = AveragingFilters(**{**filters.__dict__, "selected_months": frozenset([month])})
     ra = compute_profile_average(observations, filt, cfg_a)
     rb = compute_profile_average(observations, filt, cfg_b)
@@ -343,10 +390,17 @@ def build_compare_figure(
     fig = make_subplots(rows=1, cols=2, subplot_titles=("Method A vs B", "ΔT = A − B"))
     y_title = "P, гПа" if config.coordinate == "pressure" else "H, м"
     for item, color, name in ((a, MEAN_COLOR, "A"), (b, METHOD_B_COLOR, "B")):
-        fig.add_trace(go.Scatter(x=item.central, y=item.grid, mode="lines", name=f"Method {name}",
-                                 line=dict(width=2.5, color=color)), row=1, col=1)
-    fig.add_trace(go.Scatter(x=delta, y=a.grid, mode="lines", name="ΔT",
-                             line=dict(width=2, color="#16A085")), row=1, col=2)
+        fig.add_trace(
+            go.Scatter(
+                x=item.central, y=item.grid, mode="lines", name=f"Method {name}",
+                line=dict(width=2.5, color=color),
+            ),
+            row=1, col=1,
+        )
+    fig.add_trace(
+        go.Scatter(x=delta, y=a.grid, mode="lines", name="ΔT", line=dict(width=2, color="#16A085")),
+        row=1, col=2,
+    )
     if config.coordinate == "pressure":
         fig.update_yaxes(autorange="reversed", title_text=y_title, row=1, col=1)
         fig.update_yaxes(autorange="reversed", row=1, col=2)
@@ -362,8 +416,9 @@ def build_12month_panel(
     config: AveragingConfig,
 ) -> go.Figure:
     fig = make_subplots(rows=4, cols=3, subplot_titles=[_month_label(m) for m in range(1, 13)])
+    cfg = AveragingConfig(**{**config.__dict__, "keep_individual_profiles": False})
     filt_all = AveragingFilters(**{**filters.__dict__, "selected_months": frozenset(range(1, 13))})
-    result = compute_profile_average(observations, filt_all, config)
+    result = compute_profile_average(observations, filt_all, cfg)
     by_month = {r.month: r for r in result.months}
     t_vals: list[float] = []
     for m in range(1, 13):
@@ -373,8 +428,10 @@ def build_12month_panel(
             continue
         t_vals.extend(float(x) for x in item.central if not np.isnan(x))
         fig.add_trace(
-            go.Scatter(x=item.central, y=item.grid, mode="lines", line=dict(width=2, color=MEAN_COLOR),
-                       showlegend=False),
+            go.Scatter(
+                x=item.central, y=item.grid, mode="lines",
+                line=dict(width=2, color=MEAN_COLOR), showlegend=False,
+            ),
             row=row, col=col,
         )
     if config.coordinate == "pressure":
@@ -404,12 +461,12 @@ def build_n_samples_panel(item, coordinate: str, method: str) -> go.Figure:
 
 def render_metadata_block(result: AveragingResult, item, filters: AveragingFilters, ui_flags: dict) -> None:
     st.markdown("#### Метаданные расчёта")
-    excl_years = sorted({y for y, m in filters.excluded_year_months})
     st.markdown(
         f"- **Метод:** {result.method}\n"
         f"- **Месяцы:** {', '.join(_month_label(m) for m in sorted(filters.selected_months))}\n"
         f"- **Years included:** {filters.year_start}–{filters.year_end}\n"
-        f"- **Years excluded (pairs):** {', '.join(f'{y}-{m:02d}' for y, m in sorted(filters.excluded_year_months)) or '—'}\n"
+        f"- **Years excluded (pairs):** "
+        f"{', '.join(f'{y}-{m:02d}' for y, m in sorted(filters.excluded_year_months)) or '—'}\n"
         f"- **Cycles:** {ui_flags.get('cycle_label', '')}\n"
         f"- **Individual profiles:** N = {item.n_original_profiles}\n"
         f"- **Year-month means:** N = {item.n_year_month_groups}\n"
@@ -420,13 +477,29 @@ def render_metadata_block(result: AveragingResult, item, filters: AveragingFilte
     )
 
 
-def render_climatology_tab(data: dict[str, Any]) -> None:
-    filters, config, ui_flags = render_averaging_sidebar(data)
+@st.cache_data(show_spinner=False)
+def _cached_all_observations(data_path: str, mtime_ns: int) -> list[dict[str, Any]]:
+    data = json.loads(Path(data_path).read_text(encoding="utf-8"))
+    return iter_all_observations(data)
+
+
+def render_climatology_tab(
+    data: dict[str, Any],
+    *,
+    data_path: str = "",
+    mtime_ns: int = 0,
+) -> None:
+    filters, config, ui_flags = render_averaging_sidebar(
+        data, data_path=data_path, mtime_ns=mtime_ns,
+    )
     if not ui_flags["show_average"]:
         st.info("Включите «Показывать средний профиль» в блоке усреднения.")
         return
 
-    observations = iter_all_observations(data)
+    if data_path:
+        observations = _cached_all_observations(data_path, mtime_ns)
+    else:
+        observations = iter_all_observations(data)
     station = str(data.get("station_name", "Aldan"))
 
     if ui_flags["show_12_panel"]:
@@ -459,9 +532,11 @@ def render_climatology_tab(data: dict[str, Any]) -> None:
     render_metadata_block(result, item, filters, ui_flags)
 
     if ui_flags["show_n_panel"]:
-        st.plotly_chart(build_n_samples_panel(item, config.coordinate, config.method), use_container_width=True)
+        st.plotly_chart(
+            build_n_samples_panel(item, config.coordinate, config.method),
+            use_container_width=True,
+        )
 
-    # Export
     csv_buf = io.StringIO()
     writer = csv.DictWriter(
         csv_buf,
