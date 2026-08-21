@@ -62,6 +62,8 @@ class AveragingConfig:
     min_samples_b: int = 5
     target_grid: np.ndarray | None = None
     apply_plot_qc: bool = False
+    # Хранить все интерполированные профили только если нужен Bundle A (дорого по памяти).
+    keep_individual_profiles: bool = False
 
 
 @dataclass
@@ -250,6 +252,20 @@ def compute_method_b_on_year_month_profiles(
     return central, median, q25, q75, std, counted
 
 
+def _year_month_mean_from_pairs(
+    pairs: list[tuple[tuple[int, int], np.ndarray]],
+) -> dict[tuple[int, int], np.ndarray]:
+    """Средние year-month по уже интерполированным профилям (без повторной интерполяции)."""
+    groups: dict[tuple[int, int], list[np.ndarray]] = {}
+    for ym, row in pairs:
+        groups.setdefault(ym, []).append(row)
+    return {
+        ym: np.nanmean(np.vstack(rows), axis=0)
+        for ym, rows in groups.items()
+        if rows
+    }
+
+
 def _year_month_mean_profiles(
     observations: list[dict[str, Any]],
     grid: np.ndarray,
@@ -257,7 +273,7 @@ def _year_month_mean_profiles(
     coordinate: Coordinate,
     apply_plot_qc: bool,
 ) -> dict[tuple[int, int], np.ndarray]:
-    groups: dict[tuple[int, int], list[np.ndarray]] = {}
+    pairs: list[tuple[tuple[int, int], np.ndarray]] = []
     for obs in observations:
         ym = parse_observation_year_month(obs)
         interp = interpolate_observation(
@@ -265,12 +281,8 @@ def _year_month_mean_profiles(
         )
         if interp is None:
             continue
-        groups.setdefault(ym, []).append(interp)
-    return {
-        ym: np.nanmean(np.vstack(rows), axis=0)
-        for ym, rows in groups.items()
-        if rows
-    }
+        pairs.append((ym, interp))
+    return _year_month_mean_from_pairs(pairs)
 
 
 def compute_single_month_average(
@@ -288,12 +300,15 @@ def compute_single_month_average(
         grid = default_target_grid(coordinate=config.coordinate)
 
     stacks_a: list[np.ndarray] = []
+    ym_pairs: list[tuple[tuple[int, int], np.ndarray]] = []
     for obs in month_obs:
         row = interpolate_observation(
             obs, grid, coordinate=config.coordinate, apply_plot_qc=config.apply_plot_qc,
         )
-        if row is not None:
-            stacks_a.append(row)
+        if row is None:
+            continue
+        stacks_a.append(row)
+        ym_pairs.append((parse_observation_year_month(obs), row))
 
     if not stacks_a:
         return None
@@ -305,9 +320,8 @@ def compute_single_month_average(
         min_samples=config.min_samples_a,
     )
 
-    ym_means = _year_month_mean_profiles(
-        month_obs, grid, coordinate=config.coordinate, apply_plot_qc=config.apply_plot_qc,
-    )
+    # Один проход интерполяции → Method A и Method B (раньше интерполировали дважды).
+    ym_means = _year_month_mean_from_pairs(ym_pairs)
     ym_list = sorted(ym_means.items())
     ym_profiles = [v for _, v in ym_list]
     central_b, median_b, q25_b, q75_b, std_b, n_ym = compute_method_b_on_year_month_profiles(
@@ -341,7 +355,7 @@ def compute_single_month_average(
         std=std,
         n_profiles=n_profiles,
         n_year_months=n_ym if config.method == "B" else np.full_like(n_profiles, len(ym_profiles)),
-        individual_profiles=stacks_a,
+        individual_profiles=stacks_a if config.keep_individual_profiles else [],
         year_month_profiles=[(y, m, arr) for (y, m), arr in ym_list],
         n_original_profiles=len(stacks_a),
         n_year_month_groups=len(ym_profiles),
@@ -372,19 +386,20 @@ def compute_profile_average(
             # пересчёт на всей выборке без фильтра по одному month
             grid = config.target_grid or default_target_grid(coordinate=config.coordinate)
             stacks: list[np.ndarray] = []
+            ym_pairs: list[tuple[tuple[int, int], np.ndarray]] = []
             for obs in pool:
                 row = interpolate_observation(
                     obs, grid, coordinate=config.coordinate, apply_plot_qc=config.apply_plot_qc,
                 )
-                if row is not None:
-                    stacks.append(row)
+                if row is None:
+                    continue
+                stacks.append(row)
+                ym_pairs.append((parse_observation_year_month(obs), row))
             stack_a = np.vstack(stacks) if stacks else np.empty((0, len(grid)))
             central_a, median_a, q25_a, q75_a, std_a, n_profiles = compute_method_a_on_stack(
                 stack_a, statistic=config.statistic, min_samples=config.min_samples_a,
             )
-            ym_means = _year_month_mean_profiles(
-                pool, grid, coordinate=config.coordinate, apply_plot_qc=config.apply_plot_qc,
-            )
+            ym_means = _year_month_mean_from_pairs(ym_pairs)
             ym_list = sorted(ym_means.items())
             ym_profiles = [v for _, v in ym_list]
             central_b, median_b, q25_b, q75_b, std_b, n_ym = compute_method_b_on_year_month_profiles(
@@ -404,7 +419,7 @@ def compute_profile_average(
                 std=std,
                 n_profiles=n_profiles,
                 n_year_months=n_ym,
-                individual_profiles=stacks,
+                individual_profiles=stacks if config.keep_individual_profiles else [],
                 year_month_profiles=[(y, m, arr) for (y, m), arr in ym_list],
                 n_original_profiles=len(stacks),
                 n_year_month_groups=len(ym_profiles),
