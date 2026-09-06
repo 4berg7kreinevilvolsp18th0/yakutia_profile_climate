@@ -307,23 +307,33 @@ def test_scatter_3d_extra_visuals(tmp_path):
             "depth_m": [50.0, 120.0, 200.0, 90.0, 150.0, 180.0],
             "gamma_c_per_100m": [2.0, -1.5, 6.0, -0.8, 3.5, 1.2],
             "position_type": ["G", "E", "HE", "G", "E", "HE"],
+            "month": [1, 6, 12, 2, 7, 11],
         }
     )
     style = FigureStyle(show_title=False, dpi=72)
     specs = build_scatter_3d_extra_figure_specs(layers, style)
-    # 4 kinds × 3 modes = 12
-    assert len(specs) == 12
+    # 4 kinds × 5 modes = 20
+    assert len(specs) == 20
+    assert any(rel.startswith("scatter_3d/surface/") for rel, _ in specs)
+    assert any(rel.startswith("scatter_3d/wireframe/") for rel, _ in specs)
     for _, builder in specs:
         plt.close(builder())
 
     anim_specs = build_scatter_3d_animation_specs(layers, style)
-    assert len(anim_specs) == 3
-    rel, save_fn = anim_specs[0]
-    out = tmp_path / "rotate_G.gif"
-    path = save_fn(out)
-    assert path.exists()
-    assert path.suffix.lower() == ".gif"
-    assert path.stat().st_size > 0
+    # 3 rotate + 12 buildup + 12 voxels
+    assert len(anim_specs) == 27
+    anim_by_rel = dict(anim_specs)
+    assert any("buildup_fade_" in rel for rel in anim_by_rel)
+    assert any("voxels_fill_" in rel for rel in anim_by_rel)
+
+    rotate_path = next(rel for rel in anim_by_rel if "rotate_" in rel)
+    fade_path = next(rel for rel in anim_by_rel if "buildup_fade_htop_" in rel)
+    voxels_path = next(rel for rel in anim_by_rel if "voxels_fill_htop_" in rel)
+    for rel in (rotate_path, fade_path, voxels_path):
+        path = anim_by_rel[rel](tmp_path / f"{rel.replace('/', '_')}.gif")
+        assert path.exists()
+        assert path.suffix.lower() == ".gif"
+        assert path.stat().st_size > 0
 
 
 def test_gamma_monthly_line_facets():

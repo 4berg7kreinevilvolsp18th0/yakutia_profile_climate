@@ -1804,6 +1804,21 @@ _EXTRA_3D_X = "top_height_agl_m"
 _EXTRA_3D_Y = "depth_m"
 _EXTRA_3D_Z = "gamma_c_per_100m"
 
+GrowAxis = Literal["htop", "depth", "gamma", "month"]
+_GROW_AXES: tuple[GrowAxis, ...] = ("htop", "depth", "gamma", "month")
+_GROW_AXIS_COLS: dict[str, str] = {
+    "htop": "top_height_agl_m",
+    "depth": "depth_m",
+    "gamma": "gamma_c_per_100m",
+    "month": "month",
+}
+_GROW_AXIS_LABELS: dict[str, tuple[str, str]] = {
+    "htop": ("Htop", "Htop"),
+    "depth": ("толщина", "depth"),
+    "gamma": ("γ", "γ"),
+    "month": ("месяц", "month"),
+}
+
 
 def _percentile_edges(values: np.ndarray, n_bins: int, lo_pct: float = 1.0, hi_pct: float = 99.0) -> np.ndarray:
     vals = np.asarray(values, dtype=float)
@@ -1879,6 +1894,194 @@ def _empty_3d_fig(style: FigureStyle, title: str | None = None):
 def _hex_to_rgba(hex_color: str, alpha: float) -> tuple[float, float, float, float]:
     rgb = mpl.colors.to_rgb(hex_color)
     return (rgb[0], rgb[1], rgb[2], float(np.clip(alpha, 0.05, 1.0)))
+
+
+def _grow_axis_col(grow_axis: str) -> str:
+    if grow_axis not in _GROW_AXIS_COLS:
+        raise ValueError(f"grow_axis must be one of {tuple(_GROW_AXIS_COLS)}")
+    return _GROW_AXIS_COLS[grow_axis]
+
+
+def _grow_axis_label(grow_axis: str, style: FigureStyle) -> str:
+    ru, en = _GROW_AXIS_LABELS.get(grow_axis, (grow_axis, grow_axis))
+    return ru if style.language == "ru" else en
+
+
+def _grow_axis_n_frames(grow_axis: str, n_frames: int) -> int:
+    return 12 if grow_axis == "month" else int(n_frames)
+
+
+def _frame_thresholds(values: np.ndarray, n_frames: int, *, grow_axis: str) -> np.ndarray:
+    if grow_axis == "month":
+        return np.arange(1, 13, dtype=float)
+    vals = np.asarray(values, dtype=float)
+    vals = vals[np.isfinite(vals)]
+    if vals.size == 0:
+        return np.linspace(0.0, 1.0, n_frames)
+    lo = float(np.nanpercentile(vals, 1))
+    hi = float(np.nanpercentile(vals, 99))
+    if hi <= lo:
+        hi = lo + 1.0
+    return np.linspace(lo, hi, n_frames)
+
+
+def _fade_alphas(
+    values: np.ndarray,
+    threshold: float,
+    *,
+    alpha_max: float = 0.85,
+    k: float = 3.0,
+) -> np.ndarray:
+    vals = np.asarray(values, dtype=float)
+    revealed = np.isfinite(vals) & (vals <= threshold)
+    alphas = np.zeros(vals.shape, dtype=float)
+    if not np.any(revealed):
+        return alphas
+    vmin = float(np.nanmin(vals[revealed]))
+    span = max(float(threshold) - vmin, 1e-9)
+    age = (float(threshold) - vals[revealed]) / span
+    alphas[revealed] = alpha_max * np.exp(-k * age)
+    return alphas
+
+
+def _subsample_frame(use: pd.DataFrame, max_n: int, seed: int = 0) -> pd.DataFrame:
+    if max_n <= 0 or len(use) <= max_n:
+        return use
+    return use.sample(n=int(max_n), random_state=seed)
+
+
+def _prepare_buildup_frame(
+    layers: pd.DataFrame,
+    *,
+    inversion_type: str | None,
+    grow_axis: str,
+) -> pd.DataFrame:
+    use = _prepare_extra_3d_frame(layers, inversion_type=inversion_type)
+    if grow_axis == "month":
+        if "month" not in use.columns:
+            return use.iloc[0:0].copy()
+        use = use.dropna(subset=["month"])
+        month = use["month"].to_numpy(float)
+        use = use[(month >= 1) & (month <= 12)]
+    return use
+
+
+def _extra_3d_cmap(inversion_type: str | None) -> str:
+    return {"G": "Blues", "E": "Oranges", "HE": "Greens"}.get(str(inversion_type or ""), "viridis")
+
+
+def _extra_3d_axis_labels(style: FigureStyle) -> tuple[str, str, str]:
+    if style.language == "ru":
+        return "Htop AGL, м", "Толщина, м", "γ, °C/100 м"
+    return "Htop AGL, m", "Depth, m", "γ, °C/100 m"
+
+
+def _style_extra_3d_scatter_ax(
+    ax,
+    style: FigureStyle,
+    *,
+    x_lim: tuple[float, float],
+    y_lim: tuple[float, float],
+    z_lim: tuple[float, float],
+    elev: float,
+    azim: float,
+) -> None:
+    xlabel, ylabel, zlabel = _extra_3d_axis_labels(style)
+    ax.set_xlim(*x_lim)
+    ax.set_ylim(*y_lim)
+    ax.set_zlim(*z_lim)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_zlabel(zlabel)
+    ax.view_init(elev=elev, azim=azim)
+
+
+def _style_voxel_ax(
+    ax,
+    style: FigureStyle,
+    *,
+    nx: int,
+    ny: int,
+    nz: int,
+    x_edges: np.ndarray,
+    y_edges: np.ndarray,
+    z_edges: np.ndarray,
+    elev: float,
+    azim: float,
+) -> None:
+    xlabel, ylabel, zlabel = _extra_3d_axis_labels(style)
+    ax.set_xticks(np.linspace(0, nx, 5))
+    ax.set_yticks(np.linspace(0, ny, 5))
+    ax.set_zticks(np.linspace(0, nz, 5))
+    ax.set_xticklabels([f"{v:.0f}" for v in np.linspace(x_edges[0], x_edges[-1], 5)])
+    ax.set_yticklabels([f"{v:.0f}" for v in np.linspace(y_edges[0], y_edges[-1], 5)])
+    ax.set_zticklabels([f"{v:.1f}" for v in np.linspace(z_edges[0], z_edges[-1], 5)])
+    ax.set_xlabel(xlabel, labelpad=8)
+    ax.set_ylabel(ylabel, labelpad=8)
+    ax.set_zlabel(zlabel, labelpad=8)
+    ax.view_init(elev=elev, azim=azim)
+
+
+def _as_gif_path(output_path: Path) -> Path:
+    output_path = Path(output_path)
+    if output_path.suffix.lower() != ".gif":
+        output_path = Path(str(output_path) + ".gif")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    return output_path
+
+
+def _htop_depth_mean_gamma_grid(
+    use: pd.DataFrame,
+    nx: int = 24,
+    ny: int = 20,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    x = use[_EXTRA_3D_X].to_numpy(float)
+    y = use[_EXTRA_3D_Y].to_numpy(float)
+    z = use[_EXTRA_3D_Z].to_numpy(float)
+    x_edges = _percentile_edges(x, nx)
+    y_edges = _percentile_edges(y, ny)
+    sum_z, _, _ = np.histogram2d(x, y, bins=[x_edges, y_edges], weights=z)
+    counts, _, _ = np.histogram2d(x, y, bins=[x_edges, y_edges])
+    with np.errstate(invalid="ignore", divide="ignore"):
+        mean_z = np.where(counts > 0, sum_z / counts, np.nan)
+    xc = 0.5 * (x_edges[:-1] + x_edges[1:])
+    yc = 0.5 * (y_edges[:-1] + y_edges[1:])
+    xx, yy = np.meshgrid(xc, yc, indexing="ij")
+    return xx, yy, mean_z
+
+
+def _voxel_grow_field(
+    use: pd.DataFrame,
+    grow_axis: str,
+    counts: np.ndarray,
+    xc: np.ndarray,
+    yc: np.ndarray,
+    zc: np.ndarray,
+    x_edges: np.ndarray,
+    y_edges: np.ndarray,
+    z_edges: np.ndarray,
+    min_count: int,
+) -> np.ndarray:
+    if grow_axis == "month":
+        months = use["month"].to_numpy(float)
+        x = use[_EXTRA_3D_X].to_numpy(float)
+        y = use[_EXTRA_3D_Y].to_numpy(float)
+        z = use[_EXTRA_3D_Z].to_numpy(float)
+        first = np.full(counts.shape, np.inf)
+        for month in range(1, 13):
+            sel = months <= month
+            if not np.any(sel):
+                continue
+            month_counts, _, _, _ = _hist3d_counts(x[sel], y[sel], z[sel], x_edges, y_edges, z_edges)
+            first = np.where((month_counts >= min_count) & ~np.isfinite(first), float(month), first)
+        return first
+    if grow_axis == "htop":
+        field = np.broadcast_to(xc[:, None, None], counts.shape).copy()
+    elif grow_axis == "depth":
+        field = np.broadcast_to(yc[None, :, None], counts.shape).copy()
+    else:
+        field = np.broadcast_to(zc[None, None, :], counts.shape).copy()
+    return np.where(counts >= min_count, field, np.inf)
 
 
 def plot_layers_bar3d(
@@ -2100,6 +2303,115 @@ def plot_layers_3d_projections(
         return fig
 
 
+def _plot_layers_htop_depth_mesh(
+    layers: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    inversion_type: str | None,
+    kind: Literal["surface", "wireframe"],
+    title: str | None = None,
+    nx: int = 24,
+    ny: int = 20,
+    elev: float = 24.0,
+    azim: float = -58.0,
+):
+    use = _prepare_extra_3d_frame(layers, inversion_type=inversion_type)
+    kind_title = "3D surface" if kind == "surface" else "3D wireframe"
+    default_title = (
+        f"{kind_title}: {_type_title(inversion_type, style)}" if inversion_type
+        else f"{kind_title}: G+E+HE"
+    )
+    if use.empty:
+        return _empty_3d_fig(style, title or default_title)
+
+    xx, yy, mean_z = _htop_depth_mean_gamma_grid(use, nx=nx, ny=ny)
+    zz = np.ma.masked_invalid(mean_z)
+    if zz.mask is True or (np.ma.is_masked(zz) and np.all(zz.mask)):
+        return _empty_3d_fig(style, title or default_title)
+
+    xlabel, ylabel, zlabel = _extra_3d_axis_labels(style)
+    finite = mean_z[np.isfinite(mean_z)]
+    z_lo = float(np.nanmin(finite)) if finite.size else 0.0
+    z_hi = float(np.nanmax(finite)) if finite.size else 1.0
+    if z_hi <= z_lo:
+        z_hi = z_lo + 1.0
+    color = TYPE_COLORS.get(str(inversion_type or "G"), "#2E86C1")
+    cmap = _extra_3d_cmap(inversion_type)
+
+    with article_rc(style):
+        fig = plt.figure(figsize=(style.figure_width_in * 1.25, style.figure_height_in * 1.2))
+        ax = fig.add_subplot(111, projection="3d")
+        if kind == "surface":
+            ax.plot_surface(
+                xx, yy, zz,
+                cmap=cmap,
+                vmin=z_lo,
+                vmax=z_hi,
+                linewidth=0,
+                antialiased=True,
+                shade=True,
+            )
+        else:
+            ax.plot_wireframe(
+                xx, yy, zz,
+                rstride=2,
+                cstride=2,
+                color=color,
+                linewidth=0.7,
+                alpha=0.85,
+            )
+        ax.set_xlabel(xlabel, labelpad=8)
+        ax.set_ylabel(ylabel, labelpad=8)
+        ax.set_zlabel(zlabel, labelpad=8)
+        ax.view_init(elev=elev, azim=azim)
+        if style.show_title:
+            fig.suptitle(title or default_title, fontsize=style.title_font_size, y=0.98)
+        note = (
+            "Сетка Htop×depth; Z = mean(γ)"
+            if style.language == "ru"
+            else "Htop×depth grid; Z = mean(γ)"
+        )
+        fig.text(0.5, 0.02, note, ha="center", fontsize=style.tick_font_size - 1, color="#566573")
+        fig.subplots_adjust(left=0.02, right=0.98, bottom=0.08, top=0.92)
+        return fig
+
+
+def plot_layers_surface(
+    layers: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    inversion_type: str | None = None,
+    title: str | None = None,
+    nx: int = 24,
+    ny: int = 20,
+    elev: float = 24.0,
+    azim: float = -58.0,
+):
+    """Поверхность mean(γ) на сетке Htop × depth."""
+    return _plot_layers_htop_depth_mesh(
+        layers, style, inversion_type=inversion_type, kind="surface",
+        title=title, nx=nx, ny=ny, elev=elev, azim=azim,
+    )
+
+
+def plot_layers_wireframe(
+    layers: pd.DataFrame,
+    style: FigureStyle,
+    *,
+    inversion_type: str | None = None,
+    title: str | None = None,
+    nx: int = 24,
+    ny: int = 20,
+    elev: float = 24.0,
+    azim: float = -58.0,
+):
+    """Каркас mean(γ) на сетке Htop × depth."""
+    return _plot_layers_htop_depth_mesh(
+        layers, style, inversion_type=inversion_type, kind="wireframe",
+        title=title, nx=nx, ny=ny, elev=elev, azim=azim,
+    )
+
+
 def save_layers_scatter_3d_gif(
     layers: pd.DataFrame,
     style: FigureStyle,
@@ -2154,11 +2466,185 @@ def save_layers_scatter_3d_gif(
     return output_path
 
 
+def save_layers_scatter_3d_buildup_gif(
+    layers: pd.DataFrame,
+    style: FigureStyle,
+    output_path: Path,
+    *,
+    inversion_type: str,
+    grow_axis: GrowAxis,
+    n_frames: int = 24,
+    dpi: int = 100,
+    elev: float = 24.0,
+    azim: float = -58.0,
+    max_points: int = 4000,
+) -> Path:
+    """GIF: точки нарастают от минимума по оси и затухают (шлейф объёма)."""
+    try:
+        from matplotlib.animation import FuncAnimation, PillowWriter
+    except Exception as exc:  # pragma: no cover
+        raise RuntimeError("Для GIF нужен matplotlib.animation и Pillow") from exc
+
+    output_path = _as_gif_path(output_path)
+    n_frames = _grow_axis_n_frames(grow_axis, n_frames)
+    use = _subsample_frame(
+        _prepare_buildup_frame(layers, inversion_type=inversion_type, grow_axis=grow_axis),
+        max_points,
+    )
+    color = TYPE_COLORS.get(str(inversion_type), "#34495E")
+    rgb = mpl.colors.to_rgb(color)
+    axis_lbl = _grow_axis_label(grow_axis, style)
+    title = f"3D buildup ({axis_lbl}): {_type_title(inversion_type, style)}"
+
+    with article_rc(style):
+        fig = plt.figure(figsize=(style.figure_width_in * 1.15, style.figure_height_in * 1.1))
+        ax = fig.add_subplot(111, projection="3d")
+
+        if use.empty:
+            ax.text2D(0.5, 0.5, "Нет данных" if style.language == "ru" else "No data", transform=ax.transAxes, ha="center")
+            if style.show_title:
+                fig.suptitle(title, fontsize=style.title_font_size)
+
+            def _empty_update(_frame: int):
+                return (ax,)
+
+            anim = FuncAnimation(fig, _empty_update, frames=max(n_frames, 2), interval=100, blit=False)
+            anim.save(str(output_path), writer=PillowWriter(fps=10), dpi=dpi)
+            plt.close(fig)
+            return output_path
+
+        x = use[_EXTRA_3D_X].to_numpy(float)
+        y = use[_EXTRA_3D_Y].to_numpy(float)
+        z = use[_EXTRA_3D_Z].to_numpy(float)
+        grow_vals = use[_grow_axis_col(grow_axis)].to_numpy(float)
+        x_plot, x_lo, x_hi = _axis_values_and_limits(_EXTRA_3D_X, x)
+        y_plot, y_lo, y_hi = _axis_values_and_limits(_EXTRA_3D_Y, y)
+        z_plot, z_lo, z_hi = _axis_values_and_limits(_EXTRA_3D_Z, z)
+        x_lim = (x_lo, _axis_limit_hi(_EXTRA_3D_X, x_lo, x_hi))
+        y_lim = (y_lo, _axis_limit_hi(_EXTRA_3D_Y, y_lo, y_hi))
+        z_lim = (z_lo, _axis_limit_hi(_EXTRA_3D_Z, z_lo, z_hi))
+        thresholds = _frame_thresholds(grow_vals, n_frames, grow_axis=grow_axis)
+
+        def _update(frame: int):
+            ax.cla()
+            alphas = _fade_alphas(grow_vals, float(thresholds[frame]))
+            mask = alphas > 0.02
+            if np.any(mask):
+                colors = np.zeros((int(mask.sum()), 4))
+                colors[:, 0] = rgb[0]
+                colors[:, 1] = rgb[1]
+                colors[:, 2] = rgb[2]
+                colors[:, 3] = alphas[mask]
+                ax.scatter(
+                    x_plot[mask], y_plot[mask], z_plot[mask],
+                    c=colors, s=6, linewidths=0, depthshade=False,
+                )
+            _style_extra_3d_scatter_ax(ax, style, x_lim=x_lim, y_lim=y_lim, z_lim=z_lim, elev=elev, azim=azim)
+            if style.show_title:
+                fig.suptitle(title, fontsize=style.title_font_size)
+            return (ax,)
+
+        anim = FuncAnimation(fig, _update, frames=n_frames, interval=100, blit=False)
+        anim.save(str(output_path), writer=PillowWriter(fps=10), dpi=dpi)
+        plt.close(fig)
+    return output_path
+
+
+def save_layers_voxels_buildup_gif(
+    layers: pd.DataFrame,
+    style: FigureStyle,
+    output_path: Path,
+    *,
+    inversion_type: str,
+    grow_axis: GrowAxis,
+    n_frames: int = 24,
+    dpi: int = 100,
+    elev: float = 24.0,
+    azim: float = -58.0,
+    nx: int = 10,
+    ny: int = 8,
+    nz: int = 8,
+    min_count: int = 1,
+) -> Path:
+    """GIF: воксели плотности заполняются от минимума по оси с затуханием."""
+    try:
+        from matplotlib.animation import FuncAnimation, PillowWriter
+    except Exception as exc:  # pragma: no cover
+        raise RuntimeError("Для GIF нужен matplotlib.animation и Pillow") from exc
+
+    output_path = _as_gif_path(output_path)
+    n_frames = _grow_axis_n_frames(grow_axis, n_frames)
+    use = _prepare_buildup_frame(layers, inversion_type=inversion_type, grow_axis=grow_axis)
+    base = TYPE_COLORS.get(str(inversion_type), "#2E86C1")
+    axis_lbl = _grow_axis_label(grow_axis, style)
+    title = f"3D voxels fill ({axis_lbl}): {_type_title(inversion_type, style)}"
+
+    with article_rc(style):
+        fig = plt.figure(figsize=(style.figure_width_in * 1.15, style.figure_height_in * 1.1))
+        ax = fig.add_subplot(111, projection="3d")
+
+        if use.empty:
+            ax.text2D(0.5, 0.5, "Нет данных" if style.language == "ru" else "No data", transform=ax.transAxes, ha="center")
+            if style.show_title:
+                fig.suptitle(title, fontsize=style.title_font_size)
+
+            def _empty_update(_frame: int):
+                return (ax,)
+
+            anim = FuncAnimation(fig, _empty_update, frames=max(n_frames, 2), interval=100, blit=False)
+            anim.save(str(output_path), writer=PillowWriter(fps=10), dpi=dpi)
+            plt.close(fig)
+            return output_path
+
+        x = use[_EXTRA_3D_X].to_numpy(float)
+        y = use[_EXTRA_3D_Y].to_numpy(float)
+        z = use[_EXTRA_3D_Z].to_numpy(float)
+        x_edges, y_edges, z_edges = _bin_edges_3d(x, y, z, nx=nx, ny=ny, nz=nz)
+        counts, xc, yc, zc = _hist3d_counts(x, y, z, x_edges, y_edges, z_edges)
+        grow_field = _voxel_grow_field(
+            use, grow_axis, counts, xc, yc, zc, x_edges, y_edges, z_edges, min_count,
+        )
+        grow_vals = grow_field[np.isfinite(grow_field)]
+        thresholds = _frame_thresholds(
+            grow_vals if grow_vals.size else use[_grow_axis_col(grow_axis)].to_numpy(float),
+            n_frames,
+            grow_axis=grow_axis,
+        )
+        logn = np.log1p(counts)
+        vmax = float(logn[np.isfinite(grow_field)].max()) if np.any(np.isfinite(grow_field)) else 1.0
+        norm = Normalize(vmin=0.0, vmax=max(vmax, 1e-9))
+
+        def _update(frame: int):
+            ax.cla()
+            thr = float(thresholds[frame])
+            alphas = _fade_alphas(grow_field, thr, alpha_max=0.92, k=2.0)
+            filled = alphas > 0.02
+            facecolors = np.zeros(counts.shape + (4,))
+            for i, j, k in zip(*np.nonzero(filled)):
+                density = 0.35 + 0.65 * norm(logn[i, j, k])
+                facecolors[i, j, k] = _hex_to_rgba(base, float(alphas[i, j, k] * density))
+            if np.any(filled):
+                ax.voxels(filled, facecolors=facecolors, edgecolor="k", linewidth=0.12)
+            _style_voxel_ax(
+                ax, style, nx=nx, ny=ny, nz=nz,
+                x_edges=x_edges, y_edges=y_edges, z_edges=z_edges,
+                elev=elev, azim=azim,
+            )
+            if style.show_title:
+                fig.suptitle(title, fontsize=style.title_font_size)
+            return (ax,)
+
+        anim = FuncAnimation(fig, _update, frames=n_frames, interval=100, blit=False)
+        anim.save(str(output_path), writer=PillowWriter(fps=10), dpi=dpi)
+        plt.close(fig)
+    return output_path
+
+
 def build_scatter_3d_extra_figure_specs(
     layers: pd.DataFrame,
     style: FigureStyle,
 ) -> list[tuple[str, Callable[[], object]]]:
-    """PNG-спеки: bars / voxels / projections_2d для G, E, HE и combined."""
+    """PNG-спеки: bars / voxels / projections_2d / surface / wireframe для G, E, HE и combined."""
     from .metrics import INVERSION_TYPES
 
     specs: list[tuple[str, Callable[[], object]]] = []
@@ -2191,6 +2677,22 @@ def build_scatter_3d_extra_figure_specs(
                 ),
             )
         )
+        specs.append(
+            (
+                f"scatter_3d/surface/htop_depth_mean_gamma_{tag}",
+                lambda t=inv_type, lbl=label: plot_layers_surface(
+                    layers, style, inversion_type=t, title=f"3D surface: {lbl}",
+                ),
+            )
+        )
+        specs.append(
+            (
+                f"scatter_3d/wireframe/htop_depth_mean_gamma_{tag}",
+                lambda t=inv_type, lbl=label: plot_layers_wireframe(
+                    layers, style, inversion_type=t, title=f"3D wireframe: {lbl}",
+                ),
+            )
+        )
     return specs
 
 
@@ -2198,18 +2700,33 @@ def build_scatter_3d_animation_specs(
     layers: pd.DataFrame,
     style: FigureStyle,
 ) -> list[tuple[str, Callable[[Path], Path]]]:
-    """GIF-спеки вращения для G / E / HE."""
+    """GIF-спеки: вращение + нарастание scatter/voxels по 4 осям для G / E / HE."""
     from .metrics import INVERSION_TYPES
 
     specs: list[tuple[str, Callable[[Path], Path]]] = []
     for inv_type in INVERSION_TYPES:
         path = f"scatter_3d/animated/top_height_depth_gamma_rotate_{inv_type}"
 
-        def _save(out: Path, t=inv_type) -> Path:
-            gif_path = out if out.suffix.lower() == ".gif" else Path(str(out) + ".gif")
-            return save_layers_scatter_3d_gif(layers, style, gif_path, inversion_type=t)
+        def _save_rotate(out: Path, t=inv_type) -> Path:
+            return save_layers_scatter_3d_gif(layers, style, _as_gif_path(out), inversion_type=t)
 
-        specs.append((path, _save))
+        specs.append((path, _save_rotate))
+        for axis in _GROW_AXES:
+            fade_path = f"scatter_3d/animated/buildup_fade_{axis}_{inv_type}"
+            voxels_path = f"scatter_3d/animated/voxels_fill_{axis}_{inv_type}"
+
+            def _save_fade(out: Path, t=inv_type, a=axis) -> Path:
+                return save_layers_scatter_3d_buildup_gif(
+                    layers, style, _as_gif_path(out), inversion_type=t, grow_axis=a,
+                )
+
+            def _save_voxels(out: Path, t=inv_type, a=axis) -> Path:
+                return save_layers_voxels_buildup_gif(
+                    layers, style, _as_gif_path(out), inversion_type=t, grow_axis=a,
+                )
+
+            specs.append((fade_path, _save_fade))
+            specs.append((voxels_path, _save_voxels))
     return specs
 
 
