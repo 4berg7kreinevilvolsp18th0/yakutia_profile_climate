@@ -34,6 +34,9 @@ class LayerClassConfig:
     )
     # Опорные изобары для вертикальных линий на scatter (высота AGL по барометрии ISA).
     reference_pressure_levels_hpa: tuple[float, ...] = (850.0, 700.0, 500.0)
+    # QC γ: интервалы/слои тоньше min_dz_m не участвуют в климатологии γ.
+    gamma_min_dz_m: float = 20.0
+    gamma_review_abs_c_per_100m: float = 20.0
 
 
 @dataclass(frozen=True)

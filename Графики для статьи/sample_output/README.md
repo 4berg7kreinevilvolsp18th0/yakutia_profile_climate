@@ -1,10 +1,22 @@
 # Единый набор графиков и таблиц для статьи (Алдан)
 
+**Актуальная полная пересборка с QC γ (`min_dz=20 м`):** см. соседнюю папку [`../sample_output_qc`](../sample_output_qc/).
+
+Там все PNG/SVG/таблицы после `build_article_figures` (18 200 профилей). Чтобы сделать её основной:
+
+```powershell
+# из папки «Графики для статьи», закрыв interval_gammas.csv
+Remove-Item -Recurse -Force sample_output
+Rename-Item sample_output_qc sample_output
+```
+
 Сюда сведены все рисунки и таблицы из `Графики для статьи`: основные fig01–fig04, extra, type01–type03, месячные высоты G/E/HE и исправленный климат высот 00–10.
 
-- `figures/` — 83 PNG + 83 SVG
-- `tables/` — 28 CSV
+- `figures/` — PNG + SVG (+ GIF для 3D)
+- `tables/` — CSV (γ с QC: `min_dz_m=20`)
 - источник профилей: `gdex_outputs/far_east/stations/aldan/profiles_long.csv`
+
+Полная пересборка с QC γ также лежит в `sample_output_qc/` (зеркало). Если `tables/interval_gammas.csv` открыт в IDE и не перезаписывается, актуальный файл — `tables/interval_gammas_qc.csv`.
 
 ---
 

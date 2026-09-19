@@ -11,6 +11,7 @@ import pandas as pd
 from scipy.stats import kendalltau, theilslopes
 
 from .config import AnalysisConfig, InversionConfig, LayerClassConfig
+from .gamma_qc import add_gamma_qc
 
 _GAP_V3 = None
 
@@ -680,9 +681,39 @@ def _compute_inversion_layers_with_detector(
                 "embedded_gap_count", "embedded_gap_depth_total_m", "method",
             ]
         )
-    return pd.DataFrame.from_records(rows).sort_values(
+    out = pd.DataFrame.from_records(rows).sort_values(
         ["datetime_utc", "layer_index"]
     ).reset_index(drop=True)
+    return apply_gamma_qc_to_layers(out, config.layers)
+
+
+def apply_gamma_qc_to_layers(layers: pd.DataFrame, layer_cfg: LayerClassConfig) -> pd.DataFrame:
+    """Пометить тонкие слои и заменить gamma_c_per_100m на QC-версию."""
+    if layers.empty:
+        return layers
+    work = layers.copy()
+    # ΔT и depth уже есть; синтетические T дают тот же γ = 100·ΔT/depth.
+    work["_z_bottom"] = 0.0
+    work["_z_top"] = work["depth_m"]
+    work["_t_bottom"] = 0.0
+    work["_t_top"] = work["delta_t_c"]
+    qc = add_gamma_qc(
+        work,
+        z_bottom="_z_bottom",
+        z_top="_z_top",
+        t_bottom="_t_bottom",
+        t_top="_t_top",
+        min_dz_m=float(layer_cfg.gamma_min_dz_m),
+        review_abs_gamma=float(layer_cfg.gamma_review_abs_c_per_100m),
+    )
+    out = layers.copy()
+    out["gamma_raw_c_per_100m"] = qc["gamma_raw_c_per_100m"]
+    out["gamma_qc_c_per_100m"] = qc["gamma_qc_c_per_100m"]
+    out["gamma_qc_reason"] = qc["gamma_qc_reason"]
+    out["gamma_extreme_review"] = qc["gamma_extreme_review"]
+    out["gamma_min_dz_m"] = qc["gamma_min_dz_m"]
+    out["gamma_c_per_100m"] = qc["gamma_qc_c_per_100m"]
+    return out
 
 
 def profile_type_flags(layers: pd.DataFrame, profile_qc: pd.DataFrame) -> pd.DataFrame:
@@ -947,7 +978,7 @@ def compute_interval_gammas(
     profile_qc: pd.DataFrame,
     config: AnalysisConfig,
 ) -> pd.DataFrame:
-    """γ = 100·dT/dz по всем соседним интервалам пригодного профиля (и + и −)."""
+    """γ = 100·dT/dz по соседним интервалам; тонкие dz отфильтрованы QC."""
     profile_ids = df["profile_id"].astype(str).to_numpy()
     pressure_all = df["pressure_hpa"].to_numpy(float)
     temperature_all = df["temperature_c"].to_numpy(float)
@@ -971,26 +1002,44 @@ def compute_interval_gammas(
         z, t, _p = _collapse_duplicate_heights(height_all[idx][mask], temperature_all[idx][mask], p[mask])
         if z.size < 2:
             continue
-        dz = np.diff(z)
-        dt = np.diff(t)
-        ok = (dz > 0) & np.isfinite(dz) & np.isfinite(dt)
-        if not ok.any():
-            continue
-        gamma = 100.0 * dt[ok] / dz[ok]
         month = int(q["month"])
         year = int(q["year"])
-        for value in gamma:
+        for i in range(len(z) - 1):
             rows.append(
                 {
                     "profile_id": profile_id,
                     "year": year,
                     "month": month,
-                    "gamma_c_per_100m": float(value),
+                    "z_bottom_m": float(z[i]),
+                    "z_top_m": float(z[i + 1]),
+                    "t_bottom_c": float(t[i]),
+                    "t_top_c": float(t[i + 1]),
                 }
             )
+    empty_cols = [
+        "profile_id", "year", "month",
+        "z_bottom_m", "z_top_m", "t_bottom_c", "t_top_c",
+        "dz_m", "dt_c",
+        "gamma_raw_c_per_100m", "gamma_qc_c_per_100m", "gamma_c_per_100m",
+        "gamma_qc_reason", "gamma_extreme_review", "gamma_min_dz_m",
+    ]
     if not rows:
-        return pd.DataFrame(columns=["profile_id", "year", "month", "gamma_c_per_100m"])
-    return pd.DataFrame.from_records(rows)
+        return pd.DataFrame(columns=empty_cols)
+
+    raw_df = pd.DataFrame.from_records(rows)
+    qc = add_gamma_qc(
+        raw_df,
+        z_bottom="z_bottom_m",
+        z_top="z_top_m",
+        t_bottom="t_bottom_c",
+        t_top="t_top_c",
+        min_dz_m=float(config.layers.gamma_min_dz_m),
+        review_abs_gamma=float(config.layers.gamma_review_abs_c_per_100m),
+    )
+    # Обратная совместимость: климатологические графики читают gamma_c_per_100m.
+    qc["gamma_c_per_100m"] = qc["gamma_qc_c_per_100m"]
+    return qc
+
 
 
 def gamma_count_table(

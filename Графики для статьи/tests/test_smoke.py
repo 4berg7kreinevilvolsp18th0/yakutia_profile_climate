@@ -118,6 +118,57 @@ def test_negative_gamma_is_binned():
     assert int(table.loc[table["bin_left"] >= 0, "days"].sum()) == 1
 
 
+def test_add_gamma_qc_filters_thin_intervals():
+    import numpy as np
+    import pytest
+    from gdex_bufr.profile_climate.article_figures.gamma_qc import add_gamma_qc
+
+    df = pd.DataFrame(
+        {
+            "z_b": [0.0, 0.0, 0.0, np.nan],
+            "z_t": [5.0, 50.0, -1.0, 10.0],
+            "t_b": [0.0, 0.0, 0.0, 0.0],
+            "t_t": [2.0, 2.0, 1.0, 1.0],
+        }
+    )
+    out = add_gamma_qc(
+        df,
+        z_bottom="z_b",
+        z_top="z_t",
+        t_bottom="t_b",
+        t_top="t_t",
+        min_dz_m=20.0,
+        review_abs_gamma=20.0,
+    )
+    assert out.loc[0, "gamma_qc_reason"] == "thin_interval"
+    assert np.isnan(out.loc[0, "gamma_qc_c_per_100m"])
+    assert bool(out.loc[0, "gamma_extreme_review"])
+    assert out.loc[1, "gamma_qc_reason"] == "passes_dz_check"
+    assert out.loc[1, "gamma_qc_c_per_100m"] == pytest.approx(4.0)
+    assert out.loc[2, "gamma_qc_reason"] == "nonpositive_dz"
+    assert out.loc[3, "gamma_qc_reason"] == "missing_or_nonfinite"
+
+
+def test_apply_gamma_qc_to_layers():
+    import numpy as np
+    import pytest
+    from gdex_bufr.profile_climate.article_figures.config import LayerClassConfig
+    from gdex_bufr.profile_climate.article_figures.metrics import apply_gamma_qc_to_layers
+
+    layers = pd.DataFrame(
+        {
+            "depth_m": [5.0, 50.0],
+            "delta_t_c": [2.0, 2.0],
+            "gamma_c_per_100m": [40.0, 4.0],
+        }
+    )
+    cfg = LayerClassConfig(gamma_min_dz_m=20.0, gamma_review_abs_c_per_100m=20.0)
+    out = apply_gamma_qc_to_layers(layers, cfg)
+    assert np.isnan(out.loc[0, "gamma_c_per_100m"])
+    assert out.loc[0, "gamma_qc_reason"] == "thin_interval"
+    assert out.loc[1, "gamma_c_per_100m"] == pytest.approx(4.0)
+
+
 def test_height_bins_keep_overflow_and_empty_slots():
     from gdex_bufr.profile_climate.article_figures.config import AnalysisConfig
     from gdex_bufr.profile_climate.article_figures.metrics import height_count_table
