@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 from typing import Any
 
 from gdex_bufr.profile_climate.inversion import (
@@ -100,14 +101,14 @@ def _empty_metrics(n_levels_total: int, status: str) -> dict[str, Any]:
 def _find_qc_status(levels: list[dict[str, Any]]) -> str | None:
     """Быстрые проверки брака. None = профиль можно считать дальше."""
     pressures = [lv.get("pressure_hpa") for lv in levels]
-    if any(p is None or p <= 0 for p in pressures):
+    if any(p is None or not math.isfinite(p) or p <= 0 for p in pressures):
         return PROFILE_STATUS_BAD_PRESSURE
 
     valid_p = [p for p in pressures if p is not None]
     if len(set(round(p, 2) for p in valid_p)) != len(valid_p):
         return PROFILE_STATUS_DUPLICATE_LEVELS
 
-    if any(lv.get("temperature_c") is None for lv in levels):
+    if any(lv.get("temperature_c") is None or not math.isfinite(lv["temperature_c"]) for lv in levels):
         return PROFILE_STATUS_NO_TEMP
 
     return None

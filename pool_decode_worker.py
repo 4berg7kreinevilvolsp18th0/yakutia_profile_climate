@@ -42,13 +42,9 @@ def _ensure_worker(
 
     ensure_meteo_parser_import((Path(project_root) / "../meteo_parser").resolve())
 
-    # meteo_parser тоже содержит gdex_bufr — наш пакет должен быть первым
-    while root in sys.path:
-        sys.path.remove(root)
-    sys.path.insert(0, root)
-    for key in list(sys.modules):
-        if key == "gdex_bufr" or key.startswith("gdex_bufr."):
-            del sys.modules[key]
+    # Модуль оставлен для старых внешних вызовов. Новый CLI использует
+    # gdex_bufr.profile_climate.decode_worker с явным initializer.
+    # Внешний meteo_parser добавляется в конец пути и не подменяет наш пакет.
 
     registry = init_decoder_tables({
         "directory": tables_dir,

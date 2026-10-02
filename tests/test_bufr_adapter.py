@@ -8,6 +8,7 @@ import pytest
 from gdex_bufr.bufr_adapter import _decode_adpupa_flat_levels, _normalize_pressure
 from gdex_bufr.meteo_parser_bridge import RadiosondeProfile, VerticalLevel
 from gdex_bufr.pybufrkit_check import profile_decode_qc
+from gdex_bufr import bufr_adapter
 
 
 class _Registry:
@@ -32,6 +33,29 @@ class _TemplateData:
 def _message(descriptor_ids: list[int], values: list[float | int | None]) -> SimpleNamespace:
     template_data = _TemplateData(descriptor_ids, values)
     return SimpleNamespace(template_data=SimpleNamespace(value=template_data))
+
+
+def test_station_filter_fast_path_selects_all_matching_subsets(monkeypatch):
+    message = _message([1001, 1002, 7004], [31, 4, 90000])
+    data = message.template_data.value
+    data.decoded_descriptors_all_subsets *= 3
+    data.decoded_values_all_subsets = [[31, 4, 90000], [24, 959, 80000], [31, 4, 85000]]
+    def unexpected_query(*args):
+        pytest.fail("Полный обход не нужен при доступном заголовке")
+    monkeypatch.setattr(bufr_adapter, "_query_values", unexpected_query)
+    assert bufr_adapter._message_subset_indices(message, 3, station_id="31004") == [0, 2]
+    assert bufr_adapter._message_subset_indices(message, 3, station_id={"31004", "24959"}) == [0, 1, 2]
+
+
+def test_station_filter_uses_safe_fallback_for_missing_header(monkeypatch):
+    message = _message([7004], [90000])
+    called = []
+    def query(message, descriptor):
+        called.append(descriptor)
+        return {0: [31 if descriptor == bufr_adapter.DESC_WMO_BLOCK else 4]}
+    monkeypatch.setattr(bufr_adapter, "_query_values", query)
+    assert bufr_adapter._message_subset_indices(message, 1, station_id="31004") == [0]
+    assert len(called) == 2
 
 
 @pytest.mark.parametrize(

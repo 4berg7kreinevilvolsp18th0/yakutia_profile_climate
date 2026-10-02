@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib
 import json
 import sys
 from datetime import date, datetime
@@ -51,9 +50,6 @@ from gdex_bufr.profile_climate.obs_qc import (  # noqa: E402
 from gdex_bufr.profile_climate.config import load_profile_climate_config  # noqa: E402
 from gdex_bufr.profile_climate import inversion as _inversion_mod  # noqa: E402
 from gdex_bufr.profile_climate.paths import catalog_station_dir  # noqa: E402
-
-# Streamlit может держать старый inversion.py в sys.modules.
-_inversion_mod = importlib.reload(_inversion_mod)
 
 
 def _v3_cfg_dict() -> dict[str, Any]:
@@ -1106,8 +1102,8 @@ def _qc_table_rows(enabled_obs: list[dict]) -> tuple[list[dict], dict[str, int],
 
 
 def main() -> None:
-    st.set_page_config(page_title="Aldan profile dashboard", layout="wide")
-    st.title("Алдан — профили наблюдений")
+    st.set_page_config(page_title="Профили аэрологических станций", layout="wide")
+    st.title("Профили наблюдений")
     st.caption(
         "Одна кривая = один зонд (срок). По умолчанию показаны все исходные уровни "
         "без предварительной QC-фильтрации. Фильтры и исключение выбросов применяются только вручную."
@@ -1117,8 +1113,7 @@ def main() -> None:
     data_file = Path(data_path)
     if LEGACY_DATA.exists():
         st.sidebar.caption(f"Эталон (legacy): {LEGACY_DATA}")
-    if not data_file.exists() and LEGACY_DATA.exists():
-        data_file = LEGACY_DATA
+    # Явно выбранный отсутствующий файл не заменяем данными другой станции.
     if not data_file.exists():
         st.error(
             "Нет файла данных. Сначала выполните:\n\n"
@@ -1151,6 +1146,10 @@ def main() -> None:
             st.rerun()
         return
 
+    st.subheader(str(data.get("station_name") or "Станция не указана"))
+    if not isinstance(data.get("months"), dict):
+        st.error("В JSON отсутствует корректный словарь месяцев.")
+        return
     months = sorted(data["months"].keys())
     if not months:
         st.error("В JSON нет месяцев.")
@@ -1663,7 +1662,7 @@ def main() -> None:
         show_inv_from_top=show_inv_from_top,
         show_v3_layers=show_v3_layers,
         mean=mean,
-        station_name=str(data.get("station_name", "Aldan")),
+        station_name=str(data.get("station_name") or "Станция не указана"),
         month_key=month_key,
         v3_layers_override=v3_override,
         color_by_class=color_by_class,

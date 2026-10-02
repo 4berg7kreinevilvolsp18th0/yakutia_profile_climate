@@ -13,6 +13,8 @@ import streamlit as st
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+if str(ROOT.parent) not in sys.path:
+    sys.path.insert(0, str(ROOT.parent))
 
 from gdex_bufr.profile_climate.article_figures.config import AnalysisConfig, FigureStyle, InversionConfig
 from gdex_bufr.profile_climate.article_figures.data import build_profile_qc, compute_completeness, load_profiles

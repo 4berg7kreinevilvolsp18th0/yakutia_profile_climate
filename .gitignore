@@ -54,4 +54,10 @@ gdex_outputs/актуальное/decoded_levels.csv
 gdex_outputs/результаты-алдан/decoded_levels.csv
 gdex_outputs/результаты-алдан-прогон_20260806_022516/decoded_levels.csv
 gdex_outputs/актуальное/decoded_levels.csv
-палаплалпаладамлмбамдьмьсльаваьоулжл лл
+# Новые прогоны и восстанавливаемый архив аудита — локальные результаты.
+/gdex_outputs/runs/
+/gdex_outputs/audit_*/
+*.csv.pending
+/.venv-decoders/
+/.decoder-runtime/
+/gdex_outputs/decoder_comparison/

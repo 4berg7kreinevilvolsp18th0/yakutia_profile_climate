@@ -1,0 +1,15 @@
+name: bufr-comparison
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - nceplibs-bufr=12.3.0
+  - python-eccodes
+  - numpy
+  - pandas
+  - pyyaml
+  - metpy
+  - pytest
+  - pip
+  - pip:
+      - pybufrkit==0.2.25

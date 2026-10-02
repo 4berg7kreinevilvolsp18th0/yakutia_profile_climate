@@ -150,7 +150,8 @@ def _decode_station_file(
     profiles = decode_bufr_file(
         bufr_path,
         station_id=station_id,
-        max_profiles=1,
+        # В одном BUFR может быть несколько сроков и дополнений одной станции.
+        max_profiles=None,
         registry=registry,
         decode_mode=decode_mode,
         decoder=_thread_decoder(registry),

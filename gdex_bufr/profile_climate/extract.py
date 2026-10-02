@@ -372,10 +372,16 @@ def process_profile(
     min_levels_to_500: int = 5,
     min_inversion_delta_c: float = 0.2,
     registry: BufrTablesRegistry | None = None,
+    output_mode: str = "audit",
+    confirm_drop_levels: int = 2,
+    confirm_depth_hpa: float = 30.0,
+    min_drop_delta_c: float = 0.2,
 ) -> tuple[list[dict[str, Any]], dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
     """Извлекает long, метрики, decoded_levels (+types) и debufr_elements."""
+    if output_mode not in {"climate", "decoded", "audit"}:
+        raise ValueError(f"Неизвестный режим выгрузки: {output_mode}")
     reg = registry or get_registry()
-    type_ann = level_type_annotations(reg)
+    type_ann = level_type_annotations(reg) if output_mode != "climate" else {}
 
     station_id = normalize_station_id(profile.station_id)
     datetime_utc, year, month = profile_datetime_parts(profile.report_datetime_utc)
@@ -408,6 +414,9 @@ def process_profile(
         min_levels_to_500=min_levels_to_500,
         min_inversion_delta_c=min_inversion_delta_c,
         n_levels_total=len(profile.levels),
+        confirm_drop_levels=confirm_drop_levels,
+        confirm_depth_hpa=confirm_depth_hpa,
+        min_drop_delta_c=min_drop_delta_c,
     )
     metrics["station_elevation_m"] = station_z
 
@@ -441,6 +450,8 @@ def process_profile(
     }
 
     decoded_rows: list[dict[str, Any]] = []
+    if output_mode == "climate":
+        return long_rows, metric_row, decoded_rows, []
     for row in extract_decoded_levels(
         profile,
         registry=reg,
@@ -457,5 +468,5 @@ def process_profile(
         profile,
         profile_id=profile_id,
         station_name=station_name or "",
-    )
+    ) if output_mode == "audit" else []
     return long_rows, metric_row, decoded_rows, element_rows

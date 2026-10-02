@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+import re
 
 
 @dataclass
@@ -63,10 +64,20 @@ class StationsCatalog:
 
 
 def _station_from_raw(item: dict) -> StationConfig:
+    station_id = str(item["id"])
+    slug = str(item["slug"])
+    if not station_id.isdigit() or not 1 <= len(station_id) <= 5:
+        raise ValueError(f"Индекс ВМО должен содержать до пяти цифр: {station_id!r}")
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", slug):
+        raise ValueError(f"Недопустимый slug станции: {slug!r}")
     elev = item.get("elevation_m")
     lat = item.get("latitude_deg", item.get("lat"))
     lon = item.get("longitude_deg", item.get("lon"))
     enabled = item.get("enabled", True)
+    if isinstance(enabled, str):
+        if enabled.lower() not in {"true", "false"}:
+            raise ValueError(f"enabled для {slug} должен быть true или false")
+        enabled = enabled.lower() == "true"
     return StationConfig(
         id=str(item["id"]),
         slug=str(item["slug"]),
@@ -81,14 +92,26 @@ def _station_from_raw(item: dict) -> StationConfig:
 
 def load_stations_catalog(path: str | Path = "stations_catalog.yaml") -> StationsCatalog:
     config_path = Path(path)
+    if str(path) == "stations_catalog.yaml" and not config_path.exists():
+        config_path = Path(__file__).resolve().parents[2] / "stations_catalog.yaml"
     if not config_path.exists():
         return StationsCatalog()
     raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
-    items = raw.get("stations", raw if isinstance(raw, list) else [])
+    items = raw if isinstance(raw, list) else raw.get("stations", [])
+    settings = raw if isinstance(raw, dict) else {}
+    stations = [_station_from_raw(item) for item in items]
+    ids = [s.station_id for s in stations]
+    if len(ids) != len(set(ids)):
+        raise ValueError("Каталог содержит повторяющиеся индексы ВМО")
+    for station in stations:
+        if station.latitude_deg is not None and not -90 <= station.latitude_deg <= 90:
+            raise ValueError(f"Широта станции {station.slug} вне диапазона")
+        if station.longitude_deg is not None and not -180 <= station.longitude_deg <= 180:
+            raise ValueError(f"Долгота станции {station.slug} вне диапазона")
     return StationsCatalog(
-        stations=[_station_from_raw(item) for item in items],
-        default_region=str(raw.get("default_region") or "far_east"),
-        default_station=str(raw.get("default_station") or "aldan"),
+        stations=stations,
+        default_region=str(settings.get("default_region") or "far_east"),
+        default_station=str(settings.get("default_station") or "aldan"),
     )
 
 

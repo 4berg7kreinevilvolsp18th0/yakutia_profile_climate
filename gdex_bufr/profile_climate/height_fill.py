@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Any, Sequence
+import math
 
 import numpy as np
 
@@ -62,7 +63,7 @@ def _finite(value: Any) -> float | None:
         f = float(value)
     except (TypeError, ValueError):
         return None
-    if f != f:  # NaN
+    if not math.isfinite(f):
         return None
     return f
 

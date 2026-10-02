@@ -231,9 +231,13 @@ def interpolate_observation(
 
 
 def _nan_stat(values: np.ndarray, axis: int, stat: Statistic) -> np.ndarray:
-    if stat == "median":
-        return np.nanmedian(values, axis=axis)
-    return np.nanmean(values, axis=axis)
+    # Пустой уровень остаётся NaN. Не заставляем numpy считать среднее пустоты.
+    import warnings
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=".*(empty slice|All-NaN slice).*", category=RuntimeWarning)
+        if stat == "median":
+            return np.nanmedian(values, axis=axis)
+        return np.nanmean(values, axis=axis)
 
 
 def _apply_min_count(
@@ -258,14 +262,19 @@ def compute_method_a_on_stack(
         empty = np.full(n, np.nan)
         return empty, empty, empty, empty, empty, np.zeros(n, dtype=int)
 
-    counted = np.sum(~np.isnan(stack), axis=0)
-    central = _nan_stat(stack, axis=0, stat=statistic)
-    median = np.nanmedian(stack, axis=0)
-    q25 = np.nanpercentile(stack, 25, axis=0)
-    q75 = np.nanpercentile(stack, 75, axis=0)
-    std = np.nanstd(stack, axis=0)
-    central = _apply_min_count(central, counted, min_samples)
-    return central, median, q25, q75, std, counted.astype(int)
+    stack = np.where(np.isfinite(stack), stack, np.nan)
+    counted = np.sum(np.isfinite(stack), axis=0)
+    present = counted > 0
+    stats = [np.full(stack.shape[1], np.nan) for _ in range(5)]
+    if present.any():
+        values = stack[:, present]
+        stats[0][present] = _nan_stat(values, axis=0, stat=statistic)
+        stats[1][present] = np.nanmedian(values, axis=0)
+        stats[2][present] = np.nanpercentile(values, 25, axis=0)
+        stats[3][present] = np.nanpercentile(values, 75, axis=0)
+        stats[4][present] = np.nanstd(values, axis=0)
+    # Порог выборки одинаков для центральной кривой и полосы разброса.
+    return (*[_apply_min_count(s, counted, min_samples) for s in stats], counted.astype(int))
 
 
 def compute_method_b_on_year_month_profiles(
@@ -283,16 +292,9 @@ def compute_method_b_on_year_month_profiles(
             np.array([]),
             np.array([]),
         )
-    stack = np.vstack(ym_profiles)
-    counted = np.full(stack.shape[1], stack.shape[0], dtype=int)
-    central = _nan_stat(stack, axis=0, stat=statistic)
-    median = np.nanmedian(stack, axis=0)
-    q25 = np.nanpercentile(stack, 25, axis=0)
-    q75 = np.nanpercentile(stack, 75, axis=0)
-    std = np.nanstd(stack, axis=0)
-    valid_levels = np.sum(~np.isnan(stack), axis=0)
-    central = _apply_min_count(central, valid_levels, min_year_months)
-    return central, median, q25, q75, std, counted
+    # N — число месяцев с реальным значением именно на этом уровне.
+    return compute_method_a_on_stack(np.vstack(ym_profiles), statistic=statistic,
+                                     min_samples=min_year_months)
 
 
 def _year_month_mean_from_pairs(
@@ -303,7 +305,7 @@ def _year_month_mean_from_pairs(
     for ym, row in pairs:
         groups.setdefault(ym, []).append(row)
     return {
-        ym: np.nanmean(np.vstack(rows), axis=0)
+        ym: _nan_stat(np.vstack(rows), axis=0, stat="mean")
         for ym, rows in groups.items()
         if rows
     }

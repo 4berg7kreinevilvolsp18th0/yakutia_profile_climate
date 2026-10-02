@@ -6,12 +6,9 @@ from pathlib import Path
 
 _ARTICLE = Path(__file__).resolve().parents[1]
 _PROJECT = _ARTICLE.parent
-for name in list(sys.modules):
-    if name == "gdex_bufr" or name.startswith("gdex_bufr."):
-        del sys.modules[name]
-while str(_PROJECT) in sys.path:
-    sys.path.remove(str(_PROJECT))
-sys.path.insert(0, str(_ARTICLE))
+for directory in (_PROJECT, _ARTICLE):
+    if str(directory) not in sys.path:
+        sys.path.append(str(directory))
 
 import numpy as np
 import pandas as pd

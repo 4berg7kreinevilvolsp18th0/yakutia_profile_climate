@@ -42,7 +42,7 @@ def interpolate_temperature_profile(
     """
     p = _as_float_array(pressure)
     t = _as_float_array(temperature)
-    if p is None or t is None or len(p) < 2 or len(t) < 2:
+    if p is None or t is None or len(p) != len(t) or len(p) < 2:
         return np.full(np.asarray(target_grid).shape, np.nan, dtype=float)
 
     if coordinate == "pressure":
@@ -53,13 +53,13 @@ def interpolate_temperature_profile(
             return np.full(np.asarray(target_grid).shape, np.nan, dtype=float)
         coord = h
 
-    valid = ~np.isnan(coord) & ~np.isnan(t)
+    valid = np.isfinite(coord) & np.isfinite(t)
     if valid.sum() < 2:
         return np.full(np.asarray(target_grid).shape, np.nan, dtype=float)
 
     x = coord[valid]
     y = t[valid]
-    order = np.argsort(x)
+    order = np.argsort(x, kind="stable")
     x_sorted = x[order]
     y_sorted = y[order]
 

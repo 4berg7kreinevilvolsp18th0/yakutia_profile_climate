@@ -175,3 +175,12 @@ def test_dashboard_reports_broken_json(tmp_path):
 
     assert not app.exception
     assert any("Не удалось прочитать" in e.value for e in app.error)
+
+
+def test_dashboard_does_not_substitute_missing_station_file(tmp_path):
+    from streamlit.testing.v1 import AppTest
+
+    app = AppTest.from_file(str(DASHBOARD), default_timeout=60).run()
+    app.sidebar.text_input[0].set_value(str(tmp_path / "unknown_station.json")).run()
+    assert not app.exception
+    assert any("Нет файла данных" in e.value for e in app.error)

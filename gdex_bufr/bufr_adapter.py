@@ -576,13 +576,13 @@ def _message_header_metadata(message: Any) -> dict[str, Any]:
     return meta
 
 # Итерация по сообщениям BUFR (генерация сообщений из байтового потока)
-def _iter_messages(decoder, raw: bytes):
+def _iter_messages(decoder, raw: bytes, *, strict: bool = False):
     from pybufrkit import decoder as dec_mod
 
     if hasattr(dec_mod, "generate_bufr_messages"):
-        yield from dec_mod.generate_bufr_messages(decoder, raw, continue_on_error=True)
+        yield from dec_mod.generate_bufr_messages(decoder, raw, continue_on_error=not strict)
     else:
-        yield from dec_mod.generate_bufr_message(decoder, raw, continue_on_error=True)
+        yield from dec_mod.generate_bufr_message(decoder, raw, continue_on_error=not strict)
 
 # Проверяю, является ли сообщение наблюдением (данные категории 2 и есть subset)
 def _is_observation_message(message: Any) -> bool:
@@ -609,6 +609,9 @@ def decode_bufr_file(
     registry: BufrTablesRegistry | None = None,
     decode_mode: str = "adpupa",
     decoder: Any | None = None,
+    collect_elements: bool = True,
+    strict: bool = False,
+    fast_station_filter: bool = True,
 ) -> list[RadiosondeProfile]:
     import contextlib
     import io
@@ -622,6 +625,9 @@ def decode_bufr_file(
             registry=registry,
             decode_mode=decode_mode,
             decoder=decoder,
+            collect_elements=collect_elements,
+            strict=strict,
+            fast_station_filter=fast_station_filter,
         )
 
 
@@ -639,11 +645,38 @@ def _message_subset_indices(
     n_subsets: int,
     *,
     station_id: str | set[str] | None,
+    fast: bool = True,
 ) -> list[int]:
     """Какие subset декодировать: все или только совпадающие с WMO station_id."""
     wanted = _station_filter_set(station_id)
     if wanted is None:
         return list(range(n_subsets))
+
+    if fast:
+        # Для поиска станции достаточно двух полей заголовка. Прежний запрос
+        # рекурсивно обходил все уровни каждого зонда дважды в каждом сообщении.
+        # При неоднозначном заголовке оставляем проверенный иерархический путь.
+        try:
+            data = message.template_data.value
+            selected = []
+            for index in range(n_subsets):
+                values = {}
+                for descriptor, value in zip(data.decoded_descriptors_all_subsets[index],
+                                             data.decoded_values_all_subsets[index]):
+                    if descriptor.id in (1001, 1002) and descriptor.id not in values:
+                        values[descriptor.id] = value
+                    if len(values) == 2:
+                        break
+                block, station = values.get(1001), values.get(1002)
+                if _is_missing(block) or _is_missing(station):
+                    raise ValueError("Неоднозначный заголовок станции")
+                if block is None or station is None:
+                    raise ValueError("Нет индекса ВМО")
+                if f"{int(block):02d}{int(station):03d}" in wanted:
+                    selected.append(index)
+            return selected
+        except (AttributeError, IndexError, TypeError, ValueError, OverflowError):
+            pass
 
     block_map = _query_values(message, DESC_WMO_BLOCK)
     station_map = _query_values(message, DESC_WMO_STATION)
@@ -663,6 +696,9 @@ def _decode_bufr_file_impl(
     registry: BufrTablesRegistry | None = None,
     decode_mode: str = "adpupa",
     decoder: Any | None = None,
+    collect_elements: bool = True,
+    strict: bool = False,
+    fast_station_filter: bool = True,
 ) -> list[RadiosondeProfile]:
     registry = registry or get_registry()
     decoder = decoder or _make_decoder(registry)
@@ -670,13 +706,16 @@ def _decode_bufr_file_impl(
     profiles: list[RadiosondeProfile] = []
     extra_descriptors = FULL_DECODE_EXTRA_DESCRIPTORS if decode_mode == "full" else ()
 
-    for message in _iter_messages(decoder, raw):
+    # В строгом режиме повреждённое сообщение не превращается в «нет станции».
+    message_count = 0
+    for message in _iter_messages(decoder, raw, strict=strict):
+        message_count += 1
         if not _is_observation_message(message):
             continue
         from pybufrkit.mdquery import MetadataExprParser, MetadataQuerent
 
         n_subsets = int(MetadataQuerent(MetadataExprParser()).query(message, "%n_subsets") or 0)
-        subset_indices = _message_subset_indices(message, n_subsets, station_id=station_id)
+        subset_indices = _message_subset_indices(message, n_subsets, station_id=station_id, fast=fast_station_filter)
         if not subset_indices:
             continue
 
@@ -698,6 +737,7 @@ def _decode_bufr_file_impl(
                 decode_mode=decode_mode,
                 header_meta=header_meta,
                 query_cache=query_cache,
+                collect_elements=collect_elements,
             )
             wanted = _station_filter_set(station_id)
             if wanted is not None and profile.station_id not in wanted:
@@ -707,6 +747,8 @@ def _decode_bufr_file_impl(
                 return profiles
             # Не выходим после первого hit станции: в файле могут быть
             # несколько сроков/subset одной WMO (дополнения, 00+12 в одном сообщении).
+    if strict and message_count == 0:
+        raise ValueError(f"В {path.name} нет читаемых BUFR-сообщений")
     return profiles
 
 
@@ -895,6 +937,7 @@ def _decode_subset_metadata(
     temps: list[float | None],
     wind_speeds: list[float],
     enrichment_meta: dict[str, Any],
+    collect_elements: bool = True,
 ) -> dict[str, Any]:
     """Метаданные subset: coded fields, debufr dump, QC-статус."""
     coded_metadata: dict[str, Any] = {}
@@ -935,7 +978,8 @@ def _decode_subset_metadata(
         metadata["station_elevation_m"] = station_elevation_m
         metadata["station_height_fxy"] = DESC_STATION_HEIGHT
 
-    debufr_elements = _collect_debufr_elements(message, subset_index, registry)
+    # Полный дамп нужен для проверки дескрипторов, но не для климатических расчётов.
+    debufr_elements = _collect_debufr_elements(message, subset_index, registry) if collect_elements else []
     if debufr_elements:
         metadata["debufr_elements"] = debufr_elements
     if coded_metadata:
@@ -978,6 +1022,7 @@ def _decode_subset(
     decode_mode: str,
     header_meta: dict[str, Any],
     query_cache: dict[str, dict[int, list[Any]]] | None = None,
+    collect_elements: bool = True,
 ) -> RadiosondeProfile:
     lat_deg, lon_deg, station_id, report_dt, station_elevation_m = _decode_subset_header(
         message,
@@ -1021,6 +1066,7 @@ def _decode_subset(
         temps=temps,
         wind_speeds=wind_speeds,
         enrichment_meta=enrichment_meta,
+        collect_elements=collect_elements,
     )
 
     return RadiosondeProfile(

@@ -324,7 +324,8 @@ def ensure_meteo_parser_import(meteo_parser_path: Path | None) -> Path | None:
         return None
     path_str = str(path)
     if path_str not in sys.path:
-        sys.path.insert(0, path_str)
+        # Внешние вспомогательные модули не должны подменять наш gdex_bufr.
+        sys.path.append(path_str)
     return path
 
 
