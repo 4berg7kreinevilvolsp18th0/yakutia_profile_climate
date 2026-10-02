@@ -9,6 +9,7 @@
 Новый возобновляемый прогон по станциям и регионам:
 [декодирование и расширение сети](docs/DECODING_AND_STATIONS.md).
 Результаты проверки: [аудит 02.10.2026](docs/AUDIT_2026-10-02.md).
+Три движка и воспроизводимое сравнение: [pybufrkit, ecCodes, BUFRLIB](docs/DECODER_COMPARISON.md).
 
 Гайд по архитектуре и высотам (для объяснений): [docs/HEIGHT_ARCHITECTURE_GUIDE.md](docs/HEIGHT_ARCHITECTURE_GUIDE.md)  
 Методы/формулы (статья): [docs/METHODS_HEIGHT_INVERSION.md](docs/METHODS_HEIGHT_INVERSION.md)

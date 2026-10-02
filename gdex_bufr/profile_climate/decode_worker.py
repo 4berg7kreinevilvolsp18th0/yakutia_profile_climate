@@ -26,15 +26,16 @@ def initialize(options: dict) -> None:
 
 
 def decode_file(filename: str) -> dict:
-    from gdex_bufr.bufr_adapter import decode_bufr_file
+    from gdex_bufr.decoder_backends import decode
     from gdex_bufr.profile_climate.extract import process_profile
 
     started = time.perf_counter()
     try:
         path = Path(filename)
         mode = _context["output_mode"]
-        profiles = decode_bufr_file(
+        profiles = decode(
             path, station_id=set(_context["names"]), registry=_context["registry"],
+            backend=_context.get("backend", "pybufrkit"),
             decoder=_context["decoder"], decode_mode=_context["decode_mode"],
             collect_elements=mode == "audit", strict=_context["strict"],
             fast_station_filter=_context["fast_station_filter"],

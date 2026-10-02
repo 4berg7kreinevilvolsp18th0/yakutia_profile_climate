@@ -47,10 +47,21 @@ def decode_file(path, *, station_id=None, registry=None, collect_elements=False)
                     if ec.codes_get(message, "compressedData"):
                         raise ValueError("Сжатый ADPUPA пока не проверен ecCodes-адаптером")
                     ec.codes_set(message, "unpack", 1)
-                    blocks = ec.codes_get_array(message, "d001001")
-                    stations = ec.codes_get_array(message, "d001002")
-                    selected = {i for i, (b, s) in enumerate(zip(blocks, stations))
-                                if wanted is None or f"{int(b):02d}{int(s):03d}" in wanted}
+                    if not ec.codes_is_defined(message, "d001001") or not ec.codes_is_defined(message, "d001002"):
+                        if wanted is not None:
+                            continue
+                        raise ValueError("Наблюдение без индекса ВМО: нужен явный фильтр станций")
+                    # Индекс ВМО может повторяться внутри subset. Нельзя считать
+                    # каждый элемент общего массива отдельным профилем.
+                    selected = set()
+                    for i in range(subsets):
+                        prefix = f"/subsetNumber={i + 1}/" if subsets > 1 else ""
+                        blocks = ec.codes_get_array(message, prefix + "d001001")
+                        stations = ec.codes_get_array(message, prefix + "d001002")
+                        b = next((v for v in blocks if v != ec.CODES_MISSING_LONG and abs(v) < 1e99), None)
+                        s = next((v for v in stations if v != ec.CODES_MISSING_LONG and abs(v) < 1e99), None)
+                        if b is not None and s is not None and (wanted is None or f"{int(b):02d}{int(s):03d}" in wanted):
+                            selected.add(i)
                     if not selected:
                         continue
                     iterator = ec.codes_bufr_keys_iterator_new(message)

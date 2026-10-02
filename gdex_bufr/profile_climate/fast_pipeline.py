@@ -44,6 +44,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--checkpoint-every", type=positive_integer, default=200,
                    help="Интервал вывода прогресса; данные сохраняются после каждого файла")
     p.add_argument("--output-mode", choices=("climate", "decoded", "audit"), default="climate")
+    p.add_argument("--decoder", choices=("pybufrkit", "eccodes", "ncepbufr"), default="pybufrkit",
+                   help="Движок BUFR; нативные варианты экспериментальные, нужны отдельные зависимости")
     p.add_argument("--strict", action=argparse.BooleanOptionalAction, default=True,
                    help="Считать ошибку BUFR-сообщения ошибкой всего файла")
     p.add_argument("--xlsx", action="store_true", help="Дополнительно собрать Excel по станциям")
@@ -88,7 +90,10 @@ def process_pending(paths, store, options: dict, args) -> None:
     started = time.perf_counter()
     processed = 0
     iterator = iter(paths)
-    with ProcessPoolExecutor(max_workers=args.workers, initializer=initialize, initargs=(options,)) as pool:
+    # ecCodes кэширует локальные таблицы глобально. Новый процесс на файл
+    # исключает использование таблицы предыдущего файла с тем же номером.
+    lifecycle = {"max_tasks_per_child": 1} if args.decoder == "eccodes" else {}
+    with ProcessPoolExecutor(max_workers=args.workers, initializer=initialize, initargs=(options,), **lifecycle) as pool:
         futures = {}
         def submit(path, attempt=0):
             futures[pool.submit(decode_file, str(path))] = (path, fingerprint(path), attempt)
@@ -128,6 +133,15 @@ def run(args) -> int:
     from run_fast_extract import _acquire_output_lock, _release_output_lock
 
     cfg = load_config(args.config)
+    from gdex_bufr.decoder_backends import backend_version
+    try:
+        selected_version = backend_version(args.decoder)
+    except ImportError as exc:
+        raise ValueError(f"Декодер {args.decoder} не установлен в этом Python; см. decoder-environment.yml") from exc
+    if args.decoder != "pybufrkit" and args.output_mode == "audit":
+        raise ValueError("Нативные адаптеры поддерживают climate/decoded, но не полный дамп audit")
+    if args.decoder != "pybufrkit" and (cfg.decode_mode != "adpupa" or not args.strict):
+        raise ValueError("Нативные адаптеры пока требуют decode_mode=adpupa и --strict")
     pc = load_profile_climate_config(args.profile_config)
     if args.retries < 0:
         raise ValueError("--retries не может быть отрицательным")
@@ -177,6 +191,7 @@ def run(args) -> int:
                  "input": str(cfg.data_dir), "start": str(start), "end": str(end),
                  "cycles": cycles, "output_mode": args.output_mode, "strict": args.strict,
                  "fast_station_filter": args.fast_station_filter,
+                 "decoder": args.decoder, "decoder_version": selected_version,
                  "tables": tables, "tables_sha256": table_digest.hexdigest(), "decode_mode": cfg.decode_mode,
                  "code_sha256": digest.hexdigest(), "pybufrkit": version("pybufrkit")}
     name = next(iter(slugs.values())) if len(set(slugs.values())) == 1 else (args.region or pc.default_region)
@@ -205,6 +220,7 @@ def run(args) -> int:
             options = {"names": names, "elevations": {s.station_id: s.elevation_m for s in pc.stations if s.elevation_m is not None},
                        "tables": tables, "science": science, "decode_mode": cfg.decode_mode,
                        "output_mode": args.output_mode, "strict": args.strict,
+                       "backend": args.decoder,
                        "fast_station_filter": args.fast_station_filter, "parts_dir": str(output / "parts")}
             process_pending(pending, store, options, args)
         summary = export_store(store, output, config=signature, station_slugs=slugs,

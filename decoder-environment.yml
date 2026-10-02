@@ -4,7 +4,8 @@ channels:
 dependencies:
   - python=3.12
   - nceplibs-bufr=12.3.0
-  - python-eccodes
+  - python-eccodes=2.49.0
+  - eccodes=2.49.0
   - numpy
   - pandas
   - pyyaml
